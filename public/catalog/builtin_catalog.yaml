@@ -1,0 +1,94 @@
+# ============================================================
+# 变形虫 (Amiba) — Built-in Catalog
+# ============================================================
+components:
+  - type: container
+    description: 通用容器
+    is_container: true
+    props:
+      direction:    { type: enum, enum: [vertical, horizontal], default: vertical }
+      padding:      { type: size }
+      margin:       { type: size }
+      backgroundColor: { type: color }
+      borderRadius: { type: number }
+      alignment:    { type: enum, enum: [start, center, end, stretch] }
+      spacing:      { type: size }
+
+  - type: scroll
+    description: 可滚动容器
+    is_container: true
+    props:
+      direction:   { type: enum, enum: [vertical, horizontal] }
+      scrollbars:  { type: boolean, default: false }
+
+  - type: card
+    description: 卡片容器
+    is_container: true
+    props:
+      elevation:   { type: number, default: 2 }
+      borderRadius: { type: number, default: 12 }
+      padding:     { type: size }
+
+  - type: text
+    description: 文本
+    props:
+      content: { type: string, required: true }
+      size:    { type: number, default: 16 }
+      color:   { type: color }
+      weight:  { type: enum, enum: [normal, bold, light] }
+      align:   { type: enum, enum: [left, center, right] }
+      maxLines: { type: number }
+
+  - type: button
+    description: 按钮
+    props:
+      label:    { type: string, required: true }
+      variant:  { type: enum, enum: [primary, secondary, outline, ghost], default: primary }
+      size:     { type: enum, enum: [small, medium, large], default: medium }
+      disabled: { type: boolean, default: false }
+    events: [onTap]
+
+  - type: input
+    description: 输入框
+    props:
+      type:        { type: enum, enum: [text, password, number, email, multiline] }
+      placeholder: { type: string }
+      value:       { type: string }
+      maxLength:   { type: number }
+    events: [onChange, onSubmit]
+
+  - type: image
+    description: 图片
+    props:
+      src:   { type: string, required: true }
+      fit:   { type: enum, enum: [cover, contain, fill, none], default: cover }
+      width:  { type: size }
+      height: { type: size }
+    events: [onTap]
+
+  - type: list
+    description: 列表容器
+    is_container: true
+    props:
+      direction: { type: enum, enum: [vertical, horizontal] }
+      itemSpacing: { type: size }
+
+  - type: spacer
+    description: 弹性占位
+    props:
+      flex: { type: number, default: 1 }
+
+  - type: divider
+    description: 分隔线
+    props:
+      thickness: { type: number, default: 1 }
+      color:     { type: color }
+
+  - type: webview
+    description: 内嵌网页
+    props:
+      src: { type: string }
+      javascriptEnabled: { type: boolean, default: true }
+      allowFileAccess: { type: boolean, default: false }
+      scalesPageToFit: { type: boolean, default: true }
+    events: [onPageStarted, onPageFinished, onWebResourceError]
