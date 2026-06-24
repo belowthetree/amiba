@@ -67,6 +67,7 @@ export function getService(id: string): ServiceEntry | undefined {
 }
 
 export async function registerService(manifest: ServiceManifest, source: ServiceEntry['source'] = 'ai-generated'): Promise<ServiceEntry> {
+  console.log('[Registry] 注册服务:', manifest.id, manifest.name)
   const entry: ServiceEntry = {
     manifest,
     enabled: true,
@@ -128,6 +129,7 @@ export async function removeServiceData(serviceId: string, key: string) {
 const htmlCache: Record<string, string> = {}
 
 export async function storeServiceHtml(serviceId: string, html: string) {
+  console.log('[Registry] 存储 HTML:', serviceId, `(${(html.length / 1024).toFixed(1)}KB)`)
   htmlCache[serviceId] = html
   await storageSet(serviceHtmlKey(serviceId), html)
 }

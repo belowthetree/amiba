@@ -40,7 +40,7 @@ export async function* generateService(
 
   // Match skill
   const skill = matchSkill(userPrompt)
-  const skillCtx = getSkillContext(skill)
+  const skillCtx = await getSkillContext(skill)
 
   // Build prompt
   const catalogText = getCatalogYamlText()
@@ -156,7 +156,7 @@ ${userPrompt}
   onProgress?.({ stage: 'done', message: '生成完成！' })
 }
 
-function buildHtmlFromUI(
+export function buildHtmlFromUI(
   ui: { version: string; root: string; nodes: Record<string, any> },
   logic: string
 ): string {

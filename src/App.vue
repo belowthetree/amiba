@@ -5,7 +5,8 @@
   <div class="app-shell">
     <!-- TopBar -->
     <header class="topbar">
-      <button class="nav-btn home-btn" @click="$router.push('/')" title="主界面">
+      <button class="nav-btn home-btn" @click="$router.push('/services')" title="服务浏览">📱</button>
+      <button class="nav-btn home-btn" @click="$router.push('/')" title="对话">
         🏠
       </button>
 
