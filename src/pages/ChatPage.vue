@@ -49,10 +49,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, onMounted } from 'vue'
+import { ref, nextTick, onMounted, watch } from 'vue'
 import { streamChat, buildMessages } from '../ai/agent'
-import { executeMemoryOperation } from '../ai/memory'
 import { getApiKey } from '../config/config'
+import { storageGetJSON, storageSetJSON } from '../config/storage'
+
+const HISTORY_KEY = 'amiba_chat_history'
 
 interface Msg {
   role: 'user' | 'assistant'
@@ -79,7 +81,7 @@ async function send() {
   const text = input.value.trim()
   if (!text || sending.value) return
 
-  const apiKey = getApiKey()
+  const apiKey = await getApiKey()
   if (!apiKey) {
     errorMsg.value = '请先在设置中配置 API Key'
     return
@@ -97,14 +99,10 @@ async function send() {
 
   try {
     const history = messages.value.map((m) => ({ role: m.role, content: m.content }))
-    const chatMsgs = buildMessages(history.slice(0, -1)) // exclude last user msg
-
-    // Add last user msg separately
+    const chatMsgs = buildMessages(history.slice(0, -1))
     chatMsgs.push({ role: 'user', content: text })
 
-    const gen = streamChat(chatMsgs, async (params) => {
-      return executeMemoryOperation(params)
-    })
+    const gen = streamChat(chatMsgs)
 
     for await (const chunk of gen) {
       streamingContent.value += chunk
@@ -124,31 +122,17 @@ async function send() {
   }
 }
 
-onMounted(() => {
-  // Load saved chat history
-  try {
-    const saved = localStorage.getItem('amiba_chat_history')
-    if (saved) {
-      const parsed = JSON.parse(saved)
-      if (Array.isArray(parsed)) {
-        messages.value = parsed.slice(-50) // Keep last 50 messages
-      }
-    }
-  } catch {
-    // ignore
+onMounted(async () => {
+  const saved = await storageGetJSON<Msg[]>(HISTORY_KEY)
+  if (saved && Array.isArray(saved)) {
+    messages.value = saved.slice(-50)
   }
 })
 
-// Save history on change
-import { watch } from 'vue'
 watch(
   () => messages.value.length,
   () => {
-    try {
-      localStorage.setItem('amiba_chat_history', JSON.stringify(messages.value.slice(-50)))
-    } catch {
-      // ignore
-    }
+    storageSetJSON(HISTORY_KEY, messages.value.slice(-50))
   }
 )
 </script>

@@ -3,7 +3,7 @@
 // ============================================================
 import OpenAI from 'openai'
 import { getSettings, getApiKey } from '../config/config'
-import { getMemoryContextForPrompt } from './memory'
+import { getMemoryContextForPrompt, refreshMemoryCache, executeMemoryOperation } from './memory'
 import type { MemoryToolParams } from '../types/service'
 
 export interface ChatMessage {
@@ -79,12 +79,15 @@ export async function* streamChat(
   onMemoryCall?: (params: MemoryToolParams) => Promise<string>
 ): AsyncGenerator<string> {
   const s = getSettings()
-  const apiKey = getApiKey()
+  const apiKey = await getApiKey()
 
   if (!apiKey) {
     yield '请先在设置中配置 API Key。\n'
     return
   }
+
+  // Refresh memory cache
+  await refreshMemoryCache()
 
   const client = new OpenAI({
     baseURL: s.ai_base_url,
@@ -97,10 +100,8 @@ export async function* streamChat(
     content: createSystemPrompt(),
   }
 
-  const allMessages = [systemMsg, ...messages]
-
+  let currentMessages = [systemMsg, ...messages]
   let loop = true
-  let currentMessages = [...allMessages]
 
   while (loop) {
     const stream = await client.chat.completions.create({
@@ -117,13 +118,11 @@ export async function* streamChat(
     for await (const chunk of stream) {
       const delta = chunk.choices[0]?.delta
 
-      // Text content
       if (delta?.content) {
         fullContent += delta.content
         yield delta.content
       }
 
-      // Tool calls
       if (delta?.tool_calls) {
         for (const tc of delta.tool_calls) {
           if (tc.index !== undefined) {
@@ -142,21 +141,12 @@ export async function* streamChat(
         }
       }
 
-      if (chunk.choices[0]?.finish_reason === 'tool_calls') {
-        // Tool call detected
-        break
-      }
-
-      if (chunk.choices[0]?.finish_reason === 'stop') {
-        loop = false
-        break
-      }
+      if (chunk.choices[0]?.finish_reason === 'tool_calls') break
+      if (chunk.choices[0]?.finish_reason === 'stop') { loop = false; break }
     }
 
-    // Process tool calls
     toolCalls = toolCalls.filter(Boolean)
     if (toolCalls.length > 0) {
-      // Add assistant message with tool calls
       currentMessages.push({
         role: 'assistant',
         content: fullContent || '',
@@ -164,10 +154,13 @@ export async function* streamChat(
       })
 
       for (const tc of toolCalls) {
-        if (tc.function.name === 'memory' && onMemoryCall) {
+        if (tc.function.name === 'memory') {
           try {
             const params = JSON.parse(tc.function.arguments) as MemoryToolParams
-            const result = await onMemoryCall(params)
+            const handler = onMemoryCall || executeMemoryOperation
+            const result = await handler(params)
+            // Refresh cache after memory change
+            await refreshMemoryCache()
             currentMessages.push({
               role: 'tool',
               content: result,

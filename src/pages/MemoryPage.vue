@@ -73,8 +73,8 @@ const dirty = ref(false)
 const showSaved = ref(false)
 const savedContent = ref('')
 
-const memoryChars = computed(() => getMemory('memory').length)
-const userChars = computed(() => getMemory('user').length)
+const memoryChars = ref(0)
+const userChars = ref(0)
 
 const entries = computed(() => {
   const content = editingContent.value
@@ -85,18 +85,20 @@ const entries = computed(() => {
     .filter(Boolean)
 })
 
-function load() {
-  const content = getMemory(activeTab.value)
+async function load() {
+  const content = await getMemory(activeTab.value)
   savedContent.value = content
   editingContent.value = content
   dirty.value = false
+  updateCharCounts()
 }
 
-function saveMemory() {
-  setMemory(activeTab.value, editingContent.value)
+async function saveMemory() {
+  await setMemory(activeTab.value, editingContent.value)
   savedContent.value = editingContent.value
   dirty.value = false
   showSaved.value = true
+  updateCharCounts()
   setTimeout(() => (showSaved.value = false), 1500)
 }
 
@@ -105,12 +107,13 @@ function reload() {
   dirty.value = false
 }
 
-function clearCurrent() {
+async function clearCurrent() {
   if (confirm(`确定要清空 ${activeTab.value === 'memory' ? 'MEMORY.md' : 'USER.md'} 吗？`)) {
     editingContent.value = ''
-    setMemory(activeTab.value, '')
+    await setMemory(activeTab.value, '')
     savedContent.value = ''
     dirty.value = false
+    updateCharCounts()
   }
 }
 
@@ -120,6 +123,11 @@ function deleteEntry(index: number) {
   editingContent.value = ents.map((e) => '§ ' + e).join('\n§\n')
   if (!editingContent.value && ents.length === 0) editingContent.value = ''
   dirty.value = true
+}
+
+async function updateCharCounts() {
+  memoryChars.value = (await getMemory('memory')).length
+  userChars.value = (await getMemory('user')).length
 }
 
 watch(activeTab, () => {

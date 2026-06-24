@@ -97,17 +97,16 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { settings, updateSettings, getApiKey, setApiKey } from '../config/config'
+import { settings, getApiKey, setApiKey } from '../config/config'
 
-const apiKey = ref(getApiKey())
+const apiKey = ref('')
 const showKey = ref(false)
 const showSaved = ref(false)
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 
 watch(apiKey, (val) => {
-  setApiKey(val)
-  flashSaved()
+  void setApiKey(val).then(() => flashSaved())
 })
 
 watch(

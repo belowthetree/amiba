@@ -2,9 +2,11 @@
 // 变形虫 (Amiba) — 统一配置
 // ============================================================
 import { reactive, watch } from 'vue'
+import { storageGetJSON, storageSetJSON, storageGet, storageSet } from './storage'
 import type { AppSettings } from '../types/service'
 
 const STORAGE_KEY = 'amiba_settings'
+const API_KEY_KEY = 'amiba_api_key'
 
 const defaults: AppSettings = {
   ai_base_url: 'https://api.deepseek.com/v1',
@@ -14,27 +16,31 @@ const defaults: AppSettings = {
   language: 'zh-CN',
 }
 
-function load(): AppSettings {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) {
-      return { ...defaults, ...JSON.parse(raw) }
-    }
-  } catch {
-    // ignore
+export const settings = reactive<AppSettings>({ ...defaults })
+
+// Async init
+let initialized = false
+
+export async function initConfig(): Promise<void> {
+  if (initialized) return
+  initialized = true
+
+  const saved = await storageGetJSON<AppSettings>(STORAGE_KEY)
+  if (saved) {
+    Object.assign(settings, defaults, saved)
   }
-  return { ...defaults }
+
+  // Start watching for changes
+  let saveTmr: ReturnType<typeof setTimeout> | null = null
+  watch(
+    () => ({ ...settings }),
+    (val) => {
+      if (saveTmr) clearTimeout(saveTmr)
+      saveTmr = setTimeout(() => storageSetJSON(STORAGE_KEY, val), 300)
+    },
+    { deep: true }
+  )
 }
-
-export const settings = reactive<AppSettings>(load())
-
-watch(
-  () => ({ ...settings }),
-  (val) => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(val))
-  },
-  { deep: true }
-)
 
 export function getSettings(): AppSettings {
   return { ...settings }
@@ -44,10 +50,10 @@ export function updateSettings(patch: Partial<AppSettings>) {
   Object.assign(settings, patch)
 }
 
-export function getApiKey(): string {
-  return localStorage.getItem('amiba_api_key') || ''
+export async function getApiKey(): Promise<string> {
+  return (await storageGet(API_KEY_KEY)) || ''
 }
 
-export function setApiKey(key: string) {
-  localStorage.setItem('amiba_api_key', key)
+export async function setApiKey(key: string) {
+  await storageSet(API_KEY_KEY, key)
 }

@@ -65,7 +65,7 @@
               <input
                 type="checkbox"
                 :checked="svc.enabled"
-                @change="handleToggle(svc.manifest.id, !svc.enabled)"
+                @change="toggleSvc(svc.manifest.id, !svc.enabled)"
               />
               <span class="toggle-slider"></span>
             </label>
@@ -111,7 +111,6 @@ import { DEMO_HTML } from './demo-html'
 const router = useRouter()
 
 const builtinServices = computed(() => {
-  // Show only navigable built-in services
   return BUILTIN_SERVICES.filter((s) =>
     ['system.home', 'system.chat', 'system.generate', 'system.settings', 'system.memory'].includes(
       s.manifest.id
@@ -152,20 +151,14 @@ function openService(svc: ServiceEntry) {
   router.push(`/service/${svc.manifest.id}/`)
 }
 
-async function handleToggle(id: string, enabled: boolean) {
+async function toggleSvc(id: string, enabled: boolean) {
   await toggleService(id, enabled)
 }
 
-function deleteService(svc: ServiceEntry) {
+async function deleteService(svc: ServiceEntry) {
   if (confirm(`确定要删除 "${svc.manifest.name}" 吗？此操作不可撤销。`)) {
-    unregisterService(svc.manifest.id)
-    // Also remove stored HTML
-    try {
-      localStorage.removeItem(`amiba_html_${svc.manifest.id}`)
-      localStorage.removeItem(`amiba_svc_${svc.manifest.id}`)
-    } catch {
-      // ignore
-    }
+    await unregisterService(svc.manifest.id)
+    await removeServiceStorage(svc.manifest.id)
   }
 }
 
@@ -186,8 +179,44 @@ async function installDemo() {
     permissions: ['notification'] as ('storage' | 'notification')[],
   }
 
+  const endTag = '<' + '/script>'
+  const html = `<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  body { font-family: -apple-system, sans-serif; padding: 16px; background: #fafafa; }
+  .card { border-radius: 12px; padding: 24px; background: #f5f5f5; text-align: center; max-width: 320px; margin: 40px auto; }
+  .title { font-size: 20px; font-weight: bold; margin-bottom: 8px; }
+  .btn { margin-top: 16px; padding: 12px 32px; border: none; border-radius: 8px; background: #1976D2; color: white; font-size: 14px; cursor: pointer; }
+  .btn:active { opacity: 0.8; }
+<` + `/style>
+</head>
+<body>
+<div class="card">
+  <div class="title">Hello World</div>
+  <p id="counter">点击次数: 0</p>
+  <button class="btn" onclick="handleClick()">点我</button>
+</div>
+<' + '/script>' + '
+<' + 'script>
+let count = 0;
+
+async function handleClick() {
+  count++;
+  document.getElementById('counter').textContent = '点击次数: ' + count;
+
+  if (window.__amiba__) {
+    await __amiba__.showToast('点击了 ' + count + ' 次', 'success');
+  }
+}
+${endTag}
+</body>
+</html>`
+
   await registerService(manifest, 'ai-generated')
-  await storeServiceHtml(manifest.id, DEMO_HTML)
+  await storeServiceHtml(manifest.id, html)
 }
 </script>
 
@@ -317,7 +346,6 @@ async function installDemo() {
   gap: 8px;
 }
 
-/* Toggle switch */
 .toggle {
   position: relative;
   display: inline-block;
@@ -328,109 +356,4 @@ async function installDemo() {
 .toggle input {
   opacity: 0;
   width: 0;
-  height: 0;
-}
-
-.toggle-slider {
-  position: absolute;
-  cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: #ccc;
-  border-radius: 22px;
-  transition: 0.3s;
-}
-
-.toggle-slider::before {
-  content: '';
-  position: absolute;
-  height: 18px;
-  width: 18px;
-  left: 2px;
-  bottom: 2px;
-  background: white;
-  border-radius: 50%;
-  transition: 0.3s;
-}
-
-.toggle input:checked + .toggle-slider {
-  background: #1976D2;
-}
-
-.toggle input:checked + .toggle-slider::before {
-  transform: translateX(18px);
-}
-
-.action-icon {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 16px;
-  padding: 4px;
-}
-
-.empty {
-  text-align: center;
-  padding: 32px;
-  background: white;
-  border-radius: 12px;
-  color: #999;
-}
-
-.cta-btn {
-  margin-top: 12px;
-  padding: 10px 24px;
-  background: #1976D2;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.demo-card {
-  background: white;
-  border-radius: 12px;
-  padding: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  border: 1px dashed #1976D2;
-}
-
-.demo-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.demo-icon {
-  font-size: 28px;
-}
-
-.demo-info strong {
-  font-size: 14px;
-  color: #333;
-}
-
-.demo-info p {
-  font-size: 12px;
-  color: #999;
-  margin-top: 2px;
-}
-
-.install-btn {
-  padding: 8px 16px;
-  background: #1976D2;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 13px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-</style>
+  

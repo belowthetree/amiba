@@ -2,101 +2,54 @@
 // 变形虫 (Amiba) — 服务注册表
 // ============================================================
 import { reactive } from 'vue'
+import { storageGetJSON, storageSetJSON, storageGet, storageSet, storageRemove } from '../config/storage'
 import type { ServiceEntry, ServiceManifest } from '../types/service'
 
 const REGISTRY_KEY = 'amiba_service_registry'
 
-// Built-in services (not stored in registry, only for navigation)
+// Built-in services (not stored in registry)
 export const BUILTIN_SERVICES: ServiceEntry[] = [
   {
-    manifest: {
-      id: 'system.home',
-      name: '首页',
-      version: '1.0.0',
-      description: '功能入口',
-      permissions: [],
-    },
-    enabled: true,
-    installedAt: new Date().toISOString(),
-    source: 'builtin',
+    manifest: { id: 'system.home', name: '首页', version: '1.0.0', description: '功能入口', permissions: [], },
+    enabled: true, installedAt: new Date().toISOString(), source: 'builtin',
   },
   {
-    manifest: {
-      id: 'system.chat',
-      name: 'AI 对话',
-      version: '1.0.0',
-      description: '与 AI 对话',
-      permissions: [],
-    },
-    enabled: true,
-    installedAt: new Date().toISOString(),
-    source: 'builtin',
+    manifest: { id: 'system.chat', name: 'AI 对话', version: '1.0.0', description: '与 AI 对话', permissions: [], },
+    enabled: true, installedAt: new Date().toISOString(), source: 'builtin',
   },
   {
-    manifest: {
-      id: 'system.generate',
-      name: 'AI 生成',
-      version: '1.0.0',
-      description: '生成迷你应用',
-      permissions: [],
-    },
-    enabled: true,
-    installedAt: new Date().toISOString(),
-    source: 'builtin',
+    manifest: { id: 'system.generate', name: 'AI 生成', version: '1.0.0', description: '生成迷你应用', permissions: [], },
+    enabled: true, installedAt: new Date().toISOString(), source: 'builtin',
   },
   {
-    manifest: {
-      id: 'system.settings',
-      name: '设置',
-      version: '1.0.0',
-      description: '配置管理',
-      permissions: [],
-    },
-    enabled: true,
-    installedAt: new Date().toISOString(),
-    source: 'builtin',
+    manifest: { id: 'system.settings', name: '设置', version: '1.0.0', description: '配置管理', permissions: [], },
+    enabled: true, installedAt: new Date().toISOString(), source: 'builtin',
   },
   {
-    manifest: {
-      id: 'system.my_services',
-      name: '我的服务',
-      version: '1.0.0',
-      description: '已安装服务列表',
-      permissions: [],
-    },
-    enabled: true,
-    installedAt: new Date().toISOString(),
-    source: 'builtin',
+    manifest: { id: 'system.my_services', name: '我的服务', version: '1.0.0', description: '已安装服务列表', permissions: [], },
+    enabled: true, installedAt: new Date().toISOString(), source: 'builtin',
   },
   {
-    manifest: {
-      id: 'system.memory',
-      name: '记忆管理',
-      version: '1.0.0',
-      description: '查看管理记忆',
-      permissions: [],
-    },
-    enabled: true,
-    installedAt: new Date().toISOString(),
-    source: 'builtin',
+    manifest: { id: 'system.memory', name: '记忆管理', version: '1.0.0', description: '查看管理记忆', permissions: [], },
+    enabled: true, installedAt: new Date().toISOString(), source: 'builtin',
   },
 ]
 
-// User services registry (reactive)
-const userServices = reactive<Record<string, ServiceEntry>>(loadUserServices())
+const userServices = reactive<Record<string, ServiceEntry>>({})
 
-function loadUserServices(): Record<string, ServiceEntry> {
-  try {
-    const raw = localStorage.getItem(REGISTRY_KEY)
-    if (raw) return JSON.parse(raw)
-  } catch {
-    // ignore
+let registryLoaded = false
+
+export async function initRegistry(): Promise<void> {
+  if (registryLoaded) return
+  registryLoaded = true
+  const saved = await storageGetJSON<Record<string, ServiceEntry>>(REGISTRY_KEY)
+  if (saved) {
+    Object.assign(userServices, saved)
   }
-  return {}
 }
 
-function saveUserServices() {
-  localStorage.setItem(REGISTRY_KEY, JSON.stringify(userServices))
+async function saveRegistry() {
+  await storageSetJSON(REGISTRY_KEY, { ...userServices })
 }
 
 export function getAllServices(): ServiceEntry[] {
@@ -113,7 +66,7 @@ export function getService(id: string): ServiceEntry | undefined {
   return userServices[id]
 }
 
-export function registerService(manifest: ServiceManifest, source: ServiceEntry['source'] = 'ai-generated'): ServiceEntry {
+export async function registerService(manifest: ServiceManifest, source: ServiceEntry['source'] = 'ai-generated'): Promise<ServiceEntry> {
   const entry: ServiceEntry = {
     manifest,
     enabled: true,
@@ -121,90 +74,72 @@ export function registerService(manifest: ServiceManifest, source: ServiceEntry[
     source,
   }
   userServices[manifest.id] = entry
-  saveUserServices()
+  await saveRegistry()
   return entry
 }
 
-export function unregisterService(id: string): boolean {
-  if (id.startsWith('system.')) return false // Cannot remove built-in
+export async function unregisterService(id: string): Promise<boolean> {
+  if (id.startsWith('system.')) return false
   if (userServices[id]) {
     delete userServices[id]
-    saveUserServices()
+    await saveRegistry()
     return true
   }
   return false
 }
 
-export function toggleService(id: string, enabled: boolean) {
+export async function toggleService(id: string, enabled: boolean) {
   if (userServices[id]) {
     userServices[id].enabled = enabled
-    saveUserServices()
+    await saveRegistry()
   }
 }
 
-export function getServiceStorageKey(serviceId: string): string {
+// Service data storage
+function serviceDataKey(serviceId: string): string {
   return `amiba_svc_${serviceId}`
 }
 
-export function setServiceData(serviceId: string, key: string, data: any) {
-  const storeKey = getServiceStorageKey(serviceId)
-  let store: Record<string, any>
-  try {
-    const raw = localStorage.getItem(storeKey)
-    store = raw ? JSON.parse(raw) : {}
-  } catch {
-    store = {}
-  }
+function serviceHtmlKey(serviceId: string): string {
+  return `amiba_html_${serviceId}`
+}
+
+export async function setServiceData(serviceId: string, key: string, data: any) {
+  const storeKey = serviceDataKey(serviceId)
+  const store = (await storageGetJSON<Record<string, any>>(storeKey)) || {}
   store[key] = data
-  localStorage.setItem(storeKey, JSON.stringify(store))
+  await storageSetJSON(storeKey, store)
 }
 
-export function getServiceData(serviceId: string, key: string): any {
-  const storeKey = getServiceStorageKey(serviceId)
-  try {
-    const raw = localStorage.getItem(storeKey)
-    if (raw) {
-      const store = JSON.parse(raw)
-      return store[key]
-    }
-  } catch {
-    // ignore
-  }
-  return undefined
+export async function getServiceData(serviceId: string, key: string): Promise<any> {
+  const storeKey = serviceDataKey(serviceId)
+  const store = await storageGetJSON<Record<string, any>>(storeKey)
+  return store?.[key]
 }
 
-export function removeServiceData(serviceId: string, key: string) {
-  const storeKey = getServiceStorageKey(serviceId)
-  try {
-    const raw = localStorage.getItem(storeKey)
-    if (raw) {
-      const store = JSON.parse(raw)
-      delete store[key]
-      localStorage.setItem(storeKey, JSON.stringify(store))
-    }
-  } catch {
-    // ignore
-  }
+export async function removeServiceData(serviceId: string, key: string) {
+  const storeKey = serviceDataKey(serviceId)
+  const store = (await storageGetJSON<Record<string, any>>(storeKey)) || {}
+  delete store[key]
+  await storageSetJSON(storeKey, store)
 }
 
-// Store generated service HTML content
-const serviceHtmlStore: Record<string, string> = {}
+// Service HTML storage
+const htmlCache: Record<string, string> = {}
 
-export function storeServiceHtml(serviceId: string, html: string) {
-  serviceHtmlStore[serviceId] = html
-  // Also try localStorage for large support
-  try {
-    localStorage.setItem(`amiba_html_${serviceId}`, html)
-  } catch {
-    // May exceed quota; use in-memory fallback
-  }
+export async function storeServiceHtml(serviceId: string, html: string) {
+  htmlCache[serviceId] = html
+  await storageSet(serviceHtmlKey(serviceId), html)
 }
 
-export function getServiceHtml(serviceId: string): string {
-  if (serviceHtmlStore[serviceId]) return serviceHtmlStore[serviceId]
-  try {
-    return localStorage.getItem(`amiba_html_${serviceId}`) || ''
-  } catch {
-    return ''
-  }
+export async function getServiceHtml(serviceId: string): Promise<string> {
+  if (htmlCache[serviceId]) return htmlCache[serviceId]
+  const val = await storageGet(serviceHtmlKey(serviceId))
+  if (val) htmlCache[serviceId] = val
+  return val || ''
+}
+
+export async function removeServiceStorage(serviceId: string) {
+  await storageRemove(serviceHtmlKey(serviceId))
+  await storageRemove(serviceDataKey(serviceId))
 }

@@ -31,7 +31,7 @@ export async function* generateService(
   onProgress?.({ stage: 'preparing', message: '正在准备生成...' })
 
   const s = getSettings()
-  const apiKey = getApiKey()
+  const apiKey = await getApiKey()
 
   if (!apiKey) {
     onProgress?.({ stage: 'error', message: '请先在设置中配置 API Key' })

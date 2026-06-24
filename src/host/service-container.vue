@@ -69,12 +69,12 @@ function onIframeLoad() {
         const svcId = serviceId.value
         switch (method) {
           case 'setStorage':
-            setServiceData(svcId, params.key, params.data)
+            await setServiceData(svcId, params.key, params.data)
             return
           case 'getStorage':
-            return getServiceData(svcId, params.key)
+            return await getServiceData(svcId, params.key)
           case 'removeStorage':
-            removeServiceData(svcId, params.key)
+            await removeServiceData(svcId, params.key)
             return
           default:
             throw new Error(`Unknown storage method: ${method}`)
@@ -139,7 +139,7 @@ function showToast(title: string, icon: string) {
   }, 2000)
 }
 
-onMounted(() => {
+onMounted(async () => {
   const svc = getService(serviceId.value)
   if (!svc) {
     error.value = `服务 "${serviceId.value}" 未找到`
@@ -154,7 +154,7 @@ onMounted(() => {
   }
 
   // Load service HTML
-  const html = getServiceHtml(serviceId.value)
+  const html = await getServiceHtml(serviceId.value)
   if (!html) {
     error.value = `服务 "${svc.manifest.name}" 内容为空`
     loading.value = false

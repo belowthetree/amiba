@@ -8,13 +8,13 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      name: 'home',
-      component: () => import('../pages/HomePage.vue'),
-    },
-    {
-      path: '/chat',
       name: 'chat',
       component: () => import('../pages/ChatPage.vue'),
+    },
+    {
+      path: '/home',
+      name: 'home',
+      component: () => import('../pages/HomePage.vue'),
     },
     {
       path: '/generate',
