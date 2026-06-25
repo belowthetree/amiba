@@ -221,9 +221,8 @@ export function inlinePackage(pkg: ServicePackage): string {
     }
   )
 
-  // Add Amiba bridge shim before closing </body> if not already present
-  if (!html.includes('window.__amiba__')) {
-    const shim = `<script>
+  // Inject Amiba bridge shim at start of <body> (always, shim self-guards)
+  const shim = `<script>
 // Amiba Bridge Shim — replaced by host injectBridge at runtime
 if (!window.__amiba__) {
   window.__amiba__ = {
@@ -238,8 +237,7 @@ if (!window.__amiba__) {
   };
 }
 </script>`
-    html = html.replace('</body>', shim + '\n</body>')
-  }
+  html = html.replace(/(<body[^>]*>)/i, '$1\n' + shim)
 
   return html
 }
