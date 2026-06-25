@@ -128,13 +128,13 @@ export async function removeServiceData(serviceId: string, key: string) {
 // Service HTML storage
 const htmlCache: Record<string, string> = {}
 
-export async function storeServiceHtml(serviceId: string, html: string) {
+export async function storeServiceHtml(serviceId: string, html: string) { console.log('[Registry] store HTML:', serviceId, html.length, 'bytes, starts with:', html.slice(0,80)) 
   console.log('[Registry] 存储 HTML:', serviceId, `(${(html.length / 1024).toFixed(1)}KB)`)
   htmlCache[serviceId] = html
   await storageSet(serviceHtmlKey(serviceId), html)
 }
 
-export async function getServiceHtml(serviceId: string): Promise<string> {
+export async function getServiceHtml(serviceId: string): Promise<string> { console.log('[Registry] get HTML for:', serviceId) 
   if (htmlCache[serviceId]) return htmlCache[serviceId]
   const val = await storageGet(serviceHtmlKey(serviceId))
   if (val) htmlCache[serviceId] = val

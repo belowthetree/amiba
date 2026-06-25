@@ -48,7 +48,7 @@ const serviceId = computed(() => {
   return id
 })
 
-const sandboxFlags = 'allow-scripts'
+const sandboxFlags = 'allow-scripts allow-same-origin'
 
 function goBack() {
   router.push('/my-services')
@@ -140,6 +140,7 @@ function showToast(title: string, icon: string) {
 }
 
 onMounted(async () => {
+  console.log("[Container] loading service:", serviceId.value);
   const svc = getService(serviceId.value)
   if (!svc) {
     error.value = `服务 "${serviceId.value}" 未找到`
@@ -154,14 +155,14 @@ onMounted(async () => {
   }
 
   // Load service HTML
-  const html = await getServiceHtml(serviceId.value)
+  const html = await getServiceHtml(serviceId.value); console.log("[Container] html length:", html.length, "bytes")
   if (!html) {
     error.value = `服务 "${svc.manifest.name}" 内容为空`
     loading.value = false
     return
   }
 
-  serviceHtml.value = html
+  console.log("[Container] setting srcdoc, html preview:", html.slice(0,200)); serviceHtml.value = html; loading.value = false
 })
 
 onUnmounted(() => {
