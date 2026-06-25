@@ -26,9 +26,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getService, getServiceHtml, setServiceData, getServiceData, removeServiceData } from './registry'
+import { getService, getServicePackage, setServiceData, getServiceData, removeServiceData } from './registry'
 import { createBridge } from './bridge'
+import { inlinePackage } from '../ai/generator'
 import type { ApiHandler } from './bridge'
+import type { ServicePackage } from '../types/service'
 
 const route = useRoute()
 const router = useRouter()
@@ -37,6 +39,7 @@ const iframeRef = ref<HTMLIFrameElement | null>(null)
 const loading = ref(true)
 const error = ref('')
 const serviceHtml = ref('')
+const servicePkg = ref<ServicePackage | null>(null)
 
 let bridgeCleanup: (() => void) | null = null
 
@@ -154,15 +157,18 @@ onMounted(async () => {
     return
   }
 
-  // Load service HTML
-  const html = await getServiceHtml(serviceId.value); console.log("[Container] html length:", html.length, "bytes")
-  if (!html) {
+  // Load service package
+  const pkg = await getServicePackage(serviceId.value)
+  if (!pkg) {
     error.value = `服务 "${svc.manifest.name}" 内容为空`
     loading.value = false
     return
   }
 
-  console.log("[Container] setting srcdoc, html preview:", html.slice(0,200)); serviceHtml.value = html; loading.value = false
+  servicePkg.value = pkg
+  const html = inlinePackage(pkg)
+  serviceHtml.value = html
+  loading.value = false
 })
 
 onUnmounted(() => {

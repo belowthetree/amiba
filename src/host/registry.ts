@@ -2,8 +2,8 @@
 // 变形虫 (Amiba) — 服务注册表
 // ============================================================
 import { reactive } from 'vue'
-import { storageGetJSON, storageSetJSON, storageGet, storageSet, storageRemove } from '../config/storage'
-import type { ServiceEntry, ServiceManifest } from '../types/service'
+import { storageGetJSON, storageSetJSON, storageRemove } from '../config/storage'
+import type { ServiceEntry, ServiceManifest, ServicePackage } from '../types/service'
 
 const REGISTRY_KEY = 'amiba_service_registry'
 
@@ -101,8 +101,8 @@ function serviceDataKey(serviceId: string): string {
   return `amiba_svc_${serviceId}`
 }
 
-function serviceHtmlKey(serviceId: string): string {
-  return `amiba_html_${serviceId}`
+function servicePkgKey(serviceId: string): string {
+  return `amiba_pkg_${serviceId}`
 }
 
 export async function setServiceData(serviceId: string, key: string, data: any) {
@@ -125,23 +125,24 @@ export async function removeServiceData(serviceId: string, key: string) {
   await storageSetJSON(storeKey, store)
 }
 
-// Service HTML storage
-const htmlCache: Record<string, string> = {}
+// Service package storage
+const pkgCache: Record<string, ServicePackage> = {}
 
-export async function storeServiceHtml(serviceId: string, html: string) { console.log('[Registry] store HTML:', serviceId, html.length, 'bytes, starts with:', html.slice(0,80)) 
-  console.log('[Registry] 存储 HTML:', serviceId, `(${(html.length / 1024).toFixed(1)}KB)`)
-  htmlCache[serviceId] = html
-  await storageSet(serviceHtmlKey(serviceId), html)
+export async function storeServicePackage(serviceId: string, pkg: ServicePackage) {
+  console.log('[Registry] 存储服务包:', serviceId, `${pkg.files.length} 个文件`)
+  pkgCache[serviceId] = pkg
+  await storageSetJSON(servicePkgKey(serviceId), pkg)
 }
 
-export async function getServiceHtml(serviceId: string): Promise<string> { console.log('[Registry] get HTML for:', serviceId) 
-  if (htmlCache[serviceId]) return htmlCache[serviceId]
-  const val = await storageGet(serviceHtmlKey(serviceId))
-  if (val) htmlCache[serviceId] = val
-  return val || ''
+export async function getServicePackage(serviceId: string): Promise<ServicePackage | null> {
+  if (pkgCache[serviceId]) return pkgCache[serviceId]
+  const val = await storageGetJSON<ServicePackage>(servicePkgKey(serviceId))
+  if (val) pkgCache[serviceId] = val
+  return val || null
 }
 
 export async function removeServiceStorage(serviceId: string) {
-  await storageRemove(serviceHtmlKey(serviceId))
+  delete pkgCache[serviceId]
+  await storageRemove(servicePkgKey(serviceId))
   await storageRemove(serviceDataKey(serviceId))
 }

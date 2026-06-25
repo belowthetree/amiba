@@ -19,31 +19,28 @@
 
 ## 用户服务（动态，可变）
 
-由 AI 生成或下载获得。每个服务是一个独立文件夹：
+由 AI 生成或下载获得。每个服务是一个 **多文件 Web 应用包 (ServicePackage)**：
 
-```
-config/services/<service-id>/
-├── manifest.json    # { id, name, version, permissions }
-├── index.html       # 主界面
-├── logic.js         # 业务逻辑
-└── tasks.json       # 定时任务（可选）
-```
+```ts
+interface ServicePackage {
+  manifest: {
+    id: string          // "user.xxx"，用户服务以 user. 为前缀
+    name: string
+    version: string
+    description: string
+    permissions: ('storage' | 'notification')[]
+  }
+  files: ServiceFile[]  // 多文件列表
+  tasks?: GeneratedTask[] // 定时任务（可选）
+}
 
-在实际运行中，服务内容被序列化为单个 HTML 文件（内联 CSS/JS），通过 iframe 的 `srcdoc` 属性加载。
-
-### manifest.json
-
-```json
-{
-  "id": "user.hello_world",
-  "name": "Hello World",
-  "version": "1.0.0",
-  "description": "基础示例",
-  "permissions": ["notification"]
+interface ServiceFile {
+  path: string    // "index.html", "style.css", "app.js"
+  content: string // 文件内容
 }
 ```
 
-用户服务的 ID 以 `user.` 为前缀。
+整个包作为 JSON 原子存储（键 `amiba_pkg_{serviceId}`），不需要分文件读写。
 
 ### 权限
 
@@ -56,8 +53,8 @@ config/services/<service-id>/
 
 ```
 首次启动: 复制预置 demo → 注册到 ServiceRegistry
-AI 生成:  写入 HTML 到 localStorage → 注册 → 首页可见
-下载安装:  同上
+AI 生成:  写入 ServicePackage JSON → 注册 → 首页可见
+下载安装:  导入 JSON 文件 → 同上
 ```
 
 ### ServiceRegistry API
@@ -72,9 +69,14 @@ unregisterService(id): boolean
 // 启/禁用服务
 toggleService(id, enabled): void
 
-// 获取服务 HTML 内容
-storeServiceHtml(id, html): void
-getServiceHtml(id): string
+// 存储/读取服务包
+storeServicePackage(id, pkg): void
+getServicePackage(id): ServicePackage | null
+
+// 服务专属数据存储
+setServiceData(serviceId, key, data): void
+getServiceData(serviceId, key): any
+removeServiceData(serviceId, key): void
 ```
 
 ## 服务运行
@@ -83,10 +85,11 @@ getServiceHtml(id): string
 
 1. 根据路由参数找到对应服务
 2. 检查服务是否存在且已启用
-3. 加载服务的 HTML 内容
-4. 在 `<iframe sandbox="allow-scripts">` 中渲染
-5. 注入 `__amiba__` 全局对象建立 JSBridge
-6. 根据 manifest 权限放行 API 调用
+3. 加载服务的 `ServicePackage` JSON
+4. 调用 `inlinePackage()` 将多文件内联为单个 HTML
+5. 在 `<iframe sandbox="allow-scripts">` 中通过 `srcdoc` 渲染
+6. 注入 `__amiba__` 全局对象建立 JSBridge
+7. 根据 manifest 权限放行 API 调用
 
 ## 命名规范
 

@@ -1,152 +1,113 @@
-# Catalog 组件规范
+# Catalog 组件风格参考
 
 ## 概述
 
-Catalog 定义了 AI 可以使用的全部 UI 组件及其属性。AI 生成服务时只能使用 Catalog 中列出的组件，不能编造。这是安全白名单的关键一环。
+Catalog 定义了推荐的 UI 组件风格和颜色体系。AI 生成服务时**以此为风格参考**，但可以直接用 HTML/CSS 自由设计，不必严格拘泥于组件约束。
 
 文件位置: `public/catalog/builtin_catalog.yaml`
 
-## 11 个组件
+## 设计理念
 
-### container — 通用容器
+- **旧模式**: Catalog 是严格白名单，AI 只能使用列出的组件，属性逐条校验
+- **新模式**: Catalog 是风格指南，AI 参考组件风格写出原生 HTML/CSS，校验只检查基本的 manifest/files 完整性
 
-最基础的布局容器。
+这样 AI 可以发挥 HTML/CSS 的全部能力，同时保持 UI 风格的一致性和平台感。
 
-| 属性 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `direction` | enum: vertical, horizontal | vertical | 布局方向 |
-| `padding` | size | — | 内边距 |
-| `margin` | size | — | 外边距 |
-| `backgroundColor` | color | — | 背景色 |
-| `borderRadius` | number | — | 圆角 |
-| `alignment` | enum: start, center, end, stretch | — | 对齐 |
-| `spacing` | size | — | 子元素间距 |
+## 11 个风格组件
 
-**is_container**: true
+### container — 通用容器（flex 布局）
+
+- 布局方向: vertical / horizontal
+- 间距: padding, margin, spacing（4/8/16/24/32 体系）
+- 视觉: backgroundColor, borderRadius
+- 对齐: start / center / end / stretch
 
 ### scroll — 可滚动容器
 
-| 属性 | 类型 | 默认值 |
-|------|------|--------|
-| `direction` | enum: vertical, horizontal | — |
-| `scrollbars` | boolean | false |
+- 方向: vertical / horizontal
+- 滚动条: 可控
 
-**is_container**: true
+### card — 卡片
 
-### card — 卡片容器
-
-带阴影和圆角的卡片容器。
-
-| 属性 | 类型 | 默认值 |
-|------|------|--------|
-| `elevation` | number | 2 |
-| `borderRadius` | number | 12 |
-| `padding` | size | — |
-
-**is_container**: true
+- 阴影: elevation（1-4 级）
+- 圆角: borderRadius（默认 12px）
+- 内边距: padding
 
 ### text — 文本
 
-| 属性 | 类型 | 默认值 | 必填 |
-|------|------|--------|------|
-| `content` | string | — | ✓ |
-| `size` | number | 16 | |
-| `color` | color | — | |
-| `weight` | enum: normal, bold, light | — | |
-| `align` | enum: left, center, right | — | |
-| `maxLines` | number | — | |
+- 字体: size（默认 16px）, weight（normal/bold/light）
+- 颜色: color
+- 对齐: left / center / right
+- 截断: maxLines
 
 ### button — 按钮
 
-| 属性 | 类型 | 默认值 | 必填 |
-|------|------|--------|------|
-| `label` | string | — | ✓ |
-| `variant` | enum: primary, secondary, outline, ghost | primary | |
-| `size` | enum: small, medium, large | medium | |
-| `disabled` | boolean | false | |
-
-**事件**: `onTap`
+- 变体: primary（蓝 #1976D2）/ secondary（紫 #9C27B0）/ outline / ghost
+- 大小: small / medium / large
+- 禁用: disabled
+- 事件: onClick
 
 ### input — 输入框
 
-| 属性 | 类型 | 默认值 |
-|------|------|--------|
-| `type` | enum: text, password, number, email, multiline | — |
-| `placeholder` | string | — |
-| `value` | string | — |
-| `maxLength` | number | — |
-
-**事件**: `onChange`, `onSubmit`
+- 类型: text / password / number / email / multiline
+- 占位: placeholder
+- 事件: onChange, onSubmit
 
 ### image — 图片
 
-| 属性 | 类型 | 默认值 | 必填 |
-|------|------|--------|------|
-| `src` | string | — | ✓ |
-| `fit` | enum: cover, contain, fill, none | cover | |
-| `width` | size | — | |
-| `height` | size | — | |
-
-**事件**: `onTap`
+- 裁剪: cover / contain / fill / none
+- 尺寸: width, height
+- 事件: onTap
 
 ### list — 列表容器
 
-| 属性 | 类型 |
-|------|------|
-| `direction` | enum: vertical, horizontal |
-| `itemSpacing` | size |
-
-**is_container**: true
+- 方向: vertical / horizontal
+- 间距: itemSpacing
 
 ### spacer — 弹性占位
 
-| 属性 | 类型 | 默认值 |
-|------|------|--------|
-| `flex` | number | 1 |
+- 弹性: flex（默认 1）
 
 ### divider — 分隔线
 
-| 属性 | 类型 | 默认值 |
-|------|------|--------|
-| `thickness` | number | 1 |
-| `color` | color | — |
+- 粗细: thickness（默认 1px）
+- 颜色: color
 
 ### webview — 内嵌网页
 
-| 属性 | 类型 | 默认值 |
-|------|------|--------|
-| `src` | string | — |
-| `javascriptEnabled` | boolean | true |
-| `allowFileAccess` | boolean | false |
-| `scalesPageToFit` | boolean | true |
+- 源: src
+- 选项: javascriptEnabled, allowFileAccess, scalesPageToFit
 
-**事件**: `onPageStarted`, `onPageFinished`, `onWebResourceError`
+## 颜色体系
 
-## 类型说明
+| 用途 | 色值 |
+|------|------|
+| 主色 | `#1976D2` |
+| 次色 | `#9C27B0` |
+| 背景 | `#fafafa` |
+| 文字 | `#333` |
+| 边框 | `#e0e0e0` |
+| 成功 | `#388E3C` |
+| 警告 | `#F57F17` |
+| 错误 | `#e53935` |
 
-| 类型 | 含义 | 示例 |
-|------|------|------|
-| string | 字符串 | `"hello"` |
-| number | 数字 | `16` |
-| boolean | 布尔 | `true` |
-| color | HEX 颜色 | `"#1976D2"` |
-| size | 数字或预设 | `16` 或 `"md"` (`xs=4, sm=8, md=16, lg=24, xl=32`) |
-| enum | 枚举 | `"primary"` |
+## 间距体系
 
-## 校验实现
+`xs=4px, sm=8px, md=16px, lg=24px, xl=32px`
+
+## 校验
 
 `catalog.ts` 提供校验函数：
 
 ```ts
-// 验证生成的 UI 是否符合 Catalog 规范
-validateGeneratedUI(ui, catalogDef): ValidationError[]
-
 // 验证权限声明
 validatePermissions(permissions): ValidationError[]
+
+// 验证服务包基本结构
+validatePackage(pkg): ValidationError[]
 ```
 
-校验项：
-1. 每个节点的 `type` 必须在 Catalog 中存在
-2. 节点的 `props` key 必须属于该组件定义的 props
-3. 必填 props 必须提供
-4. 权限声明必须在已知权限列表中
+校验项（已大幅简化）：
+1. manifest 必填字段（id、name）
+2. files 数组非空且包含 index.html
+3. 权限声明在已知权限列表中

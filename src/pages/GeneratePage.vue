@@ -48,23 +48,24 @@
     </div>
 
     <!-- Result -->
-    <div v-if="generatedService" class="result-card">
+    <div v-if="generatedPackage" class="result-card">
       <div class="result-header">
         <span class="result-icon">✅</span>
         <div>
-          <h3>{{ generatedService.manifest.name }}</h3>
-          <p class="result-desc">{{ generatedService.manifest.description }}</p>
+          <h3>{{ generatedPackage.manifest.name }}</h3>
+          <p class="result-desc">{{ generatedPackage.manifest.description }}</p>
         </div>
       </div>
 
       <div class="result-meta">
-        <span class="badge">{{ generatedService.manifest.id }}</span>
-        <span class="badge">v{{ generatedService.manifest.version }}</span>
+        <span class="badge">{{ generatedPackage.manifest.id }}</span>
+        <span class="badge">v{{ generatedPackage.manifest.version }}</span>
         <span
           class="badge permission"
-          v-for="p in generatedService.manifest.permissions"
+          v-for="p in generatedPackage.manifest.permissions"
           :key="p"
         >{{ p }}</span>
+        <span class="badge">{{ generatedPackage.files.length }} 个文件</span>
       </div>
 
       <div class="result-actions">
@@ -84,11 +85,11 @@
         <summary>预览生成内容</summary>
         <div class="preview-tabs">
           <button
-            v-for="tab in ['ui', 'logic']"
-            :key="tab"
-            :class="['tab', { active: previewTab === tab }]"
-            @click="previewTab = tab"
-          >{{ tab }}</button>
+            v-for="tab in fileTabs"
+            :key="tab.index"
+            :class="['tab', { active: previewTab === tab.index }]"
+            @click="previewTab = tab.index"
+          >{{ tab.name }}</button>
         </div>
         <pre class="preview-code"><code>{{ previewContent }}</code></pre>
       </details>
@@ -99,9 +100,9 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { generateService } from '../ai/generator'
-import { registerService, storeServiceHtml } from '../host/registry'
+import { registerService, storeServicePackage } from '../host/registry'
 import { useRouter } from 'vue-router'
-import type { GeneratedService, ValidationError } from '../types/service'
+import type { ServicePackage } from '../types/service'
 
 const router = useRouter()
 
@@ -110,16 +111,19 @@ const generating = ref(false)
 const progressMessage = ref('')
 const progressPct = ref(0)
 const errorMsg = ref('')
-const validationErrors = ref<ValidationError[]>([])
-const generatedService = ref<GeneratedService | null>(null)
-const previewTab = ref<'ui' | 'logic'>('ui')
+const validationErrors = ref<{ node: string; message: string }[]>([])
+const generatedPackage = ref<ServicePackage | null>(null)
+const previewTab = ref(0)
 
 const previewContent = computed(() => {
-  if (!generatedService.value) return ''
-  if (previewTab.value === 'ui') {
-    return JSON.stringify(generatedService.value.ui, null, 2)
-  }
-  return generatedService.value.logic || '(无逻辑代码)'
+  if (!generatedPackage.value) return ''
+  const file = generatedPackage.value.files[previewTab.value]
+  return file ? file.content : ''
+})
+
+const fileTabs = computed(() => {
+  if (!generatedPackage.value) return []
+  return generatedPackage.value.files.map((f, i) => ({ name: f.path, index: i }))
 })
 
 async function startGeneration() {
@@ -127,7 +131,7 @@ async function startGeneration() {
 
   errorMsg.value = ''
   validationErrors.value = []
-  generatedService.value = null
+  generatedPackage.value = null
   generating.value = true
   progressPct.value = 10
   progressMessage.value = '正在准备...'
@@ -163,8 +167,8 @@ async function startGeneration() {
         // Validation errors
         validationErrors.value = result
       } else {
-        // Generated service
-        generatedService.value = result
+        // Service package
+        generatedPackage.value = result
         progressPct.value = 100
         progressMessage.value = '生成完成！'
       }
@@ -177,42 +181,35 @@ async function startGeneration() {
 }
 
 function installAndRun() {
-  if (!generatedService.value) return
+  if (!generatedPackage.value) return
 
-  const svc = generatedService.value
-  const html = (svc as any)._html
+  const pkg = generatedPackage.value
 
-  registerService(svc.manifest, 'ai-generated')
-  if (html) {
-    storeServiceHtml(svc.manifest.id, html)
-  }
+  registerService(pkg.manifest, 'ai-generated')
+  storeServicePackage(pkg.manifest.id, pkg)
 
-  // Navigate to the service
-  router.push(`/service/${svc.manifest.id}/`)
+  router.push(`/service/${pkg.manifest.id}/`)
 }
 
 function installOnly() {
-  if (!generatedService.value) return
+  if (!generatedPackage.value) return
 
-  const svc = generatedService.value
-  const html = (svc as any)._html
+  const pkg = generatedPackage.value
 
-  registerService(svc.manifest, 'ai-generated')
-  if (html) {
-    storeServiceHtml(svc.manifest.id, html)
-  }
+  registerService(pkg.manifest, 'ai-generated')
+  storeServicePackage(pkg.manifest.id, pkg)
 
-  generatedService.value = null
+  generatedPackage.value = null
   validationErrors.value = []
   prompt.value = ''
   progressPct.value = 0
   progressMessage.value = ''
 
-  alert(`服务 "${svc.manifest.name}" 已安装！可在"我的服务"中查看。`)
+  alert(`服务 "${pkg.manifest.name}" 已安装！可在"我的服务"中查看。`)
 }
 
 function discardResult() {
-  generatedService.value = null
+  generatedPackage.value = null
   validationErrors.value = []
 }
 </script>

@@ -266,69 +266,6 @@ export interface ValidationError {
   message: string
 }
 
-export function validateGeneratedUI(
-  ui: { version: string; root: string; nodes: Record<string, any> },
-  catalogDef: CatalogDefinition
-): ValidationError[] {
-  const errors: ValidationError[] = []
-  const compMap = new Map<string, CatalogComponent>()
-  for (const c of catalogDef.components) {
-    compMap.set(c.type, c)
-  }
-
-  for (const [nodeId, node] of Object.entries(ui.nodes)) {
-    // 1. Check type exists
-    if (!compMap.has(node.type)) {
-      errors.push({
-        node: nodeId,
-        message: `Unknown component type "${node.type}". Available: ${[...compMap.keys()].join(', ')}`,
-      })
-      continue
-    }
-
-    const comp = compMap.get(node.type)!
-
-    // 2. Check props keys
-    if (node.props) {
-      const allowedProps = new Set(Object.keys(comp.props))
-      // events are also allowed in props (onTap, onChange, onSubmit)
-      const eventProps = (comp.events || []).map((e) => e)
-      for (const e of eventProps) allowedProps.add(e)
-      // children is implicit
-      allowedProps.add('children')
-
-      for (const propKey of Object.keys(node.props)) {
-        if (!allowedProps.has(propKey)) {
-          errors.push({
-            node: nodeId,
-            message: `Unknown prop "${propKey}" for component "${node.type}". Allowed: ${[...allowedProps].join(', ')}`,
-          })
-        }
-      }
-
-      // 3. Check required props
-      for (const [pname, pdef] of Object.entries(comp.props)) {
-        if ((pdef as any).required && !(pname in node.props)) {
-          errors.push({
-            node: nodeId,
-            message: `Missing required prop "${pname}" for component "${node.type}"`,
-          })
-        }
-      }
-    }
-  }
-
-  // 4. Check root exists
-  if (!ui.nodes[ui.root]) {
-    errors.push({
-      node: ui.root,
-      message: `Root node "${ui.root}" not found in nodes`,
-    })
-  }
-
-  return errors
-}
-
 const KNOWN_PERMISSIONS = ['storage', 'notification']
 
 export function validatePermissions(permissions: string[]): ValidationError[] {
@@ -341,98 +278,57 @@ export function validatePermissions(permissions: string[]): ValidationError[] {
   return errors
 }
 
+export function validatePackage(pkg: { manifest: any; files: any[] }): ValidationError[] {
+  const errors: ValidationError[] = []
+
+  if (!pkg.manifest || !pkg.manifest.id) {
+    errors.push({ node: 'manifest', message: '缺少 manifest.id' })
+  }
+  if (!pkg.manifest?.name) {
+    errors.push({ node: 'manifest', message: '缺少 manifest.name' })
+  }
+
+  if (!pkg.files || !Array.isArray(pkg.files) || pkg.files.length === 0) {
+    errors.push({ node: 'files', message: '缺少 files 数组' })
+  } else {
+    const hasIndexHtml = pkg.files.some((f: any) => f.path === 'index.html')
+    if (!hasIndexHtml) {
+      errors.push({ node: 'files', message: '必须包含 index.html' })
+    }
+  }
+
+  if (pkg.manifest?.permissions) {
+    const permErrors = validatePermissions(pkg.manifest.permissions)
+    errors.push(...permErrors)
+  }
+
+  return errors
+}
+
 export function getCatalogYamlText(): string {
-  // Return the built-in catalog as string for prompt injection
-  return `components:
-  - type: container
-    description: 通用容器
-    is_container: true
-    props:
-      direction:    { type: enum, enum: [vertical, horizontal], default: vertical }
-      padding:      { type: size }
-      margin:       { type: size }
-      backgroundColor: { type: color }
-      borderRadius: { type: number }
-      alignment:    { type: enum, enum: [start, center, end, stretch] }
-      spacing:      { type: size }
+  // Catalog is now a style reference for AI, not strict constraint
+  return `以下组件风格可供参考（你可以直接用 HTML/CSS 自由设计，不必严格拘泥）:
 
-  - type: scroll
-    description: 可滚动容器
-    is_container: true
-    props:
-      direction:   { type: enum, enum: [vertical, horizontal] }
-      scrollbars:  { type: boolean, default: false }
+常用组件参考:
+  - container: 通用容器 (flex 布局, 支持 direction/padding/margin/background/borderRadius/alignment/spacing)
+  - card: 卡片 (elevation/borderRadius/padding)
+  - scroll: 滚动容器 (direction/scrollbars)
+  - text: 文本 (content/size/color/weight/align/maxLines)
+  - button: 按钮 (label/variant:primary|secondary|outline|ghost/size/disabled)
+  - input: 输入框 (type:text|password|number|email|multiline/placeholder/value/maxLength)
+  - image: 图片 (src/fit/width/height)
+  - list: 列表容器 (direction/itemSpacing)
+  - spacer: 弹性占位 (flex)
+  - divider: 分隔线 (thickness/color)
+  - webview: 内嵌网页 (src)
 
-  - type: card
-    description: 卡片容器
-    is_container: true
-    props:
-      elevation:   { type: number, default: 2 }
-      borderRadius: { type: number, default: 12 }
-      padding:     { type: size }
+颜色建议: 主色 #1976D2, 次色 #9C27B0, 背景 #fafafa, 文字 #333
+圆角: 8-12px, 间距: 4/8/16/24/32px 体系
 
-  - type: text
-    description: 文本
-    props:
-      content: { type: string, required: true }
-      size:    { type: number, default: 16 }
-      color:   { type: color }
-      weight:  { type: enum, enum: [normal, bold, light] }
-      align:   { type: enum, enum: [left, center, right] }
-      maxLines: { type: number }
-
-  - type: button
-    description: 按钮
-    props:
-      label:    { type: string, required: true }
-      variant:  { type: enum, enum: [primary, secondary, outline, ghost], default: primary }
-      size:     { type: enum, enum: [small, medium, large], default: medium }
-      disabled: { type: boolean, default: false }
-    events: [onTap]
-
-  - type: input
-    description: 输入框
-    props:
-      type:        { type: enum, enum: [text, password, number, email, multiline] }
-      placeholder: { type: string }
-      value:       { type: string }
-      maxLength:   { type: number }
-    events: [onChange, onSubmit]
-
-  - type: image
-    description: 图片
-    props:
-      src:   { type: string, required: true }
-      fit:   { type: enum, enum: [cover, contain, fill, none], default: cover }
-      width:  { type: size }
-      height: { type: size }
-    events: [onTap]
-
-  - type: list
-    description: 列表容器
-    is_container: true
-    props:
-      direction: { type: enum, enum: [vertical, horizontal] }
-      itemSpacing: { type: size }
-
-  - type: spacer
-    description: 弹性占位
-    props:
-      flex: { type: number, default: 1 }
-
-  - type: divider
-    description: 分隔线
-    props:
-      thickness: { type: number, default: 1 }
-      color:     { type: color }
-
-  - type: webview
-    description: 内嵌网页
-    props:
-      src: { type: string }
-      javascriptEnabled: { type: boolean, default: true }
-      allowFileAccess: { type: boolean, default: false }
-      scalesPageToFit: { type: boolean, default: true }
-    events: [onPageStarted, onPageFinished, onWebResourceError]
+宿主 API (app.js 中使用 window.__amiba__):
+  - __amiba__.storage.set(key, data) / get(key) / remove(key)
+  - __amiba__.showToast(title, icon)   // icon: 'success'|'error'|'loading'|'none'
+  - __amiba__.navigateTo(url)
+  - __amiba__.navigateBack(delta)
 `
 }

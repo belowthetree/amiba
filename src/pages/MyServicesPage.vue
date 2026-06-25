@@ -102,11 +102,11 @@ import {
   toggleService,
   unregisterService,
   registerService,
-  storeServiceHtml,
+  storeServicePackage,
   removeServiceStorage,
 } from '../host/registry'
-import type { ServiceEntry } from '../types/service'
-import { DEMO_HTML } from './demo-html'
+import type { ServiceEntry, ServicePackage } from '../types/service'
+import { DEMO_PACKAGE } from './demo-package'
 
 const router = useRouter()
 
@@ -159,13 +159,7 @@ async function handleToggle(id: string, enabled: boolean) {
 function deleteService(svc: ServiceEntry) {
   if (confirm(`确定要删除 "${svc.manifest.name}" 吗？此操作不可撤销。`)) {
     unregisterService(svc.manifest.id)
-    // Also remove stored HTML
-    try {
-      localStorage.removeItem(`amiba_html_${svc.manifest.id}`)
-      localStorage.removeItem(`amiba_svc_${svc.manifest.id}`)
-    } catch {
-      // ignore
-    }
+    removeServiceStorage(svc.manifest.id)
   }
 }
 
@@ -187,7 +181,7 @@ async function installDemo() {
   }
 
   await registerService(manifest, 'ai-generated')
-  await storeServiceHtml(manifest.id, DEMO_HTML)
+  await storeServicePackage(manifest.id, DEMO_PACKAGE)
 }
 </script>
 

@@ -42,19 +42,7 @@ export interface CatalogDefinition {
   components: CatalogComponent[]
 }
 
-// --- AI Generation Output ---
-
-export interface GeneratedNode {
-  type: string
-  props: Record<string, any>
-  children?: string[] // node id references
-}
-
-export interface GeneratedUI {
-  version: string
-  root: string
-  nodes: Record<string, GeneratedNode>
-}
+// --- Task Types ---
 
 export interface TaskSchedule {
   type: 'interval' | 'cron' | 'once'
@@ -76,10 +64,16 @@ export interface GeneratedTask {
   action: TaskAction
 }
 
-export interface GeneratedService {
+// --- AI Generation Output (multi-file package) ---
+
+export interface ServiceFile {
+  path: string       // e.g. "index.html", "style.css", "app.js"
+  content: string    // file content
+}
+
+export interface ServicePackage {
   manifest: ServiceManifest
-  ui: GeneratedUI
-  logic: string // JavaScript code string
+  files: ServiceFile[]   // must include "index.html"
   tasks?: GeneratedTask[]
 }
 
