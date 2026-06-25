@@ -4,6 +4,7 @@
 
 - Node.js >= 18
 - npm >= 9
+- Rust >= 1.77 (安装: https://rustup.rs)
 
 ## 快速开始
 
@@ -19,9 +20,8 @@ npm run dev          # 启动开发服务器 → http://localhost:5173
 npm run dev          # 启动开发服务器 (localhost:5173)
 npm run build        # 生产构建 (vue-tsc + vite)
 npm run preview      # 预览生产构建
-npx cap sync         # 同步 Capacitor 原生项目
-npx cap open ios     # Xcode 打开
-npx cap open android # Android Studio 打开
+npx tauri dev        # 启动 Tauri 桌面应用（开发模式）
+npx tauri build      # 打包 Tauri 桌面应用
 ```
 
 ## 配置 AI
@@ -59,6 +59,13 @@ src/
     ├── SettingsPage.vue     # API Key / 模型 / 主题
     ├── MyServicesPage.vue   # 服务管理 + Demo 安装
     └── MemoryPage.vue       # MEMORY.md / USER.md 编辑器
+src-tauri/
+├── Cargo.toml          # Rust 依赖配置
+├── tauri.conf.json     # Tauri 窗口/打包配置
+├── capabilities/       # 权限声明
+└── src/
+    ├── main.rs         # Rust 入口
+    └── lib.rs          # 插件注册
 ```
 
 ## 添加新页面

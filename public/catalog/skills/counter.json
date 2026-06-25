@@ -1,0 +1,24 @@
+{
+  "manifest": {
+    "id": "user.counter",
+    "name": "计数器",
+    "version": "1.0.0",
+    "description": "点击计数应用",
+    "permissions": ["storage"]
+  },
+  "ui": {
+    "version": "1.0.0",
+    "root": "page_root",
+    "nodes": {
+      "page_root": { "type": "card", "props": { "padding": 24 }, "children": ["title_text", "count_text", "btn_row"] },
+      "title_text": { "type": "text", "props": { "content": "计数器", "size": 24, "weight": "bold", "align": "center" } },
+      "count_text": { "type": "text", "props": { "content": "0", "size": 48, "weight": "bold", "align": "center" } },
+      "btn_row": { "type": "container", "props": { "direction": "horizontal", "alignment": "center", "spacing": 16 }, "children": ["minus_btn", "reset_btn", "plus_btn"] },
+      "minus_btn": { "type": "button", "props": { "label": "-1", "variant": "outline", "onTap": "handleMinus" } },
+      "reset_btn": { "type": "button", "props": { "label": "重置", "variant": "secondary", "onTap": "handleReset" } },
+      "plus_btn": { "type": "button", "props": { "label": "+1", "variant": "primary", "onTap": "handlePlus" } }
+    }
+  },
+  "logic": "let count = 0;\n\nasync function init() {\n  const saved = await __amiba__.storage.get('counter_value');\n  if (saved !== undefined && saved !== null) count = saved;\n  updateDisplay();\n}\n\nfunction updateDisplay() {\n  const el = document.getElementById('count_text');\n  if (el) el.textContent = String(count);\n}\n\nasync function handlePlus() {\n  count++;\n  await __amiba__.storage.set('counter_value', count);\n  updateDisplay();\n}\n\nasync function handleMinus() {\n  count--;\n  await __amiba__.storage.set('counter_value', count);\n  updateDisplay();\n}\n\nasync function handleReset() {\n  count = 0;\n  await __amiba__.storage.set('counter_value', count);\n  updateDisplay();\n  __amiba__.showToast('已重置', 'success');\n}\n\ninit();",
+  "tasks": []
+}

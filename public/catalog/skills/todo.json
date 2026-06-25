@@ -1,0 +1,23 @@
+{
+  "manifest": {
+    "id": "user.todo_list",
+    "name": "待办清单",
+    "version": "1.0.0",
+    "description": "管理你的待办事项",
+    "permissions": ["storage"]
+  },
+  "ui": {
+    "version": "1.0.0",
+    "root": "page_root",
+    "nodes": {
+      "page_root": { "type": "card", "props": { "padding": 24 }, "children": ["title_text", "input_row", "list_container"] },
+      "title_text": { "type": "text", "props": { "content": "待办清单", "size": 24, "weight": "bold" } },
+      "input_row": { "type": "container", "props": { "direction": "horizontal", "spacing": 8 }, "children": ["todo_input", "add_btn"] },
+      "todo_input": { "type": "input", "props": { "placeholder": "输入待办事项...", "type": "text" } },
+      "add_btn": { "type": "button", "props": { "label": "添加", "variant": "primary", "onTap": "handleAdd" } },
+      "list_container": { "type": "list", "props": { "direction": "vertical", "itemSpacing": 8 } }
+    }
+  },
+  "logic": "let todos = [];\n\nasync function init() {\n  const saved = await __amiba__.storage.get('todos');\n  if (saved) todos = saved;\n  renderList();\n}\n\nfunction renderList() {\n  const container = document.getElementById('list_container');\n  if (!container) return;\n  container.innerHTML = todos.map((t, i) =>\n    '<div style=\"display:flex;align-items:center;padding:8px;background:#f5f5f5;border-radius:8px;margin-bottom:4px\">' +\n    '<span style=\"flex:1;text-decoration:' + (t.done ? 'line-through' : 'none') + '\">' + t.text + '</span>' +\n    '<button onclick=\"handleToggle(' + i + ')\" style=\"margin-right:4px;padding:4px 8px;border:1px solid #ccc;border-radius:4px;background:white;cursor:pointer\">OK</button>' +\n    '<button onclick=\"handleDelete(' + i + ')\" style=\"padding:4px 8px;border:1px solid #ccc;border-radius:4px;background:white;cursor:pointer\">X</button>' +\n    '</div>'\n  ).join('');\n}\n\nasync function handleAdd() {\n  const input = document.getElementById('todo_input');\n  const val = input?.value?.trim();\n  if (!val) return;\n  todos.push({ text: val, done: false });\n  await __amiba__.storage.set('todos', todos);\n  input.value = '';\n  renderList();\n  __amiba__.showToast('已添加', 'success');\n}\n\nasync function handleToggle(i) {\n  todos[i].done = !todos[i].done;\n  await __amiba__.storage.set('todos', todos);\n  renderList();\n}\n\nasync function handleDelete(i) {\n  todos.splice(i, 1);\n  await __amiba__.storage.set('todos', todos);\n  renderList();\n}\n\ninit();",
+  "tasks": []
+}

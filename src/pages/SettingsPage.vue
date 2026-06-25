@@ -88,7 +88,7 @@
       <div class="about-info">
         <p><strong>变形虫 Amiba</strong> v1.0.0</p>
         <p>AI 驱动的跨平台即时应用平台</p>
-        <p>Vue 3 + TypeScript + Capacitor</p>
+        <p>Vue 3 + TypeScript + Tauri</p>
       </div>
     </div>
 

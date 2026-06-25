@@ -4,7 +4,7 @@ AI 驱动的跨平台即时应用平台 — 用户用自然语言描述需求，
 
 ## 技术栈
 
-Vue 3 + TypeScript + Vite + Capacitor（Web / iOS / Android）
+Vue 3 + TypeScript + Vite + Tauri（Windows / macOS / Linux）
 
 ## 快速开始
 

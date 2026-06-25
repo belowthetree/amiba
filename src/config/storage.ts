@@ -1,6 +1,6 @@
 // ============================================================
 // 变形虫 (Amiba) — 存储层
-// 本地文件夹 > Capacitor > OPFS
+// 本地文件夹 > Tauri FS > OPFS
 // ============================================================
 
 const APP_ROOT = 'amiba'
@@ -28,9 +28,19 @@ export async function setStorageFolder(handle: FileSystemDirectoryHandle) {
 }
 
 export async function initStorage() {
-  // Native app: Capacitor handles it, nothing to do
-  if ((window as any).Capacitor?.isNative?.()) {
-    console.log('[Storage] 原生环境，使用 OS 配置目录')
+  // Tauri: use native FS, ensure app dir exists
+  if ('__TAURI_INTERNALS__' in window) {
+    console.log('[Storage] Tauri 环境，使用 OS 配置目录')
+    try {
+      const { exists, mkdir, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+      const ok = await exists(APP_ROOT, { baseDir: BaseDirectory.AppData })
+      if (!ok) {
+        await mkdir(APP_ROOT, { baseDir: BaseDirectory.AppData, recursive: true })
+        console.log('[Storage] 已创建 Tauri 数据目录:', APP_ROOT)
+      }
+    } catch (e) {
+      console.error('[Storage] Tauri 初始化失败:', e)
+    }
     return
   }
 
@@ -112,30 +122,39 @@ async function folderClear(): Promise<void> {
   try { for await (const [name] of (folderHandle as any).entries()) await folderHandle.removeEntry(name) } catch {}
 }
 
-// --- Capacitor backend ---
-async function capacitorGet(key: string): Promise<string | null> {
+// --- Tauri FS backend ---
+async function tauriGet(key: string): Promise<string | null> {
   try {
-    const { Filesystem } = await import('@capacitor/filesystem')
-    const r = await Filesystem.readFile({ path: APP_ROOT + '/' + key, directory: 'DATA' as any, encoding: 'utf8' as any })
-    return r.data as string
+    const { readTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    return await readTextFile(APP_ROOT + '/' + key, { baseDir: BaseDirectory.AppData })
   } catch { return null }
 }
 
-async function capacitorSet(key: string, value: string): Promise<void> {
-  const { Filesystem } = await import('@capacitor/filesystem')
-  await Filesystem.writeFile({ path: APP_ROOT + '/' + key, data: value, directory: 'DATA' as any, encoding: 'utf8' as any, recursive: true })
+async function tauriSet(key: string, value: string): Promise<void> {
+  const { writeTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+  await writeTextFile(APP_ROOT + '/' + key, value, { baseDir: BaseDirectory.AppData })
 }
 
-async function capacitorRemove(key: string): Promise<void> {
-  try { const { Filesystem } = await import('@capacitor/filesystem'); await Filesystem.deleteFile({ path: APP_ROOT + '/' + key, directory: 'DATA' as any }) } catch {}
+async function tauriRemove(key: string): Promise<void> {
+  try {
+    const { remove, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    await remove(APP_ROOT + '/' + key, { baseDir: BaseDirectory.AppData })
+  } catch {}
 }
 
-async function capacitorKeys(): Promise<string[]> {
-  try { const { Filesystem } = await import('@capacitor/filesystem'); const r = await Filesystem.readdir({ path: APP_ROOT, directory: 'DATA' as any }); return r.files.map((f: any) => f.name) } catch { return [] }
+async function tauriKeys(): Promise<string[]> {
+  try {
+    const { readDir, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const entries = await readDir(APP_ROOT, { baseDir: BaseDirectory.AppData })
+    return entries.map((e: any) => e.name)
+  } catch { return [] }
 }
 
-async function capacitorClear(): Promise<void> {
-  try { const ks = await capacitorKeys(); for (const k of ks) await capacitorRemove(k) } catch {}
+async function tauriClear(): Promise<void> {
+  try {
+    const ks = await tauriKeys()
+    for (const k of ks) await tauriRemove(k)
+  } catch {}
 }
 
 // --- OPFS backend ---
@@ -162,10 +181,10 @@ async function opfsClear(): Promise<void> {
 }
 
 // --- Active backend ---
-type Backend = 'folder' | 'capacitor' | 'opfs'
+type Backend = 'folder' | 'tauri' | 'opfs'
 function activeBackend(): Backend {
   if (folderHandle) return 'folder'
-  if ((window as any).Capacitor?.isNative?.()) return 'capacitor'
+  if ('__TAURI_INTERNALS__' in window) return 'tauri'
   return 'opfs'
 }
 function logBackend() { console.log('[Storage] 后端:', activeBackend()) }
@@ -173,7 +192,7 @@ function logBackend() { console.log('[Storage] 后端:', activeBackend()) }
 // --- Public API ---
 export async function storageGet(key: string): Promise<string | null> {
   const be = activeBackend()
-  const val = be === 'folder' ? await folderGet(key) : be === 'capacitor' ? await capacitorGet(key) : await opfsGet(key)
+  const val = be === 'folder' ? await folderGet(key) : be === 'tauri' ? await tauriGet(key) : await opfsGet(key)
   console.log('[Storage] GET', key, val ? `(${(val.length / 1024).toFixed(1)}KB)` : '(null)', '←', be)
   return val
 }
@@ -181,26 +200,26 @@ export async function storageSet(key: string, value: string): Promise<void> {
   const be = activeBackend()
   console.log('[Storage] SET', key, `(${(value.length / 1024).toFixed(1)}KB)`, '→', be)
   if (be === 'folder') return folderSet(key, value)
-  if (be === 'capacitor') return capacitorSet(key, value)
+  if (be === 'tauri') return tauriSet(key, value)
   return opfsSet(key, value)
 }
 export async function storageRemove(key: string): Promise<void> {
   const be = activeBackend()
   console.log('[Storage] DEL', key, '→', be)
   if (be === 'folder') return folderRemove(key)
-  if (be === 'capacitor') return capacitorRemove(key)
+  if (be === 'tauri') return tauriRemove(key)
   return opfsRemove(key)
 }
 export async function storageKeys(): Promise<string[]> {
   const be = activeBackend()
   if (be === 'folder') return folderKeys()
-  if (be === 'capacitor') return capacitorKeys()
+  if (be === 'tauri') return tauriKeys()
   return opfsKeys()
 }
 export async function storageClear(): Promise<void> {
   const be = activeBackend()
   if (be === 'folder') return folderClear()
-  if (be === 'capacitor') return capacitorClear()
+  if (be === 'tauri') return tauriClear()
   return opfsClear()
 }
 export async function storageGetJSON<T>(key: string): Promise<T | null> {
@@ -212,6 +231,6 @@ export async function storageSetJSON(key: string, value: any): Promise<void> {
 export async function getStorageBackend(): Promise<string> {
   const be = activeBackend()
   if (be === 'folder') return '本地文件夹'
-  if (be === 'capacitor') return 'OS 配置目录'
+  if (be === 'tauri') return 'OS 配置目录'
   return 'OPFS (浏览器)'
 }

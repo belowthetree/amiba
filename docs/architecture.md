@@ -29,14 +29,14 @@
 │  │             Settings | MyServices | Memory    │ │
 │  │                                              │ │
 │  ├──────────────────────────────────────────────┤ │
-│  │  ServiceWorker + Capacitor 插件               │ │
+│  │  Rust + Tauri 插件                               │ │
 │  │  (存储 / 通知 / 后台任务 / 文件)              │ │
 │  └──────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────┘
-         │ postMessage          │ Capacitor Bridge
+         │ postMessage          │ Tauri IPC
          ▼                      ▼
    ┌──────────┐    ┌──────────────────────┐
-   │ iframe   │    │  Native              │
+   │ iframe   │    │  Rust Backend         │
    │ (服务)   │    │  (文件系统/通知/...)   │
    └──────────┘    └──────────────────────┘
 ```
@@ -54,7 +54,7 @@
 | 打包 | Vite | 极快热更新 |
 | 状态管理 | Pinia | Vue 官方推荐 |
 | 路由 | vue-router | 标准方案 |
-| 原生桥接 | Capacitor | 插件成熟，社区最大 |
+| 原生桥接 | Tauri | Rust 原生，轻量高效 |
 | LLM | openai npm | 兼容 DeepSeek/OpenAI 及所有兼容接口 |
 | UI 组件库 | 无 / Tailwind | 减少依赖，轻量优先 |
 | 测试 | Vitest + Playwright | 单元 + 端到端 |
@@ -96,7 +96,8 @@ amiba/
 ├── tests/
 │   ├── unit/
 │   └── e2e/
-├── capacitor.config.ts
+├── src-tauri/
+│   └── ...                  # Tauri Rust 后端
 └── package.json
 ```
 

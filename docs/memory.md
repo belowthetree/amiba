@@ -78,7 +78,7 @@ USER PROFILE (who the user is) [8% — 110/1375 chars]
 | 平台 | 存储方式 |
 |------|----------|
 | Web | localStorage (`amiba_memory_md`, `amiba_user_md`) |
-| 移动端 | Capacitor Filesystem（待实现） |
+| 桌面端 | Tauri FS Plugin（`@tauri-apps/plugin-fs`） |
 
 ## 实现代码
 
