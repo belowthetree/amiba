@@ -41,7 +41,6 @@ const routeTitles: Record<string, string> = {
   home: '主界面',
   generate: 'AI 生成',
   settings: '设置',
-  'my-services': '我的服务',
   memory: '记忆管理',
   service: '服务',
 }

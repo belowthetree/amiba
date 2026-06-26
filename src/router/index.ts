@@ -11,7 +11,6 @@ const router = createRouter({
     { path: '/services', name: 'services', component: () => import('../pages/ServiceBrowsePage.vue') },
     { path: '/generate', name: 'generate', component: () => import('../pages/GeneratePage.vue') },
     { path: '/settings', name: 'settings', component: () => import('../pages/SettingsPage.vue') },
-    { path: '/my-services', name: 'my-services', component: () => import('../pages/MyServicesPage.vue') },
     { path: '/memory', name: 'memory', component: () => import('../pages/MemoryPage.vue') },
     { path: '/service/:serviceId/:pathMatch(.*)*', name: 'service', component: () => import('../host/service-container.vue') },
   ],

@@ -5,9 +5,12 @@
   <div class="my-services-page">
     <div class="header">
       <h2>📦 我的服务</h2>
-      <button class="new-btn" @click="$router.push('/generate')">
-        + 新建
-      </button>
+      <div class="header-btns">
+        <button class="import-btn" @click="importFromFolder">📂 导入</button>
+        <button class="new-btn" @click="$router.push('/generate')">
+          + 新建
+        </button>
+      </div>
     </div>
 
     <!-- Built-in services -->
@@ -183,6 +186,56 @@ async function installDemo() {
   await registerService(manifest, 'ai-generated')
   await storeServicePackage(manifest.id, DEMO_PACKAGE)
 }
+
+async function importFromFolder() {
+  try {
+    const { open } = await import('@tauri-apps/plugin-dialog')
+    const dir = await open({ directory: true, multiple: false, title: '选择服务目录' })
+    if (!dir || typeof dir !== 'string') return
+
+    // Read manifest.json from the selected directory
+    const manifestPath = dir.replace(/\\/g, '/')
+    // Use Tauri FS to read the directory
+    const { readDir, readTextFile } = await import('@tauri-apps/plugin-fs')
+    const entries = await readDir(dir)
+
+    // Find manifest.json
+    const manifestEntry = entries.find((e: any) => e.name === 'manifest.json')
+    if (!manifestEntry) {
+      alert('所选目录中没有 manifest.json')
+      return
+    }
+
+    const manifestRaw = await readTextFile(dir + '/manifest.json')
+    const manifest = JSON.parse(manifestRaw)
+    if (!manifest.id || !manifest.name) {
+      alert('manifest.json 格式无效：缺少 id 或 name')
+      return
+    }
+
+    // Read all files (skip directories like data/)
+    const files: { path: string; content: string }[] = []
+    for (const e of entries) {
+      if (!e.name || e.name === 'manifest.json') continue
+      if ((e as any).isDirectory) continue
+      const content = await readTextFile(dir + '/' + e.name)
+      files.push({ path: e.name, content })
+    }
+
+    if (!files.some(f => f.path === 'index.html')) {
+      alert('服务包必须包含 index.html')
+      return
+    }
+
+    const pkg: ServicePackage = { manifest, files }
+    await registerService(manifest, 'downloaded')
+    await storeServicePackage(manifest.id, pkg)
+    alert(`服务 "${manifest.name}" 已导入！`)
+  } catch (e: any) {
+    console.error('[Import] 导入失败:', e)
+    alert('导入失败: ' + (e.message || e))
+  }
+}
 </script>
 
 <style scoped>
@@ -209,6 +262,21 @@ async function installDemo() {
   background: #1976D2;
   color: white;
   border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.header-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.import-btn {
+  padding: 8px 16px;
+  background: white;
+  color: #1976D2;
+  border: 1px solid #1976D2;
   border-radius: 8px;
   font-size: 13px;
   cursor: pointer;

@@ -221,22 +221,8 @@ export function inlinePackage(pkg: ServicePackage): string {
     }
   )
 
-  // Inject Amiba bridge shim at start of <body> (always, shim self-guards)
-  const shim = `<script>
-// Amiba Bridge Shim — replaced by host injectBridge at runtime
-if (!window.__amiba__) {
-  window.__amiba__ = {
-    storage: {
-      set: async (k, v) => { localStorage.setItem('_s_' + k, JSON.stringify(v)); },
-      get: async (k) => { const r = localStorage.getItem('_s_' + k); return r ? JSON.parse(r) : null; },
-      remove: async (k) => { localStorage.removeItem('_s_' + k); },
-    },
-    showToast: async (title, icon) => { console.log('[Toast]', title, icon); },
-    navigateTo: (url) => { console.log('[Navigate]', url); },
-    navigateBack: (delta) => { console.log('[NavigateBack]', delta); },
-  };
-}
-</script>`
+  // Bridge placeholder — replaced by service-container with real bridge script
+  const shim = `<!-- AMIBA_BRIDGE -->`
   html = html.replace(/(<body[^>]*>)/i, '$1\n' + shim)
 
   return html

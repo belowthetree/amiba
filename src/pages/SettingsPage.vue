@@ -72,7 +72,7 @@
 
     <div class="settings-section">
       <h3 class="section-label">数据管理</h3>
-      <div class="action-row" style="margin-bottom:8px"><button class="secondary-btn" @click="scanForServices">🔍 扫描存储目录</button><button class="secondary-btn" @click="addSvcFolder">📁 选择文件夹</button><button class="secondary-btn" @click="addSvcFile">📄 选择文件</button></div>
+      <div class="action-row" style="margin-bottom:8px"><button class="secondary-btn" @click="scanForServices">🔍 扫描存储目录</button><button class="secondary-btn" @click="addSvcFile">📄 选择文件</button></div>
       <div v-if="pending.length" class="sl" style="margin-bottom:8px"><div class="si" v-for="(svc,i) in pending" :key="i"><span class="sn">{{ svc.name }}</span><span class="sd">{{ svc.desc }}</span><button class="sib" @click="installSvc(i)">安装</button><button class="sx" @click="pending.splice(i,1)">✕</button></div></div><div class="action-row">
         <button class="danger-btn" @click="clearAllData">
           🗑 清除所有数据
@@ -99,10 +99,9 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { settings, getApiKey, setApiKey } from '../config/config'
-import { storageClear, storageKeys, storageGet } from '../config/storage'
-import { inlinePackage } from '../ai/generator'
-import { registerService, storeServicePackage } from '../host/registry'
-import type { ServicePackage } from '../types/service'
+import { storageClear, storageKeys, storageGet, listServiceDirs, readServiceFile } from '../config/storage'
+import { registerService, storeServicePackage, getServicePackage } from '../host/registry'
+import type { ServicePackage, ServiceManifest } from '../types/service'
 
 const apiKey = ref('')
 const showKey = ref(false)
@@ -150,13 +149,11 @@ async function exportData() {
   flashSaved()
 }
 
-async function addSvcFolder() { try { const dh = await (window as any).showDirectoryPicker(); const svcs: any[] = []; for await (const [n, h] of (dh as any).entries()) { if (h.kind !== "file") continue; try { const t = await (await h.getFile()).text(); const s = JSON.parse(t); if (s.manifest && s.files && Array.isArray(s.files)) svcs.push({ name: s.manifest.name || n, id: s.manifest.id || n, desc: s.manifest.description || "", data: s as ServicePackage }) } catch {} } if (svcs.length) { pending.value = [...pending.value, ...svcs]; flashSaved() } else alert("未发现有效服务 JSON") } catch (e: any) { if (e.name !== "AbortError") alert("失败: " + e.message) } }
-
 async function addSvcFile() { const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".json"; inp.multiple = true; inp.style.display = "none"; document.body.appendChild(inp); inp.onchange = async () => { document.body.removeChild(inp); const svcs: any[] = []; for (const f of Array.from(inp.files || [])) { try { const t = await f.text(); const s = JSON.parse(t); if (s.manifest && s.files && Array.isArray(s.files)) svcs.push({ name: s.manifest.name || f.name, id: s.manifest.id || f.name, desc: s.manifest.description || "", data: s as ServicePackage }) } catch {} } if (svcs.length) { pending.value = [...pending.value, ...svcs]; flashSaved() } }; inp.click() }
 
 async function installSvc(idx: number) { const s: any = pending.value[idx]; if (!s) return; try { const pkg: ServicePackage = s.data; const m: any = { id: pkg.manifest.id || ("user." + s.id), name: pkg.manifest.name || s.name, version: pkg.manifest.version || "1.0.0", description: pkg.manifest.description || "", permissions: pkg.manifest.permissions || [] }; await registerService(m, "ai-generated"); await storeServicePackage(m.id, pkg); pending.value.splice(idx, 1); flashSaved() } catch (e: any) { console.error(e); alert("安装失败: " + e.message) } }
 
-async function scanForServices() { let count = 0; const keys = await storageKeys(); console.log("[Scan] files:", keys); for (const key of keys) { if (key.startsWith("amiba_")) continue; try { const raw = await storageGet(key); if (!raw) continue; const svc = JSON.parse(raw); if (svc.manifest && svc.files && Array.isArray(svc.files)) { const pkg = svc as ServicePackage; const m = { id: pkg.manifest.id || ("user." + key), name: pkg.manifest.name || key, version: pkg.manifest.version || "1.0.0", description: pkg.manifest.description || "", permissions: pkg.manifest.permissions || [] }; await registerService(m, "ai-generated"); await storeServicePackage(m.id, pkg); console.log("[Scan] installed:", m.name); count++; } } catch (e) { console.log("[Scan] skip:", key, e) } } if (count > 0) { alert("已安装 " + count + " 个服务"); location.reload() } else { alert("未发现可安装的服务 JSON") } }
+async function scanForServices() { let count = 0; const dirs = await listServiceDirs(); console.log("[Scan] service dirs:", dirs); for (const dir of dirs) { try { const raw = await readServiceFile(dir, 'manifest.json'); if (!raw) continue; const manifest: ServiceManifest = JSON.parse(raw); const pkg = await getServicePackage(dir); if (!pkg) continue; await registerService(manifest, 'ai-generated'); await storeServicePackage(manifest.id, pkg); console.log("[Scan] installed:", manifest.name); count++; } catch (e) { console.log("[Scan] skip:", dir, e) } } if (count > 0) { alert("已安装 " + count + " 个服务"); location.reload() } else { alert("未发现可安装的服务") } }
 </script>
 
 <style scoped>

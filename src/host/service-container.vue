@@ -24,10 +24,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getService, getServicePackage, setServiceData, getServiceData, removeServiceData } from './registry'
-import { createBridge } from './bridge'
+import { createBridge, BRIDGE_SCRIPT } from './bridge'
 import { inlinePackage } from '../ai/generator'
 import type { ApiHandler } from './bridge'
 import type { ServicePackage } from '../types/service'
@@ -54,19 +54,15 @@ const serviceId = computed(() => {
 const sandboxFlags = 'allow-scripts allow-same-origin'
 
 function goBack() {
-  router.push('/my-services')
+  router.push('/services')
 }
 
 function onIframeLoad() {
   loading.value = false
+}
 
-  const iframe = iframeRef.value
-  if (!iframe) return
-
-  const service = getService(serviceId.value)
-  const permissions = service?.manifest.permissions || []
-
-  const apiHandler: ApiHandler = async (module, method, params) => {
+function makeApiHandler(): ApiHandler {
+  return async (module, method, params) => {
     switch (module) {
       case 'storage': {
         const svcId = serviceId.value
@@ -86,7 +82,6 @@ function onIframeLoad() {
       case 'notification': {
         switch (method) {
           case 'showToast':
-            // Simple toast implementation
             showToast(params.title, params.icon || 'none')
             return
           default:
@@ -96,10 +91,7 @@ function onIframeLoad() {
       case 'ui': {
         switch (method) {
           case 'navigateTo':
-            // Navigate within the app
-            if (params.url) {
-              router.push(params.url)
-            }
+            if (params.url) router.push(params.url)
             return
           case 'navigateBack':
             router.back()
@@ -112,8 +104,6 @@ function onIframeLoad() {
         throw new Error(`Unknown module: ${module}`)
     }
   }
-
-  bridgeCleanup = createBridge(iframe, permissions, apiHandler).destroy
 }
 
 function showToast(title: string, icon: string) {
@@ -166,9 +156,22 @@ onMounted(async () => {
   }
 
   servicePkg.value = pkg
-  const html = inlinePackage(pkg)
+  let html = inlinePackage(pkg)
+
+  // Inject the real bridge script BEFORE service scripts, replacing placeholder
+  html = html.replace('<!-- AMIBA_BRIDGE -->', '<script>' + BRIDGE_SCRIPT + '<\/script>')
+
   serviceHtml.value = html
   loading.value = false
+
+  // Wait for iframe to render, then set up host-side listener BEFORE browser parses srcdoc
+  await nextTick()
+  const iframe = iframeRef.value
+  if (iframe) {
+    const permissions = svc.manifest.permissions || []
+    const apiHandler = makeApiHandler()
+    bridgeCleanup = createBridge(iframe, permissions, apiHandler).destroy
+  }
 })
 
 onUnmounted(() => {
