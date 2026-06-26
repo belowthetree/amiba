@@ -1,7 +1,7 @@
 // ============================================================
 // 变形虫 (Amiba) — Skill 系统
 // ============================================================
-import { storageGetJSON, storageSetJSON } from '../config/storage'
+import { readSkillFile, readSkillJson, writeSkillFile, removeSkillFile, removeSkillDir, listSkillFiles, copySkillFolder } from '../config/storage'
 
 export interface Skill {
   name: string
@@ -9,8 +9,6 @@ export interface Skill {
   keywords: string[]
   template: string
 }
-
-const SKILLS_STORE_KEY = 'amiba_user_skills'
 
 // Built-in skills
 const builtinSkills: Skill[] = [
@@ -45,18 +43,108 @@ const BUILTIN_TEMPLATES: Record<string, string> = {
 let userSkills: Skill[] = []
 
 export async function loadUserSkills(): Promise<Skill[]> {
-  const saved = await storageGetJSON<Skill[]>(SKILLS_STORE_KEY)
-  userSkills = saved || []
+  const names = await listSkillFiles()
+  const skills: Skill[] = []
+  for (const name of names) {
+    try {
+      const raw = await readSkillJson(name)
+      if (raw) {
+        const skill = JSON.parse(raw) as Skill
+        skills.push(skill)
+      }
+    } catch (e) {
+      console.warn('[Skills] 跳过损坏的 skill:', name, e)
+    }
+  }
+  userSkills = skills
   return userSkills
 }
 
 export async function saveUserSkills(skills: Skill[]) {
   userSkills = skills
-  await storageSetJSON(SKILLS_STORE_KEY, skills)
+  // Write each skill as a separate file
+  for (const skill of skills) {
+    await writeSkillFile(skill.name, JSON.stringify(skill))
+  }
 }
 
 export function getUserSkills(): Skill[] {
   return userSkills
+}
+
+export async function addUserSkill(skill: Skill): Promise<void> {
+  // Check for duplicate name
+  if (userSkills.some(s => s.name === skill.name)) {
+    throw new Error(`Skill "${skill.name}" 已存在`)
+  }
+  userSkills.push(skill)
+  await writeSkillFile(skill.name, JSON.stringify(skill))
+}
+
+export async function updateUserSkill(oldName: string, skill: Skill): Promise<void> {
+  const idx = userSkills.findIndex(s => s.name === oldName)
+  if (idx === -1) throw new Error(`Skill "${oldName}" 不存在`)
+
+  // Check if old skill was folder-based
+  let wasDir = false
+  try {
+    const { exists, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    wasDir = await exists(`skills/${oldName}/skill.json`, { baseDir: BaseDirectory.AppData })
+  } catch { /* ignore */ }
+
+  if (wasDir) {
+    // Rename/move the directory if name changed
+    if (oldName !== skill.name) {
+      // Remove old dir (we'll re-create via write)
+      await removeSkillDir(oldName)
+      // Write skill.json into new directory
+      await writeSkillFile(skill.name, JSON.stringify(skill))
+    } else {
+      // Update skill.json in-place inside the directory
+      await writeSkillFile(skill.name, JSON.stringify(skill))
+    }
+  } else {
+    // Flat file: remove old, write new
+    if (oldName !== skill.name) {
+      await removeSkillFile(oldName)
+    }
+    await writeSkillFile(skill.name, JSON.stringify(skill))
+  }
+
+  userSkills[idx] = skill
+}
+
+export async function deleteUserSkill(name: string): Promise<void> {
+  const idx = userSkills.findIndex(s => s.name === name)
+  if (idx === -1) throw new Error(`Skill "${name}" 不存在`)
+  userSkills.splice(idx, 1)
+  await removeSkillFile(name)
+  await removeSkillDir(name) // also clean up folder-based skill if present
+}
+
+export async function importSkillFromFolder(sourceDir: string): Promise<Skill> {
+  // Read skill.json from source folder
+  const { readTextFile } = await import('@tauri-apps/plugin-fs')
+  let raw: string
+  try {
+    raw = await readTextFile(sourceDir + '/skill.json')
+  } catch {
+    throw new Error('所选文件夹中没有 skill.json')
+  }
+  const skill: Skill = JSON.parse(raw)
+  if (!skill.name) throw new Error('skill.json 缺少 name 字段')
+
+  // Check for duplicate
+  if (userSkills.some(s => s.name === skill.name)) {
+    throw new Error(`Skill "${skill.name}" 已存在`)
+  }
+
+  // Copy folder into skills/
+  await copySkillFolder(sourceDir, skill.name)
+
+  // Add to in-memory list
+  userSkills.push(skill)
+  return skill
 }
 
 export function getAllSkills(): Skill[] {

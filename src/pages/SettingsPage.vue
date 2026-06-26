@@ -84,6 +84,36 @@
     </div>
 
     <div class="settings-section">
+      <h3 class="section-label">🧩 技能管理</h3>
+
+      <div v-if="userSkills.length" class="skill-list">
+        <div v-for="(skill, i) in userSkills" :key="i" class="skill-item">
+          <template v-if="editingIdx === i">
+            <div class="skill-edit-form">
+              <input v-model="editForm.name" class="form-input" placeholder="名称" style="margin-bottom:4px" />
+              <input v-model="editForm.desc" class="form-input" placeholder="描述" style="margin-bottom:4px" />
+              <input v-model="editForm.kws" class="form-input" placeholder="关键词（逗号分隔）" style="margin-bottom:4px" />
+              <textarea v-model="editForm.tpl" class="form-input" placeholder="模板（可选）" rows="3" style="margin-bottom:6px;resize:vertical" />
+              <div class="action-row">
+                <button class="sib save" @click="saveEdit(i)">💾 保存</button>
+                <button class="sx" @click="editingIdx = -1">取消</button>
+              </div>
+            </div>
+          </template>
+          <template v-else>
+            <span class="sn">{{ skill.name }}</span>
+            <span class="sd">{{ skill.description }}</span>
+            <button class="sib" @click="startEdit(i)">✏️</button>
+            <button class="sx" @click="removeSkill(i)">✕</button>
+          </template>
+        </div>
+      </div>
+      <p v-else class="skill-empty">暂无自定义 Skill</p>
+
+      <button class="secondary-btn" style="margin-top:4px" @click="importSkillFolder">📁 导入 Skill 文件夹</button>
+    </div>
+
+    <div class="settings-section">
       <h3 class="section-label">关于</h3>
       <div class="about-info">
         <p><strong>变形虫 Amiba</strong> v1.0.0</p>
@@ -102,10 +132,16 @@ import { settings, getApiKey, setApiKey } from '../config/config'
 import { storageClear, storageKeys, storageGet, listServiceDirs, readServiceFile } from '../config/storage'
 import { registerService, storeServicePackage, getServicePackage } from '../host/registry'
 import type { ServicePackage, ServiceManifest } from '../types/service'
+import { loadUserSkills, addUserSkill, updateUserSkill, deleteUserSkill, importSkillFromFolder, type Skill } from '../ai/skills'
 
 const apiKey = ref('')
 const showKey = ref(false)
 const showSaved = ref(false); const pending = ref<any[]>([])
+
+// --- Skill management ---
+const userSkills = ref<Skill[]>([])
+const editingIdx = ref(-1)
+const editForm = ref({ name: '', desc: '', kws: '', tpl: '' })
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -154,6 +190,44 @@ async function addSvcFile() { const inp = document.createElement("input"); inp.t
 async function installSvc(idx: number) { const s: any = pending.value[idx]; if (!s) return; try { const pkg: ServicePackage = s.data; const m: any = { id: pkg.manifest.id || ("user." + s.id), name: pkg.manifest.name || s.name, version: pkg.manifest.version || "1.0.0", description: pkg.manifest.description || "", permissions: pkg.manifest.permissions || [] }; await registerService(m, "ai-generated"); await storeServicePackage(m.id, pkg); pending.value.splice(idx, 1); flashSaved() } catch (e: any) { console.error(e); alert("安装失败: " + e.message) } }
 
 async function scanForServices() { let count = 0; const dirs = await listServiceDirs(); console.log("[Scan] service dirs:", dirs); for (const dir of dirs) { try { const raw = await readServiceFile(dir, 'manifest.json'); if (!raw) continue; const manifest: ServiceManifest = JSON.parse(raw); const pkg = await getServicePackage(dir); if (!pkg) continue; await registerService(manifest, 'ai-generated'); await storeServicePackage(manifest.id, pkg); console.log("[Scan] installed:", manifest.name); count++; } catch (e) { console.log("[Scan] skip:", dir, e) } } if (count > 0) { alert("已安装 " + count + " 个服务"); location.reload() } else { alert("未发现可安装的服务") } }
+
+// --- Skill management functions ---
+async function refreshSkills() { userSkills.value = await loadUserSkills() }
+
+async function importSkillFolder() {
+  try {
+    const { open } = await import('@tauri-apps/plugin-dialog')
+    const dir = await open({ directory: true, multiple: false, title: '选择 Skill 文件夹' })
+    if (!dir || typeof dir !== 'string') return
+    await importSkillFromFolder(dir)
+    await refreshSkills()
+    flashSaved()
+  } catch (e: any) {
+    alert('导入失败: ' + e.message)
+  }
+}
+
+function startEdit(idx: number) {
+  const s = userSkills.value[idx]; editingIdx.value = idx
+  editForm.value = { name: s.name, desc: s.description, kws: s.keywords.join(', '), tpl: s.template }
+}
+async function saveEdit(idx: number) {
+  const f = editForm.value; const oldName = userSkills.value[idx].name
+  if (!f.name.trim() || !f.desc.trim()) { alert('名称和描述不能为空'); return }
+  try {
+    await updateUserSkill(oldName, { name: f.name.trim(), description: f.desc.trim(), keywords: f.kws.split(/[,，]/).map(k => k.trim()).filter(Boolean), template: f.tpl })
+    await refreshSkills(); editingIdx.value = -1; flashSaved()
+  } catch (e: any) { alert(e.message) }
+}
+async function removeSkill(idx: number) {
+  const s = userSkills.value[idx]
+  if (!confirm(`确定要删除 Skill "${s.name}" 吗？`)) return
+  try {
+    await deleteUserSkill(s.name)
+    await refreshSkills(); flashSaved()
+  } catch (e: any) { alert(e.message) }
+}
+refreshSkills()
 </script>
 
 <style scoped>
@@ -281,4 +355,9 @@ async function scanForServices() { let count = 0; const dirs = await listService
   80% { opacity: 1; }
   100% { opacity: 0; }
 }
-.sl{display:flex;flex-direction:column;gap:4px}.si{display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f9f9f9;border-radius:6px;font-size:13px}.sn{font-weight:600;color:#333;white-space:nowrap}.sd{flex:1;color:#999;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sx{border:none;background:none;color:#e53935;cursor:pointer;font-size:14px;padding:2px 6px}.sib{border:1px solid #4CAF50;color:#4CAF50;background:white;border-radius:4px;cursor:pointer;font-size:12px;padding:2px 8px;white-space:nowrap}.sib:hover{background:#E8F5E9}</style>
+.sl{display:flex;flex-direction:column;gap:4px}.si{display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f9f9f9;border-radius:6px;font-size:13px}.sn{font-weight:600;color:#333;white-space:nowrap}.sd{flex:1;color:#999;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sx{border:none;background:none;color:#e53935;cursor:pointer;font-size:14px;padding:2px 6px}.sib{border:1px solid #4CAF50;color:#4CAF50;background:white;border-radius:4px;cursor:pointer;font-size:12px;padding:2px 8px;white-space:nowrap}.sib:hover{background:#E8F5E9}
+.skill-list{display:flex;flex-direction:column;gap:6px;margin-bottom:4px}
+.skill-item{display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f9f9f9;border-radius:6px;font-size:13px}
+.skill-edit-form{background:#f5f5f5;border-radius:8px;padding:10px}
+.skill-empty{font-size:13px;color:#bbb;text-align:center;margin:8px 0}
+.sib.save{border-color:#1976D2;color:#1976D2}.sib.save:hover{background:#E3F2FD}</style>

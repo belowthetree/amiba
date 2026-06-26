@@ -64,6 +64,12 @@ export async function initStorage() {
       await mkdir(SVC_ROOT, { baseDir: BaseDirectory.AppData, recursive: true })
       console.log('[Storage] 已创建服务目录:', dataDir + SVC_ROOT)
     }
+    // Ensure skills/ subdirectory exists
+    const skillOk = await exists(SKILLS_ROOT, { baseDir: BaseDirectory.AppData })
+    if (!skillOk) {
+      await mkdir(SKILLS_ROOT, { baseDir: BaseDirectory.AppData, recursive: true })
+      console.log('[Storage] 已创建Skill目录:', dataDir + SKILLS_ROOT)
+    }
     console.log('[Storage] 数据目录就绪:', dataDir + APP_ROOT)
   } catch (e) {
     console.error('[Storage] 初始化失败:', e)
@@ -110,6 +116,7 @@ export async function storageSetJSON(key: string, value: any): Promise<void> {
 // ============================================================
 
 const SVC_ROOT = 'services'
+const SKILLS_ROOT = 'skills'
 
 /** Sanitize a file path inside a service directory — rejects traversal */
 function safePath(subPath: string): string {
@@ -222,4 +229,103 @@ export async function serviceDataRemove(serviceId: string, key: string) {
 
 export async function serviceDataKeys(serviceId: string): Promise<string[]> {
   return svcFileList(serviceId, 'data')
+}
+
+// ============================================================
+// Skill file storage (skills/{skillName}.json)
+// ============================================================
+
+function skillRelPath(skillName: string): string {
+  return `${SKILLS_ROOT}/${safePath(skillName)}.json`
+}
+
+export async function readSkillFile(skillName: string): Promise<string | null> {
+  try {
+    const { readTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const val = await readTextFile(skillRelPath(skillName), { baseDir: BaseDirectory.AppData })
+    console.log('[Storage] READ SKILL', logPath(skillRelPath(skillName)), `(${(val.length / 1024).toFixed(1)}KB)`)
+    return val
+  } catch { return null }
+}
+
+export async function writeSkillFile(skillName: string, content: string): Promise<void> {
+  const { writeTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+  console.log('[Storage] WRITE SKILL', logPath(skillRelPath(skillName)), `(${(content.length / 1024).toFixed(1)}KB)`)
+  await writeTextFile(skillRelPath(skillName), content, { baseDir: BaseDirectory.AppData })
+}
+
+export async function removeSkillFile(skillName: string): Promise<void> {
+  try {
+    const { remove, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    await remove(skillRelPath(skillName), { baseDir: BaseDirectory.AppData })
+    console.log('[Storage] DEL SKILL', logPath(skillRelPath(skillName)))
+  } catch {}
+}
+
+export async function listSkillFiles(): Promise<string[]> {
+  try {
+    const { readDir, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const entries = await readDir(SKILLS_ROOT, { baseDir: BaseDirectory.AppData })
+    const names: string[] = []
+    for (const e of entries as any[]) {
+      if (e.name.endsWith('.json')) {
+        names.push(e.name.replace(/\.json$/, ''))
+      } else if (e.isDirectory) {
+        // Check if directory contains skill.json
+        try {
+          const { exists } = await import('@tauri-apps/plugin-fs')
+          const hasManifest = await exists(`${SKILLS_ROOT}/${e.name}/skill.json`, { baseDir: BaseDirectory.AppData })
+          if (hasManifest) names.push(e.name)
+        } catch { /* skip */ }
+      }
+    }
+    return names
+  } catch { return [] }
+}
+
+// Read skill JSON — supports both flat .json and directory/skill.json
+export async function readSkillJson(skillName: string): Promise<string | null> {
+  // Try flat file first
+  let raw = await readSkillFile(skillName)
+  if (raw) return raw
+  // Try directory/skill.json
+  try {
+    const { readTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    raw = await readTextFile(`${SKILLS_ROOT}/${safePath(skillName)}/skill.json`, { baseDir: BaseDirectory.AppData })
+    return raw
+  } catch { return null }
+}
+
+// Recursively copy a source folder into skills/{skillName}/
+export async function copySkillFolder(sourceDir: string, skillName: string): Promise<void> {
+  const { readDir, readFile, writeFile, mkdir, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+
+  async function copyRecursive(src: string, destRel: string) {
+    const entries = await readDir(src)
+    for (const entry of entries as any[]) {
+      const srcPath = src + '/' + entry.name
+      const destRelPath = destRel ? destRel + '/' + entry.name : entry.name
+      if (entry.isDirectory) {
+        await mkdir(`${SKILLS_ROOT}/${safePath(skillName)}/${safePath(destRelPath)}`, { baseDir: BaseDirectory.AppData, recursive: true }).catch(() => {})
+        await copyRecursive(srcPath, destRelPath)
+      } else {
+        const bytes = await readFile(srcPath)
+        await writeFile(`${SKILLS_ROOT}/${safePath(skillName)}/${safePath(destRelPath)}`, new Uint8Array(bytes), { baseDir: BaseDirectory.AppData })
+      }
+    }
+  }
+
+  // Ensure target directory exists
+  await mkdir(`${SKILLS_ROOT}/${safePath(skillName)}`, { baseDir: BaseDirectory.AppData, recursive: true }).catch(() => {})
+  await copyRecursive(sourceDir, '')
+  console.log('[Storage] COPY SKILL FOLDER', sourceDir, '→', logPath(`${SKILLS_ROOT}/${skillName}`))
+}
+
+// Remove a skill directory (for folder-based skills)
+export async function removeSkillDir(skillName: string): Promise<void> {
+  try {
+    const { remove, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    await remove(`${SKILLS_ROOT}/${safePath(skillName)}`, { baseDir: BaseDirectory.AppData, recursive: true })
+    console.log('[Storage] DEL SKILL DIR', logPath(`${SKILLS_ROOT}/${skillName}`))
+  } catch {}
 }
