@@ -30,6 +30,12 @@ const builtinSkills: Skill[] = [
     keywords: ['笔记', 'note', '记事', '备忘录', '便签'],
     template: '',
   },
+  {
+    name: '服务开发',
+    description: 'Amiba 服务开发完整指南',
+    keywords: ['开发服务', '创建服务', '服务开发', '开发', 'service', 'server-dev', '写一个', '做一个', '帮我写', '帮我做'],
+    template: '',
+  },
 ]
 
 // Build template paths for built-in skills
@@ -37,6 +43,7 @@ const BUILTIN_TEMPLATES: Record<string, string> = {
   '计数器': 'counter',
   '待办清单': 'todo',
   '笔记': 'notes',
+  '服务开发': 'server-dev',
 }
 
 // User-loaded skills (reactive-ish via refresh)
@@ -157,15 +164,25 @@ export async function getSkillTemplate(name: string): Promise<string | null> {
   const us = userSkills.find(s => s.name === name)
   if (us) return us.template
 
-  // Check built-in
+  // Check built-in: load SKILL.md from skill directory
   const builtinKey = BUILTIN_TEMPLATES[name]
   if (builtinKey) {
     try {
+      const resp = await fetch(`/catalog/skills/${builtinKey}/SKILL.md`)
+      if (resp.ok) return await resp.text()
+    } catch { /* fall through */ }
+
+    // Fallback: try legacy prompt.md
+    try {
+      const resp = await fetch(`/catalog/skills/${builtinKey}/prompt.md`)
+      if (resp.ok) return await resp.text()
+    } catch { /* fall through */ }
+
+    // Fallback: try legacy flat JSON file
+    try {
       const resp = await fetch(`/catalog/skills/${builtinKey}.json`)
-      return await resp.text()
-    } catch {
-      return null
-    }
+      if (resp.ok) return await resp.text()
+    } catch { return null }
   }
   return null
 }
