@@ -12,6 +12,10 @@ const CORE_TOOLS = [
   'catalog_search',
   'skill_view',
   'skills_list',
+  'service_list',
+  'service_file_list',
+  'service_file_read',
+  'service_file_write',
 ]
 
 // ---- 工具集定义 ----

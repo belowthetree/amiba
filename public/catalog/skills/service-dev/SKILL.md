@@ -26,10 +26,16 @@ keywords:
 
 ```json
 {
-  "manifest": { ... },
-  "files": [ ... ]
+  "manifest": { "id": "user.xxx", "name": "...", "version": "1.0.0", "description": "...", "permissions": [...] },
+  "files": [
+    { "path": "index.html", "content": "..." },
+    { "path": "style.css", "content": "..." },
+    { "path": "app.js", "content": "..." }
+  ]
 }
 ```
+
+> 平台收到后拆解存储为 `manifest.json`（纯 manifest）+ 独立文件。磁盘格式与目录导入完全一致。
 
 ---
 
@@ -153,16 +159,54 @@ init();
 - ❌ 返回了 markdown 代码块包裹 → 必须纯 JSON
 - ❌ 使用外部 CDN 或 `fetch` 外部 API
 - ❌ `content` 中的代码有语法错误
+- ❌ 修改已安装服务时重新生成整个 JSON → 应用 `service_file_write` 直接编辑文件
+- ❌ 目录导入时 manifest.json 包含外层 `files` 包裹 → 目录导入 manifest.json 只含 id/name/version/description/permissions
 
 ---
 
-## 9. 多页面服务
+## 9. Chart.js 图表（统一图表库）
+
+需要使用图表时，**统一使用 Chart.js v4**（已预置在平台中）：
+
+```html
+<script src="/libs/chart.umd.min.js"></script>
+```
+
+```js
+new Chart(canvas, {
+  type: 'bar' | 'line' | 'pie' | 'doughnut' | 'radar',
+  data: { labels: [...], datasets: [{ label: '...', data: [...], backgroundColor: [...] }] },
+  options: { responsive: true, maintainAspectRatio: false }
+})
+```
+
+推荐配色：`['#1976D2','#9C27B0','#E53935','#43A047','#FB8C00','#00ACC1']`
+Canvas 必须显式设置 width/height。示例：`example/chart-demo/`
+
+---
+
+## 10. 迭代修改已安装服务
+
+生成服务后如需修改，**不要重新生成整个服务**，使用 Agent Tools：
+
+| 工具 | 用途 |
+|------|------|
+| `service_list` | 列出已安装服务 |
+| `service_file_list` | 列出某服务的文件 |
+| `service_file_read` | 读取文件内容 |
+| `service_file_write` | 覆写文件（需传完整内容） |
+
+流程：`service_list` → `service_file_read` → 修改代码 → `service_file_write`
+
+---
+
+## 11. 多页面服务
 
 如需多个页面，在 `files` 中添加多个 `.html` 文件，页面间通过 `__amiba__.navigateTo('page2.html')` 跳转。
 
 ---
 
-## 10. 检查清单
+## 12. 检查清单
 
 - [ ] 输出是纯 JSON，无 markdown 包裹
 - [ ] `manifest` 含 `id` / `name` / `version` / `description` / `permissions`

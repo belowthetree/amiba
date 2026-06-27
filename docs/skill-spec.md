@@ -41,3 +41,18 @@ skills/<skill-name>/
 ## 命名规范
 
 技能目录名使用 hyphens slug（如 `service-dev`、`todo-list`），与 `/skill-name` 命令匹配。
+
+---
+
+> **附：服务包格式说明**
+>
+> 服务在磁盘上的存储格式统一为：
+> ```
+> services/{id}/
+> ├── manifest.json    ← 纯 manifest 对象: { "id": "user.xxx", "name": "...", "version": "...", ... }
+> ├── index.html
+> ├── style.css
+> └── app.js
+> ```
+>
+> AI 生成时输出内联 JSON（`{"manifest":{...}, "files":[{...}]}`），平台收到后自动拆解为上述磁盘格式。目录导入时直接提供磁盘格式即可。**两者落盘后完全一致。**
