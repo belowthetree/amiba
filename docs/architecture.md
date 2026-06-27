@@ -77,11 +77,27 @@ amiba/
 │   │   ├── MyServicesPage.vue
 │   │   └── MemoryPage.vue
 │   ├── ai/                  # AI 核心
-│   │   ├── agent.ts         # LLM 对话
-│   │   ├── generator.ts     # 服务生成
-│   │   ├── memory.ts        # 记忆存储
-│   │   ├── catalog.ts       # Catalog 管理
-│   │   └── skills.ts        # Skill 匹配
+│   │   ├── agent.ts           # LLM 对话（多工具循环）
+│   │   ├── system-prompt.ts   # System Prompt 组装器（缓存+分层）
+│   │   ├── soul.ts            # 人格系统（SOUL.md 管理）
+│   │   ├── session.ts         # 会话管理（状态+持久化）
+│   │   ├── commands.ts        # 内置命令（/new 等）
+│   │   ├── memory-store.ts    # 记忆存储引擎
+│   │   ├── memory.ts          # 记忆导出重封装
+│   │   ├── generator.ts       # 服务生成
+│   │   ├── catalog.ts         # Catalog 管理
+│   │   ├── skills.ts          # Skill 管理
+│   │   ├── skill-parser.ts    # SKILL.md 解析器
+│   │   └── skill-commands.ts  # /skill 命令+扫描
+│   ├── tools/                # 工具系统
+│   │   ├── tool-registry.ts   # ToolRegistry 核心
+│   │   ├── discover.ts        # 工具自动发现
+│   │   ├── toolsets.ts        # 工具集定义
+│   │   ├── memory.tool.ts     # 记忆工具
+│   │   ├── generate.tool.ts   # 服务生成工具
+│   │   ├── catalog.tool.ts    # Catalog 查询工具
+│   │   ├── skill.tool.ts      # 技能查询工具
+│   │   └── service-file.tool.ts  # 服务文件编辑工具
 │   ├── host/                # 服务运行时
 │   │   ├── service-container.vue  # iframe 外壳
 │   │   ├── bridge.ts        # postMessage 通信

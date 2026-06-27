@@ -23,7 +23,8 @@ USER.md:    用户画像，最多 1375 字符
 
 ## System Prompt 注入格式
 
-每次 AI 对话时，记忆内容以以下格式注入 System Prompt：
+记忆通过 `MemoryStore.formatForSystemPrompt()` 注入 System Prompt 的 Volatile 层。
+快照在构建时冻结，对话中途的写入不影响已发出的 prompt。
 
 ```
 ══════════════════════════════════════════════
@@ -77,17 +78,20 @@ USER PROFILE (who the user is) [8% — 110/1375 chars]
 
 | 平台 | 存储方式 |
 |------|----------|
-| Web | localStorage (`amiba_memory_md`, `amiba_user_md`) |
-| 桌面端 | Tauri FS Plugin（`@tauri-apps/plugin-fs`） |
+| Tauri 桌面 | `@tauri-apps/plugin-fs` → `{AppData}/amiba/amiba_memory_md`、`amiba_user_md` |
+| 浏览器 | 不可用（记忆仅在 Tauri 模式下持久化） |
 
-## 实现代码
+## 实现架构
 
-```ts
-// memory.ts
-getMemory(target: 'memory' | 'user'): string
-setMemory(target, content): void
-executeMemoryOperation(params: MemoryToolParams): string
-getMemoryContextForPrompt(): string
+```
+agent 调用 memory 工具
+  → toolRegistry.dispatch('memory', args)
+    → memory.tool.ts handler
+      → MemoryStore.executeOperation()   (src/ai/memory-store.ts)
+        → 即时 persist() 到 Tauri FS
+        → 更新内存缓存
 ```
 
-Agent 在流式对话中检测到 `memory` 工具调用时，自动执行本地记忆操作并返回结果，无需后端。
+- `MemoryStore` — 写入引擎，即时持久化
+- `memory.tool.ts` — 工具注册，转发到 MemoryStore
+- `system-prompt.ts` — 调用 `memoryStore.formatForSystemPrompt()` 注入 Volatile 层快照
