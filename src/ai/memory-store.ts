@@ -24,12 +24,15 @@ function getMaxChars(target: 'memory' | 'user'): number {
 export class MemoryStore {
   private memoryCache = ''
   private userCache = ''
+  /** 构建 system prompt 时冻结的快照 */
+  private snapshot: { memory: string; user: string } | null = null
 
   // ---- 初始化 ----
 
   async init(): Promise<void> {
     this.memoryCache = (await storageGet(MEMORY_KEY)) || ''
     this.userCache = (await storageGet(USER_KEY)) || ''
+    this.snapshot = { memory: this.memoryCache, user: this.userCache }
     console.log(
       `[MemoryStore] 初始化 — MEMORY ${this.memoryCache.length}/${MEMORY_MAX_CHARS} chars, USER ${this.userCache.length}/${USER_MAX_CHARS} chars`
     )
@@ -48,27 +51,42 @@ export class MemoryStore {
 
   /** 构建注入 system prompt 的记忆上下文 */
   getContextForPrompt(): string {
-    const memPct = this.memoryCache.length
-      ? Math.round((this.memoryCache.length / MEMORY_MAX_CHARS) * 100)
+    const snap = this.snapshot || { memory: this.memoryCache, user: this.userCache }
+    return this.formatFromSnapshot(snap)
+  }
+
+  /** 构建时冻结的快照（供 system-prompt.ts 用） */
+  formatForSystemPrompt(): string {
+    if (this.snapshot) {
+      return this.formatFromSnapshot(this.snapshot)
+    }
+    // 若尚未初始化，当场冻结
+    this.snapshot = { memory: this.memoryCache, user: this.userCache }
+    return this.formatFromSnapshot(this.snapshot)
+  }
+
+  private formatFromSnapshot(snap: { memory: string; user: string }): string {
+    const memPct = snap.memory.length
+      ? Math.round((snap.memory.length / MEMORY_MAX_CHARS) * 100)
       : 0
-    const userPct = this.userCache.length
-      ? Math.round((this.userCache.length / USER_MAX_CHARS) * 100)
+    const userPct = snap.user.length
+      ? Math.round((snap.user.length / USER_MAX_CHARS) * 100)
       : 0
 
     let ctx = ''
 
-    if (this.memoryCache) {
+    if (snap.memory) {
       ctx += `${'═'.repeat(55)}\n`
-      ctx += `MEMORY (your personal notes) [${memPct}% — ${this.memoryCache.length}/${MEMORY_MAX_CHARS} chars]\n`
+      ctx += `MEMORY (your personal notes) [${memPct}% — ${snap.memory.length}/${MEMORY_MAX_CHARS} chars]\n`
       ctx += `${'═'.repeat(55)}\n`
-      ctx += this.memoryCache + '\n'
+      ctx += snap.memory + '\n'
     }
 
-    if (this.userCache) {
+    if (snap.user) {
       ctx += `${'═'.repeat(55)}\n`
-      ctx += `USER PROFILE (who the user is) [${userPct}% — ${this.userCache.length}/${USER_MAX_CHARS} chars]\n`
+      ctx += `USER PROFILE (who the user is) [${userPct}% — ${snap.user.length}/${USER_MAX_CHARS} chars]\n`
       ctx += `${'═'.repeat(55)}\n`
-      ctx += this.userCache + '\n'
+      ctx += snap.user + '\n'
     }
 
     return ctx

@@ -8,9 +8,7 @@ import { getSettings, getApiKey } from '../config/config'
 import { toolRegistry } from '../tools/tool-registry'
 import { getToolDefinitions } from '../tools/toolsets'
 import { memoryStore } from './memory-store'
-
-// ---- Nudge 配置 ----
-const NUDGE_INTERVAL = 10 // 每 N 轮提示一次记忆保存
+import { buildSystemPrompt, buildSkillsIndex } from './system-prompt'
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
@@ -27,43 +25,15 @@ export interface StreamChatOptions {
   maxIterations?: number
   /** 最大 context token 数估算（默认 128k） */
   maxContextTokens?: number
-  /** 附加到 system prompt 的技能索引文本（可选） */
-  skillIndex?: string
+  /** 当前会话已进行轮次（用于 nudge 提示） */
+  turnCount?: number
 }
 
 const DEFAULT_OPTIONS: Required<StreamChatOptions> = {
   enabledToolsets: ['chat'],
   maxIterations: 25,
   maxContextTokens: 128_000,
-  skillIndex: '',
-}
-
-// ---- System Prompt ----
-
-export function createSystemPrompt(skillIndex?: string, turnCount?: number): string {
-  const memCtx = memoryStore.getContextForPrompt()
-
-  let prompt = `你是变形虫 (Amiba) 平台的 AI 助手。你可以帮助用户完成各种任务，包括使用工具保存记忆。
-
-## 当前平台信息
-- 变形虫是一个跨平台应用，允许用户使用 AI 自由生成类似小程序的即时应用
-- 内置功能: 首页、AI 对话、AI 生成服务、设置、我的服务、记忆管理
-- 用户生成的服务运行在安全的 iframe 沙箱中
-
-${memCtx}`
-
-  // 注入技能索引（若有）
-  if (skillIndex) {
-    prompt += `\n\n## 可用技能\n以下是用户已安装的技能，可通过 /name 触发：\n${skillIndex}`
-  }
-
-  // Nudge 提示：每隔 N 轮提醒 AI 可以保存记忆
-  if (turnCount !== undefined && turnCount > 0 && turnCount % NUDGE_INTERVAL === 0) {
-    prompt += `\n\n[提示：当前已是第 ${turnCount} 轮对话。如果对话中出现了值得长期保存的信息，可以用 memory 工具保存。]`
-  }
-
-  prompt += `\n\n请用中文回复，保持简洁有帮助。`
-  return prompt
+  turnCount: 0,
 }
 
 // ---- 粗略 token 估算 ----
@@ -111,7 +81,10 @@ export async function* streamChat(
 
   const systemMsg: ChatMessage = {
     role: 'system',
-    content: createSystemPrompt(opts.skillIndex),
+    content: buildSystemPrompt({
+      enabledToolsets: opts.enabledToolsets,
+      turnCount: opts.turnCount,
+    }),
   }
 
   let currentMessages = [systemMsg, ...messages]
