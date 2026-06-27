@@ -1,12 +1,8 @@
 // ============================================================
-// 变形虫 (Amiba) — Memory 工具（重构自 memory.ts）
+// 变形虫 (Amiba) — Memory 工具（重构自 memory.ts → MemoryStore）
 // ============================================================
 import { toolRegistry } from './tool-registry'
-import {
-  executeMemoryOperation,
-  getMemoryContextForPrompt,
-  refreshMemoryCache,
-} from '../ai/memory'
+import { memoryStore } from '../ai/memory-store'
 import type { MemoryToolParams } from '../types/service'
 
 toolRegistry.register({
@@ -66,14 +62,11 @@ toolRegistry.register({
   },
   handler: async (args) => {
     const params = args as unknown as MemoryToolParams
-    const result = await executeMemoryOperation(params)
-    // 记忆变更后刷新缓存，保证下次 system prompt 是最新的
-    await refreshMemoryCache()
-    return result
+    return memoryStore.executeOperation(params)
   },
 })
 
 /**
  * 便捷导出：供 agent.ts system prompt 使用
  */
-export { getMemoryContextForPrompt, refreshMemoryCache }
+export { memoryStore }

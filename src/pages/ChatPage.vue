@@ -151,6 +151,7 @@ onMounted(async () => {
   if (saved && Array.isArray(saved)) {
     messages.value = saved.slice(-50)
   }
+  scrollToBottom()
 })
 
 watch(
@@ -176,6 +177,9 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 12px;
+  max-width: 1080px;
+  width: 100%;
+  margin: 0 auto;
 }
 
 .chat-empty {
@@ -253,17 +257,21 @@ watch(
 
 .chat-input-bar {
   display: flex;
+  align-items: flex-end;
   gap: 8px;
-  padding: 12px 16px;
+  padding: 8px 8px 8px 16px;
+  max-width: 1080px;
+  width: 100%;
+  margin: 0 auto;
   background: white;
-  border-top: 1px solid #eee;
+  border-radius: 16px;
 }
 
 .chat-input {
   flex: 1;
-  border: 1px solid #e0e0e0;
-  border-radius: 12px;
-  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  padding: 6px 0;
   font-size: 14px;
   resize: none;
   outline: none;
@@ -271,11 +279,18 @@ watch(
 }
 
 .chat-input:focus {
-  border-color: #1976D2;
+  outline: none;
+}
+
+@media (min-width: 768px) {
+  .chat-input {
+    min-height: 80px;
+  }
 }
 
 .send-btn {
-  padding: 10px 20px;
+  flex-shrink: 0;
+  padding: 10px 18px;
   background: #1976D2;
   color: white;
   border: none;
@@ -283,6 +298,7 @@ watch(
   font-size: 14px;
   cursor: pointer;
   white-space: nowrap;
+  align-self: flex-end;
 }
 
 .send-btn:disabled {

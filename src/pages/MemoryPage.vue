@@ -65,7 +65,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
-import { getMemory, setMemory } from '../ai/memory'
+import { memoryStore } from '../ai/memory-store'
 
 const activeTab = ref<'memory' | 'user'>('memory')
 const editingContent = ref('')
@@ -86,7 +86,7 @@ const entries = computed(() => {
 })
 
 async function load() {
-  const content = await getMemory(activeTab.value)
+  const content = memoryStore.get(activeTab.value)
   savedContent.value = content
   editingContent.value = content
   dirty.value = false
@@ -94,7 +94,7 @@ async function load() {
 }
 
 async function saveMemory() {
-  await setMemory(activeTab.value, editingContent.value)
+  await memoryStore.setRaw(activeTab.value, editingContent.value)
   savedContent.value = editingContent.value
   dirty.value = false
   showSaved.value = true
@@ -110,7 +110,7 @@ function reload() {
 async function clearCurrent() {
   if (confirm(`确定要清空 ${activeTab.value === 'memory' ? 'MEMORY.md' : 'USER.md'} 吗？`)) {
     editingContent.value = ''
-    await setMemory(activeTab.value, '')
+    await memoryStore.setRaw(activeTab.value, '')
     savedContent.value = ''
     dirty.value = false
     updateCharCounts()
@@ -126,8 +126,8 @@ function deleteEntry(index: number) {
 }
 
 async function updateCharCounts() {
-  memoryChars.value = (await getMemory('memory')).length
-  userChars.value = (await getMemory('user')).length
+  memoryChars.value = (memoryStore.get('memory')).length
+  userChars.value = (memoryStore.get('user')).length
 }
 
 watch(activeTab, () => {

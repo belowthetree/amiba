@@ -7,7 +7,10 @@ import OpenAI from 'openai'
 import { getSettings, getApiKey } from '../config/config'
 import { toolRegistry } from '../tools/tool-registry'
 import { getToolDefinitions } from '../tools/toolsets'
-import { getMemoryContextForPrompt, refreshMemoryCache } from './memory'
+import { memoryStore } from './memory-store'
+
+// ---- Nudge 配置 ----
+const NUDGE_INTERVAL = 10 // 每 N 轮提示一次记忆保存
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
@@ -37,8 +40,8 @@ const DEFAULT_OPTIONS: Required<StreamChatOptions> = {
 
 // ---- System Prompt ----
 
-export function createSystemPrompt(skillIndex?: string): string {
-  const memCtx = getMemoryContextForPrompt()
+export function createSystemPrompt(skillIndex?: string, turnCount?: number): string {
+  const memCtx = memoryStore.getContextForPrompt()
 
   let prompt = `你是变形虫 (Amiba) 平台的 AI 助手。你可以帮助用户完成各种任务，包括使用工具保存记忆。
 
@@ -52,6 +55,11 @@ ${memCtx}`
   // 注入技能索引（若有）
   if (skillIndex) {
     prompt += `\n\n## 可用技能\n以下是用户已安装的技能，可通过 /name 触发：\n${skillIndex}`
+  }
+
+  // Nudge 提示：每隔 N 轮提醒 AI 可以保存记忆
+  if (turnCount !== undefined && turnCount > 0 && turnCount % NUDGE_INTERVAL === 0) {
+    prompt += `\n\n[提示：当前已是第 ${turnCount} 轮对话。如果对话中出现了值得长期保存的信息，可以用 memory 工具保存。]`
   }
 
   prompt += `\n\n请用中文回复，保持简洁有帮助。`
@@ -89,7 +97,7 @@ export async function* streamChat(
   }
 
   // Refresh memory cache
-  await refreshMemoryCache()
+  await memoryStore.init()
 
   const client = new OpenAI({
     baseURL: s.ai_base_url,

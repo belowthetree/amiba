@@ -8,7 +8,7 @@ import router from './router'
 import { initConfig } from './config/config'
 import { initStorage } from './config/storage'
 import { initRegistry } from './host/registry'
-import { refreshMemoryCache } from './ai/memory'
+import { memoryStore } from './ai/memory-store'
 import { loadUserSkills } from './ai/skills'
 import { discoverTools } from './tools/discover'
 
@@ -17,7 +17,7 @@ async function bootstrap() {
   await Promise.all([
     initConfig(),
     initRegistry(),
-    refreshMemoryCache(),
+    memoryStore.init(),
     loadUserSkills(),
   ])
 
