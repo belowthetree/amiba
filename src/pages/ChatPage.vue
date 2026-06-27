@@ -69,25 +69,23 @@
 import { ref, nextTick, onMounted, watch, computed } from 'vue'
 import { streamChat, buildMessages } from '../ai/agent'
 import { getApiKey } from '../config/config'
-import { storageGetJSON, storageSetJSON } from '../config/storage'
 import { detectSlashCommand, buildSkillInvocationMessage } from '../ai/skill-commands'
+import { matchCommand } from '../ai/commands'
+import {
+  getSession,
+  loadHistory,
+  saveHistory,
+  addUserMessage,
+  addAssistantMessage,
+  flashError,
+} from '../ai/session'
 
-const HISTORY_KEY = 'amiba_chat_history'
+const session = getSession()
+const { messages, turnCount, sending, streaming, streamingContent, errorMessage: errorMsg } = session
 
-interface Msg {
-  role: 'user' | 'assistant'
-  content: string
-}
-
-const messages = ref<Msg[]>([])
 const input = ref('')
-const sending = ref(false)
-const streaming = ref(false)
-const streamingContent = ref('')
-const errorMsg = ref('')
 const messagesEl = ref<HTMLDivElement | null>(null)
 const showStats = ref(false)
-const turnCount = ref(0)
 
 const NUDGE_INTERVAL = 10
 const nudgeCountdown = computed(() => {
@@ -114,30 +112,31 @@ async function send() {
 
   errorMsg.value = ''
   input.value = ''
-  turnCount.value++
+
+  // ---- 内置命令检测 ----
+  const cmd = matchCommand(text)
+  if (cmd) {
+    const result = await cmd.handler()
+    flashError(result)
+    scrollToBottom()
+    return
+  }
+
+  addUserMessage(text)
 
   // ---- Slash 命令检测 ----
   let injectedUserMsg: string = text
   if (text.startsWith('/')) {
     const detected = await detectSlashCommand(text)
     if (detected) {
-      // 将技能展开为 user message 注入（不改 system prompt）
       const expanded = await buildSkillInvocationMessage(
         detected.skill.slug,
         detected.userInstruction
       )
       if (expanded) {
-        // 向用户显示原始命令
-        messages.value.push({ role: 'user', content: text })
-        // 注入展开的技能内容作为内部消息
         injectedUserMsg = expanded
       }
     }
-  }
-
-  if (injectedUserMsg === text) {
-    // 无技能匹配：正常添加用户消息
-    messages.value.push({ role: 'user', content: text })
   }
 
   scrollToBottom()
@@ -159,7 +158,7 @@ async function send() {
     }
 
     if (streamingContent.value) {
-      messages.value.push({ role: 'assistant', content: streamingContent.value })
+      addAssistantMessage(streamingContent.value)
     }
   } catch (e: any) {
     errorMsg.value = `错误: ${e.message}`
@@ -172,18 +171,14 @@ async function send() {
 }
 
 onMounted(async () => {
-  const saved = await storageGetJSON<Msg[]>(HISTORY_KEY)
-  if (saved && Array.isArray(saved)) {
-    messages.value = saved.slice(-50)
-    turnCount.value = messages.value.filter(m => m.role === 'user').length
-  }
+  await loadHistory()
   scrollToBottom()
 })
 
 watch(
   () => messages.value.length,
   () => {
-    storageSetJSON(HISTORY_KEY, messages.value.slice(-50))
+    saveHistory()
   }
 )
 </script>
