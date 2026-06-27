@@ -79,6 +79,7 @@ import {
   addAssistantMessage,
   flashError,
 } from '../ai/session'
+import { soulManager } from '../ai/soul'
 
 const session = getSession()
 const { messages, turnCount, sending, streaming, streamingContent, errorMessage: errorMsg } = session
@@ -170,8 +171,46 @@ async function send() {
   }
 }
 
+/** 首次启动：以系统消息注入引导指令并触发 AI 回复 */
+async function sendOnboardingMessage(directive: string) {
+  sending.value = true
+  streaming.value = true
+  streamingContent.value = ''
+
+  try {
+    const chatMsgs: { role: string; content: string }[] = []
+    chatMsgs.push({ role: 'system', content: directive })
+    const gen = streamChat(chatMsgs as any, { turnCount: 0 })
+
+    for await (const chunk of gen) {
+      streamingContent.value += chunk
+      scrollToBottom()
+    }
+
+    if (streamingContent.value) {
+      addAssistantMessage(streamingContent.value)
+    }
+  } catch {
+    /* 静默处理 */
+  } finally {
+    sending.value = false
+    streaming.value = false
+    streamingContent.value = ''
+    scrollToBottom()
+  }
+}
+
 onMounted(async () => {
   await loadHistory()
+
+  // 首次启动引导：注入人格创建指令到 system prompt（不显示在用户界面）
+  if (await soulManager.isFirstLaunch()) {
+    const directive = soulManager.getOnboardingDirective()
+    // 作为附加的 system 消息注入（而非用户消息），AI 会看到但用户不会
+    await sendOnboardingMessage(directive)
+    return
+  }
+
   scrollToBottom()
 })
 

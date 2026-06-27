@@ -10,6 +10,7 @@
 import { memoryStore } from './memory-store'
 import { getSkillCommands } from './skill-commands'
 import { resolveToolset } from '../tools/toolsets'
+import { soulManager } from './soul'
 
 // ---- 缓存 ----
 
@@ -60,6 +61,7 @@ function assembleParts(options: {
 
   const stable = [
     buildIdentity(),
+    buildPlatformCapabilities(),
     buildBehaviorGuidance(availableTools),
     buildSkillsIndexSync(),
   ]
@@ -77,21 +79,30 @@ function assembleParts(options: {
   return { stable, volatile }
 }
 
-// ---- Stable: 身份定义 ----
+// ---- Stable: 身份定义（来自 SOUL.md） ----
 
-const AMIBA_AGENT_IDENTITY = `你是变形虫 (Amiba) 平台的 AI 助手。你可以帮助用户完成各种任务，包括使用工具保存记忆、生成服务等。
+function buildIdentity(): string {
+  return soulManager.getCurrentContent()
+}
 
-## 当前平台信息
-- 变形虫是一个跨平台应用，允许用户使用 AI 自由生成类似小程序的即时应用
-- 内置功能: 首页、AI 对话、AI 生成服务、设置、我的服务、记忆管理
-- 用户生成的服务运行在安全的 iframe 沙箱中，通过 JSBridge 调用宿主能力
-- 服务中可使用 Chart.js v4 绘制图表（<script src="/libs/chart.umd.min.js">）
-- 如果用户需要编辑已有服务，使用 service_file_list/read/write 工具，不要重新生成
+// ---- Stable: 平台能力提示（告诉人格能做什么） ----
+
+const PLATFORM_CAPABILITIES = `## 平台能力
+
+你运行在变形虫 (Amiba) 桌面应用中。以下是你可以使用的平台能力:
+
+- **生成服务**: 根据用户需求生成完整的迷你 Web 应用（HTML/CSS/JS），运行在 iframe 沙箱中
+- **编辑服务**: 使用 service_file_list/read/write 工具直接编辑已生成服务的文件
+- **持久记忆**: 使用 memory 工具保存信息到 MEMORY.md（AI 笔记）或 USER.md（用户画像）
+- **技能系统**: 用户可通过 /skill-name 触发技能，或通过 skill_view 查看技能内容
+- **Chart.js**: 生成的服务中可使用 Chart.js v4 绘制图表（<script src="/libs/chart.umd.min.js">）
+- **JSBridge**: 服务通过 window.__amiba__ 调用存储、通知、导航等宿主能力
+- **命令**: 输入 /new 开始新会话
 
 请用中文回复，保持简洁有帮助。`
 
-function buildIdentity(): string {
-  return AMIBA_AGENT_IDENTITY
+function buildPlatformCapabilities(): string {
+  return PLATFORM_CAPABILITIES
 }
 
 // ---- Stable: 行为指引（按可用工具条件注入） ----
