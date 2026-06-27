@@ -1,10 +1,13 @@
 // ============================================================
-// 变形虫 (Amiba) — LLM Agent (OpenAI 兼容流式对话)
+// 变形虫 (Amiba) — LLM Agent (OpenAI 兼容流式对话) v2
+// ============================================================
+// v2 改造：多工具循环 + ToolRegistry 集成 + 工具集选择 + token 预算
 // ============================================================
 import OpenAI from 'openai'
 import { getSettings, getApiKey } from '../config/config'
-import { getMemoryContextForPrompt, refreshMemoryCache, executeMemoryOperation } from './memory'
-import type { MemoryToolParams } from '../types/service'
+import { toolRegistry } from '../tools/tool-registry'
+import { getToolDefinitions } from '../tools/toolsets'
+import { getMemoryContextForPrompt, refreshMemoryCache } from './memory'
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
@@ -13,71 +16,70 @@ export interface ChatMessage {
   tool_call_id?: string
 }
 
-// Tool definition for memory
-const MEMORY_TOOL = {
-  type: 'function' as const,
-  function: {
-    name: 'memory',
-    description:
-      '保存跨会话的持久记忆。MEMORY.md 存 AI 笔记，USER.md 存用户画像。条目用 § 分隔，字符有限额。满时需分批删除旧条目再加新条目。',
-    parameters: {
-      type: 'object',
-      properties: {
-        action: {
-          type: 'string',
-          enum: ['add', 'replace', 'remove'],
-          description: '单操作时使用。批量时用 operations 字段。',
-        },
-        target: {
-          type: 'string',
-          enum: ['memory', 'user'],
-          description: '写入目标',
-        },
-        content: {
-          type: 'string',
-          description: 'add/replace 时的内容',
-        },
-        old_text: {
-          type: 'string',
-          description: 'replace/remove 时用于匹配的子串',
-        },
-        operations: {
-          type: 'array',
-          description: '批量操作 [{action, content?, old_text?}]，原子执行',
-          items: {
-            type: 'object',
-            properties: {
-              action: { type: 'string', enum: ['add', 'replace', 'remove'] },
-              content: { type: 'string' },
-              old_text: { type: 'string' },
-            },
-            required: ['action'],
-          },
-        },
-      },
-      required: ['target'],
-    },
-  },
+/** 流式对话配置 */
+export interface StreamChatOptions {
+  /** 启用的工具集名称（默认 ['chat']） */
+  enabledToolsets?: string[]
+  /** 最大 API 调用轮次（默认 25） */
+  maxIterations?: number
+  /** 最大 context token 数估算（默认 128k） */
+  maxContextTokens?: number
+  /** 附加到 system prompt 的技能索引文本（可选） */
+  skillIndex?: string
 }
 
-export function createSystemPrompt(): string {
+const DEFAULT_OPTIONS: Required<StreamChatOptions> = {
+  enabledToolsets: ['chat'],
+  maxIterations: 25,
+  maxContextTokens: 128_000,
+  skillIndex: '',
+}
+
+// ---- System Prompt ----
+
+export function createSystemPrompt(skillIndex?: string): string {
   const memCtx = getMemoryContextForPrompt()
-  return `你是变形虫 (Amiba) 平台的 AI 助手。你可以帮助用户完成各种任务，包括使用工具保存记忆。
+
+  let prompt = `你是变形虫 (Amiba) 平台的 AI 助手。你可以帮助用户完成各种任务，包括使用工具保存记忆。
 
 ## 当前平台信息
 - 变形虫是一个跨平台应用，允许用户使用 AI 自由生成类似小程序的即时应用
 - 内置功能: 首页、AI 对话、AI 生成服务、设置、我的服务、记忆管理
 - 用户生成的服务运行在安全的 iframe 沙箱中
 
-${memCtx}
+${memCtx}`
 
-请用中文回复，保持简洁有帮助。`
+  // 注入技能索引（若有）
+  if (skillIndex) {
+    prompt += `\n\n## 可用技能\n以下是用户已安装的技能，可通过 /name 触发：\n${skillIndex}`
+  }
+
+  prompt += `\n\n请用中文回复，保持简洁有帮助。`
+  return prompt
 }
+
+// ---- 粗略 token 估算 ----
+
+function estimateTokens(messages: ChatMessage[]): number {
+  // 粗略：4 字符 ≈ 1 token
+  let chars = 0
+  for (const m of messages) {
+    chars += m.content.length
+    if (m.tool_calls) {
+      chars += JSON.stringify(m.tool_calls).length
+    }
+  }
+  return Math.ceil(chars / 4)
+}
+
+// ---- 核心流式对话 ----
 
 export async function* streamChat(
   messages: ChatMessage[],
-  onMemoryCall?: (params: MemoryToolParams) => Promise<string>
+  options?: StreamChatOptions
 ): AsyncGenerator<string> {
+  const opts = { ...DEFAULT_OPTIONS, ...options }
+
   const s = getSettings()
   const apiKey = await getApiKey()
 
@@ -95,21 +97,41 @@ export async function* streamChat(
     dangerouslyAllowBrowser: true,
   })
 
+  // 获取工具 schemas
+  const toolSchemas = getToolDefinitions(opts.enabledToolsets)
+  const hasTools = toolSchemas.length > 0
+
   const systemMsg: ChatMessage = {
     role: 'system',
-    content: createSystemPrompt(),
+    content: createSystemPrompt(opts.skillIndex),
   }
 
   let currentMessages = [systemMsg, ...messages]
-  let loop = true
+  let apiCallCount = 0
 
-  while (loop) {
+  while (apiCallCount < opts.maxIterations) {
+    apiCallCount++
+
+    // Token 预算检测：超出时截断最旧的非 system 消息
+    const estTokens = estimateTokens(currentMessages)
+    if (estTokens > opts.maxContextTokens) {
+      console.warn(
+        `[Agent] Token 预算预警: 估算 ${estTokens} > ${opts.maxContextTokens}，开始截断旧消息`
+      )
+      // 保留 system + 最后 4 条消息
+      const keep = Math.max(2, currentMessages.length - 4)
+      currentMessages = [
+        currentMessages[0],
+        ...currentMessages.slice(keep),
+      ]
+    }
+
     const stream = await client.chat.completions.create({
       model: s.ai_model,
       messages: currentMessages as any,
       stream: true,
-      tools: [MEMORY_TOOL] as any,
-      tool_choice: 'auto',
+      tools: hasTools ? (toolSchemas as any) : undefined,
+      tool_choice: hasTools ? 'auto' : undefined,
     })
 
     let fullContent = ''
@@ -134,58 +156,72 @@ export async function* streamChat(
               }
             }
             if (tc.id) toolCalls[tc.index].id = tc.id
-            if (tc.function?.name) toolCalls[tc.index].function.name += tc.function.name
+            if (tc.function?.name)
+              toolCalls[tc.index].function.name += tc.function.name
             if (tc.function?.arguments)
               toolCalls[tc.index].function.arguments += tc.function.arguments
           }
         }
       }
 
-      if (chunk.choices[0]?.finish_reason === 'tool_calls') break
-      if (chunk.choices[0]?.finish_reason === 'stop') { loop = false; break }
+      const reason = chunk.choices[0]?.finish_reason
+      if (reason === 'tool_calls') break
+      if (reason === 'stop') {
+        // 在还有 tool_calls 待处理时不提前退出
+        if (toolCalls.filter(Boolean).length === 0) {
+          return // 正常结束
+        }
+        break
+      }
     }
 
     toolCalls = toolCalls.filter(Boolean)
+
     if (toolCalls.length > 0) {
+      // 添加 assistant 消息（含 tool_calls）
       currentMessages.push({
         role: 'assistant',
         content: fullContent || '',
         tool_calls: toolCalls,
       })
 
+      // 调度每个工具
       for (const tc of toolCalls) {
-        if (tc.function.name === 'memory') {
-          try {
-            const params = JSON.parse(tc.function.arguments) as MemoryToolParams
-            const handler = onMemoryCall || executeMemoryOperation
-            const result = await handler(params)
-            // Refresh cache after memory change
-            await refreshMemoryCache()
-            currentMessages.push({
-              role: 'tool',
-              content: result,
-              tool_call_id: tc.id,
-            })
-          } catch (e: any) {
-            currentMessages.push({
-              role: 'tool',
-              content: `Error: ${e.message}`,
-              tool_call_id: tc.id,
-            })
-          }
-        } else {
-          currentMessages.push({
-            role: 'tool',
-            content: 'Unknown tool',
-            tool_call_id: tc.id,
-          })
+        const toolName = tc.function?.name || ''
+        let toolArgs: any = {}
+
+        try {
+          toolArgs = JSON.parse(tc.function?.arguments || '{}')
+        } catch {
+          toolArgs = {}
         }
+
+        const result = await toolRegistry.dispatch(toolName, toolArgs, {
+          enabledToolsets: opts.enabledToolsets,
+        })
+
+        currentMessages.push({
+          role: 'tool',
+          content: result,
+          tool_call_id: tc.id,
+        })
+
+        // 若工具执行结果包含 continue 指令，可在此处理
+        // 例如 memory 工具内部会 refreshMemoryCache()
       }
     } else {
-      loop = false
+      // 无 tool_calls：对话结束
+      return
     }
   }
+
+  // 达到 maxIterations 上限仍未结束
+  if (apiCallCount >= opts.maxIterations) {
+    yield '\n\n[已达到最大对话轮次限制，请简化问题重试]'
+  }
 }
+
+// ---- 辅助 ----
 
 export function buildMessages(
   history: { role: 'user' | 'assistant'; content: string }[]

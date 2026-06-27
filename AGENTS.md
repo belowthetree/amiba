@@ -5,7 +5,7 @@ Vue 3 + TypeScript + Vite + Tauri desktop app. Users describe needs in natural l
 ## Project
 
 - **Stack:** Vue 3 (Composition API, `<script setup>`), Pinia, Vue Router, Vite 8, TypeScript 6, Tauri 2
-- **Entry:** `src/main.ts` → `bootstrap()` inits storage/config/registry/memory/skills, then mounts `App.vue`
+- **Entry:** `src/main.ts` → `bootstrap()` inits storage/config/registry/memory/skills, then discovers tools (`discoverTools()`), then mounts `App.vue`
 - **Tauri:** `src-tauri/` — Rust glue (`lib.rs`) registers `tauri-plugin-log` + `tauri-plugin-fs`; config at `src-tauri/tauri.conf.json`
 
 ## Commands
@@ -22,7 +22,8 @@ cargo tauri build    # Tauri production build (run from src-tauri/)
 
 | Module | Path | Role |
 |--------|------|------|
-| **AI Core** | `src/ai/` | LLM agent (OpenAI-compatible streaming), service generator, component catalog, MEMORY.md/USER.md persistence, user skills |
+| **AI Core** | `src/ai/` | LLM agent (OpenAI-compatible streaming with multi-tool loop), service generator, component catalog, MEMORY.md/USER.md persistence, skill system (SKILL.md + slash commands) |
+| **Tools** | `src/tools/` | ToolRegistry (deferred-queue register/dispatch), auto-discovery via `import.meta.glob`, 3 toolsets (core/chat/create), 6 tool implementations |
 | **Host Runtime** | `src/host/` | iframe sandbox (`service-container.vue`), postMessage JSBridge (`bridge.ts`), service registry (`registry.ts`) |
 | **Pages** | `src/pages/` | 7 routes: Chat, Home, Generate, Memory, MyServices, ServiceBrowse, Settings |
 | **Config** | `src/config/` | Reactive settings persisted via Tauri FS plugin (`config.ts`), storage abstraction (`storage.ts`) |
@@ -36,9 +37,12 @@ cargo tauri build    # Tauri production build (run from src-tauri/)
 - **Naming:** PascalCase for `.vue` components; kebab-case for directories; camelCase for functions/variables.
 - **Async init:** Entry modules export `initXxx()` called from `bootstrap()` in `main.ts`; each guards with an `initialized` flag.
 - **State:** Reactive config via `reactive()` + `watch()` with debounced persistence; Pinia stores for page-level state.
-- **AI:** OpenAI client with tool-calling (memory tool). Memory files use `§` delimiter for entries with character quotas.
+- **AI:** OpenAI client with **multi-tool calling** (ToolRegistry + toolsets). Tools auto-discovered from `*.tool.ts` files. Memory files use `§` delimiter for entries with character quotas. Skills use SKILL.md (YAML frontmatter) with `/skill-name` slash commands.
 - **JSBridge:** iframe `postMessage` protocol — `ServiceRequest` (type: api, module, method, params, requestId) → `ServiceResponse` (type: api-response, requestId, result/error). Permission-checked by module name.
 
 ## Notes
 
-<!-- Add quick notes here as the project evolves -->
+- Storage layout: `{AppData}/amiba/` → flat K/V files (memory, config), `services/{id}/` dirs, `skills/{slug}/SKILL.md` dirs. See `migrate.md` §八 for full spec.
+- Tools are code-defined (no persistence): add `src/tools/xxx.tool.ts` + `registry.register(...)` at module top-level → auto-discovered.
+- Skills are directory-defined: add `skills/{slug}/SKILL.md` with YAML frontmatter → scanned by `scanSkills()`.
+- Phase 1 + Phase 2 of migrate.md are implemented. Phase 3 (check_fn gate, HARDLINE validate, shell inline, curator) is pending.

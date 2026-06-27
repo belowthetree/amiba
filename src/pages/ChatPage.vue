@@ -53,6 +53,7 @@ import { ref, nextTick, onMounted, watch } from 'vue'
 import { streamChat, buildMessages } from '../ai/agent'
 import { getApiKey } from '../config/config'
 import { storageGetJSON, storageSetJSON } from '../config/storage'
+import { detectSlashCommand, buildSkillInvocationMessage } from '../ai/skill-commands'
 
 const HISTORY_KEY = 'amiba_chat_history'
 
@@ -90,7 +91,30 @@ async function send() {
   errorMsg.value = ''
   input.value = ''
 
-  messages.value.push({ role: 'user', content: text })
+  // ---- Slash 命令检测 ----
+  let injectedUserMsg: string = text
+  if (text.startsWith('/')) {
+    const detected = await detectSlashCommand(text)
+    if (detected) {
+      // 将技能展开为 user message 注入（不改 system prompt）
+      const expanded = await buildSkillInvocationMessage(
+        detected.skill.slug,
+        detected.userInstruction
+      )
+      if (expanded) {
+        // 向用户显示原始命令
+        messages.value.push({ role: 'user', content: text })
+        // 注入展开的技能内容作为内部消息
+        injectedUserMsg = expanded
+      }
+    }
+  }
+
+  if (injectedUserMsg === text) {
+    // 无技能匹配：正常添加用户消息
+    messages.value.push({ role: 'user', content: text })
+  }
+
   scrollToBottom()
 
   sending.value = true
@@ -100,7 +124,7 @@ async function send() {
   try {
     const history = messages.value.map((m) => ({ role: m.role, content: m.content }))
     const chatMsgs = buildMessages(history.slice(0, -1))
-    chatMsgs.push({ role: 'user', content: text })
+    chatMsgs.push({ role: 'user', content: injectedUserMsg })
 
     const gen = streamChat(chatMsgs)
 

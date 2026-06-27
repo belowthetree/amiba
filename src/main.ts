@@ -10,6 +10,7 @@ import { initStorage } from './config/storage'
 import { initRegistry } from './host/registry'
 import { refreshMemoryCache } from './ai/memory'
 import { loadUserSkills } from './ai/skills'
+import { discoverTools } from './tools/discover'
 
 async function bootstrap() {
   await initStorage()
@@ -19,6 +20,9 @@ async function bootstrap() {
     refreshMemoryCache(),
     loadUserSkills(),
   ])
+
+  // 工具自发现（触发 *.tool.ts 顶层 register → flush）
+  discoverTools()
 
   const app = createApp(App)
   const pinia = createPinia()
