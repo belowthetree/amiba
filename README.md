@@ -58,7 +58,7 @@ cargo tauri build     # Tauri 桌面应用（打包 EXE/DMG/deb）
 # 1. 安装 Android SDK（Android Studio → SDK Manager → SDK 34 + NDK 27）
 # 2. 设置环境变量
 export ANDROID_HOME=~/Android/Sdk
-export NDK_HOME=$ANDROID_HOME/ndk/27.0.xxxx
+export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.xxxx
 
 # 3. 添加 Rust Android targets
 rustup target add aarch64-linux-android armv7-linux-androideabi
@@ -73,9 +73,11 @@ cargo tauri android dev       # debug 到连接的设备
 
 输出：`src-tauri/gen/android/app/build/outputs/apk/release/`
 
-### GitHub Actions 自动构建
+**注意**：首次本地构建需要 `.cargo/config.toml` 指定 NDK 链接器（CI 自动生成，本地需手动添加）。
 
-推送版本号变更（`tauri.conf.json` / `Cargo.toml` / `package.json`）自动触发 APK 构建，产物在 Actions → Artifacts 下载。
+### GitHub Actions 自动发布
+
+修改 `package.json` 版本号 push 到 main → CI 自动构建 APK → 发布到 GitHub Releases。
 
 ## 架构
 
@@ -164,7 +166,13 @@ skills/               技能文件目录
 
 修改 `package.json` 版本号并 push 到 main 自动：
 1. 检测版本是否已发布（tag 是否存在）
-2. 构建 4 平台 → 创建 `v{version}` tag → 发布到 GitHub Releases
+2. 构建 Windows / macOS / Linux / Android
+3. 创建 `v{version}` tag → 发布到 GitHub Releases
+
+```bash
+npm version patch      # 0.1.4 → 0.1.5
+git push origin main   # 触发构建
+```
 
 也支持手动触发（Actions → workflow_dispatch）。
 

@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/27.0.12077973
+      ANDROID_NDK_VERSION: 27.0.12077973
 
     steps:
       - uses: actions/checkout@v4
@@ -63,7 +63,26 @@ jobs:
       - name: Set NDK env
         if: steps.check.outputs.skip == 'false'
         run: |
-          echo "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin" >> $GITHUB_PATH
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION" >> $GITHUB_ENV
+          echo "$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION/toolchains/llvm/prebuilt/linux-x86_64/bin" >> $GITHUB_PATH
+
+      - name: Configure cargo for Android
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          mkdir -p .cargo
+          cat > .cargo/config.toml << 'EOF'
+          [target.aarch64-linux-android]
+          linker = "aarch64-linux-android21-clang"
+
+          [target.armv7-linux-androideabi]
+          linker = "armv7a-linux-androideabi21-clang"
+
+          [target.i686-linux-android]
+          linker = "i686-linux-android21-clang"
+
+          [target.x86_64-linux-android]
+          linker = "x86_64-linux-android21-clang"
+          EOF
 
       - name: Install Rust targets
         if: steps.check.outputs.skip == 'false'

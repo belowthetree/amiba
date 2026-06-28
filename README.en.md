@@ -57,7 +57,7 @@ cargo tauri build     # Tauri desktop (package EXE/DMG/deb)
 # 1. Install Android SDK (Android Studio → SDK Manager → SDK 34 + NDK 27)
 # 2. Set environment variables
 export ANDROID_HOME=~/Android/Sdk
-export NDK_HOME=$ANDROID_HOME/ndk/27.0.xxxx
+export ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.xxxx
 
 # 3. Add Rust Android targets
 rustup target add aarch64-linux-android armv7-linux-androideabi
@@ -72,9 +72,11 @@ cargo tauri android dev       # debug to connected device
 
 Output: `src-tauri/gen/android/app/build/outputs/apk/release/`
 
+**Note**: First local build needs `.cargo/config.toml` with NDK linker config (CI generates this automatically).
+
 ### GitHub Actions CI
 
-Push version changes (`tauri.conf.json` / `Cargo.toml` / `package.json`) to trigger APK build. Download from Actions → Artifacts.
+Change `package.json` version and push to main → CI auto-builds APK → publishes to GitHub Releases.
 
 ## Architecture
 
@@ -161,7 +163,13 @@ skills/               Skill files
 
 Change `package.json` version and push to main to auto:
 1. Check if version already released (tag exists)
-2. Build 4 platforms → create `v{version}` tag → publish to GitHub Releases
+2. Build Windows / macOS / Linux / Android
+3. Create `v{version}` tag → publish to GitHub Releases
+
+```bash
+npm version patch      # 0.1.4 → 0.1.5
+git push origin main   # triggers build
+```
 
 Manual trigger also available (Actions → workflow_dispatch).
 
