@@ -70,7 +70,7 @@ cargo tauri android build     # release APK
 cargo tauri android dev       # debug to connected device
 ```
 
-Output: `src-tauri/gen/android/app/build/outputs/apk/release/`
+Output: `src-tauri/gen/android/app/build/outputs/apk/universal/release/`
 
 **Note**: First local build needs `.cargo/config.toml` with NDK linker config (CI generates this automatically).
 

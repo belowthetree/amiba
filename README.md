@@ -71,7 +71,7 @@ cargo tauri android build     # release APK
 cargo tauri android dev       # debug 到连接的设备
 ```
 
-输出：`src-tauri/gen/android/app/build/outputs/apk/release/`
+输出：`src-tauri/gen/android/app/build/outputs/apk/universal/release/`
 
 **注意**：首次本地构建需要 `.cargo/config.toml` 指定 NDK 链接器（CI 自动生成，本地需手动添加）。
 
