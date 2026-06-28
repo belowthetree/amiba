@@ -49,6 +49,40 @@
       </div>
     </div>
 
+    <!-- ========== AI 供应商 ========== -->
+    <div class="settings-section">
+      <h3 class="section-label">🏭 AI 供应商</h3>
+
+      <div v-if="providerList.length" class="skill-list">
+        <div v-for="(p, i) in providerList" :key="p.id" class="skill-item">
+          <template v-if="providerEditingIdx === i">
+            <div class="skill-edit-form">
+              <input v-model="providerForm.name" class="form-input" placeholder="显示名称" style="margin-bottom:4px" />
+              <input v-model="providerForm.id" class="form-input" placeholder="唯一 ID（英文）" style="margin-bottom:4px" />
+              <input v-model="providerForm.baseUrl" class="form-input" placeholder="Base URL" style="margin-bottom:4px" />
+              <input v-model="providerForm.apiKey" class="form-input" placeholder="API Key" style="margin-bottom:4px" />
+              <textarea v-model="providerForm.modelsStr" class="form-input" placeholder="模型列表（逗号分隔）" rows="2" style="margin-bottom:6px;resize:vertical" />
+              <div class="action-row">
+                <button class="sib save" @click="saveProviderEdit(i)">💾 保存</button>
+                <button class="sx" @click="providerEditingIdx = -1">取消</button>
+              </div>
+            </div>
+          </template>
+          <template v-else>
+            <span class="sn">{{ p.name }}</span>
+            <span class="sd">{{ p.baseUrl }} · {{ p.models.length }} 个模型</span>
+            <button class="sib" @click="startProviderEdit(i)">✏️</button>
+            <button class="sx" @click="removeProvider(i)">✕</button>
+          </template>
+        </div>
+      </div>
+      <p v-else class="skill-empty">暂无自定义供应商（将使用上方 API 配置作为默认）</p>
+
+      <button class="secondary-btn" style="margin-top:4px" @click="addProviderDialog">
+        ➕ 添加供应商
+      </button>
+    </div>
+
     <div class="settings-section">
       <h3 class="section-label">外观</h3>
 
@@ -113,6 +147,53 @@
       <button class="secondary-btn" style="margin-top:4px" @click="importSkillFolder">📁 导入 Skill 文件夹</button>
     </div>
 
+    <!-- ========== 自定义 Agent ========== -->
+    <div class="settings-section">
+      <h3 class="section-label">🤖 自定义 Agent</h3>
+
+      <div v-if="agentList.length" class="skill-list">
+        <div v-for="(a, i) in agentList" :key="a.id" class="skill-item" :class="{ active: a.id === activeAgentId }">
+          <template v-if="agentEditingIdx === i">
+            <div class="skill-edit-form">
+              <input v-model="agentForm.name" class="form-input" placeholder="显示名称" style="margin-bottom:4px" />
+              <input v-model="agentForm.id" class="form-input" placeholder="唯一 ID（英文）" style="margin-bottom:4px" />
+              <select v-model="agentForm.providerId" class="form-input" style="margin-bottom:4px">
+                <option value="">-- 选择供应商 --</option>
+                <option v-for="p in providerList" :key="p.id" :value="p.id">{{ p.name }}</option>
+              </select>
+              <select v-model="agentForm.model" class="form-input" style="margin-bottom:4px">
+                <option value="">-- 选择模型 --</option>
+                <option v-for="m in availableModels" :key="m" :value="m">{{ m }}</option>
+              </select>
+              <div class="skill-checkboxes" style="margin-bottom:4px">
+                <label class="skill-cb-label" v-for="s in userSkills" :key="s.name">
+                  <input type="checkbox" :value="s.name" v-model="agentForm.selectedSkills" />
+                  {{ s.name }}
+                </label>
+              </div>
+              <textarea v-model="agentForm.systemPrompt" class="form-input" placeholder="自定义 System Prompt（可选）" rows="3" style="margin-bottom:6px;resize:vertical" />
+              <div class="action-row">
+                <button class="sib save" @click="saveAgentEdit(i)">💾 保存</button>
+                <button class="sx" @click="agentEditingIdx = -1">取消</button>
+              </div>
+            </div>
+          </template>
+          <template v-else>
+            <span class="sn">{{ a.name }}</span>
+            <span class="sd">{{ getAgentProviderName(a) }} · {{ a.model }}{{ a.id === activeAgentId ? ' ✅' : '' }}</span>
+            <button v-if="a.id !== activeAgentId" class="sib" @click="activateAgent(a.id)">启用</button>
+            <button class="sib" @click="startAgentEdit(i)">✏️</button>
+            <button class="sx" @click="removeAgent(i)">✕</button>
+          </template>
+        </div>
+      </div>
+      <p v-else class="skill-empty">暂无自定义 Agent（将使用默认 API 配置）</p>
+
+      <button class="secondary-btn" style="margin-top:4px" @click="addAgentDialog">
+        ➕ 添加 Agent
+      </button>
+    </div>
+
     <div class="settings-section">
       <h3 class="section-label">关于</h3>
       <div class="about-info">
@@ -127,12 +208,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { settings, getApiKey, setApiKey } from '../config/config'
 import { storageClear, storageKeys, storageGet, listServiceDirs, readServiceFile } from '../config/storage'
 import { registerService, storeServicePackage, getServicePackage } from '../host/registry'
 import type { ServicePackage, ServiceManifest } from '../types/service'
 import { loadUserSkills, addUserSkill, updateUserSkill, deleteUserSkill, importSkillFromFolder, type Skill } from '../ai/skills'
+import { providers, addProvider, updateProvider, deleteProvider, initProviderStore } from '../ai/provider-store'
+import { customAgents, activeAgentId, addCustomAgent, updateCustomAgent, deleteCustomAgent, setActiveAgent, initCustomAgentStore } from '../ai/custom-agent-store'
+import type { AiProvider, CustomAgent } from '../types/service'
 
 const apiKey = ref('')
 const showKey = ref(false)
@@ -228,6 +312,121 @@ async function removeSkill(idx: number) {
   } catch (e: any) { alert(e.message) }
 }
 refreshSkills()
+getApiKey().then(k => { apiKey.value = k })
+
+// --- Provider management ---
+const providerList = providers as AiProvider[]
+const providerEditingIdx = ref(-1)
+const providerForm = ref({ name: '', id: '', baseUrl: '', apiKey: '', modelsStr: '' })
+
+function addProviderDialog() {
+  providerForm.value = { name: '', id: '', baseUrl: '', apiKey: '', modelsStr: '' }
+  providerList.push({ id: `provider-${Date.now()}`, name: '新供应商', baseUrl: '', apiKey: '', models: [] })
+  providerEditingIdx.value = providerList.length - 1
+}
+
+function startProviderEdit(idx: number) {
+  const p = providerList[idx]
+  providerForm.value = { name: p.name, id: p.id, baseUrl: p.baseUrl, apiKey: p.apiKey, modelsStr: p.models.join(', ') }
+  providerEditingIdx.value = idx
+}
+
+function saveProviderEdit(idx: number) {
+  const f = providerForm.value
+  if (!f.name.trim() || !f.id.trim() || !f.baseUrl.trim()) { alert('名称、ID 和 Base URL 不能为空'); return }
+  const patch: Partial<AiProvider> = {
+    name: f.name.trim(),
+    id: f.id.trim(),
+    baseUrl: f.baseUrl.trim(),
+    apiKey: f.apiKey.trim(),
+    models: f.modelsStr.split(/[,，]/).map(m => m.trim()).filter(Boolean),
+  }
+  try {
+    if (providerList[idx] && providerList[idx].id !== f.id.trim()) {
+      deleteProvider(providerList[idx].id)
+      addProvider(patch as AiProvider)
+    } else {
+      updateProvider(providerList[idx].id, patch)
+    }
+    providerEditingIdx.value = -1
+    flashSaved()
+  } catch (e: any) { alert(e.message) }
+}
+
+function removeProvider(idx: number) {
+  const p = providerList[idx]
+  if (!confirm(`确定要删除供应商 "${p.name}" 吗？`)) return
+  try {
+    deleteProvider(p.id)
+    flashSaved()
+  } catch (e: any) { alert(e.message) }
+}
+
+// --- Custom Agent management ---
+const agentList = customAgents as CustomAgent[]
+const agentEditingIdx = ref(-1)
+const agentForm = ref({ name: '', id: '', providerId: '', model: '', selectedSkills: [] as string[], systemPrompt: '' })
+
+// 当前选中供应商的模型列表
+const availableModels = computed(() => {
+  if (!agentForm.value.providerId) return []
+  const p = providerList.find(p => p.id === agentForm.value.providerId)
+  return p?.models || []
+})
+
+function addAgentDialog() {
+  agentForm.value = { name: '', id: '', providerId: providerList[0]?.id || '', model: '', selectedSkills: [], systemPrompt: '' }
+  agentList.push({ id: `agent-${Date.now()}`, name: '新 Agent', providerId: providerList[0]?.id || '', model: '', skills: [] })
+  agentEditingIdx.value = agentList.length - 1
+}
+
+function startAgentEdit(idx: number) {
+  const a = agentList[idx]
+  agentForm.value = { name: a.name, id: a.id, providerId: a.providerId, model: a.model, selectedSkills: [...a.skills], systemPrompt: a.systemPrompt || '' }
+  agentEditingIdx.value = idx
+}
+
+function saveAgentEdit(idx: number) {
+  const f = agentForm.value
+  if (!f.name.trim() || !f.id.trim() || !f.providerId || !f.model.trim()) { alert('名称、ID、供应商和模型不能为空'); return }
+  const patch: Partial<CustomAgent> = {
+    name: f.name.trim(),
+    id: f.id.trim(),
+    providerId: f.providerId,
+    model: f.model.trim(),
+    skills: [...f.selectedSkills],
+    systemPrompt: f.systemPrompt.trim() || undefined,
+  }
+  try {
+    if (agentList[idx] && agentList[idx].id !== f.id.trim()) {
+      deleteCustomAgent(agentList[idx].id)
+      addCustomAgent(patch as CustomAgent)
+    } else {
+      updateCustomAgent(agentList[idx].id, patch)
+    }
+    agentEditingIdx.value = -1
+    flashSaved()
+  } catch (e: any) { alert(e.message) }
+}
+
+function removeAgent(idx: number) {
+  const a = agentList[idx]
+  if (!confirm(`确定要删除 Agent "${a.name}" 吗？`)) return
+  try {
+    deleteCustomAgent(a.id)
+    flashSaved()
+  } catch (e: any) { alert(e.message) }
+}
+
+function activateAgent(id: string) {
+  setActiveAgent(id)
+  flashSaved()
+}
+
+function getAgentProviderName(a: CustomAgent): string {
+  const p = providerList.find(p => p.id === a.providerId)
+  return p ? p.name : a.providerId
+}
 </script>
 
 <style scoped>
@@ -360,4 +559,8 @@ refreshSkills()
 .skill-item{display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f9f9f9;border-radius:6px;font-size:13px}
 .skill-edit-form{background:#f5f5f5;border-radius:8px;padding:10px}
 .skill-empty{font-size:13px;color:#bbb;text-align:center;margin:8px 0}
-.sib.save{border-color:#1976D2;color:#1976D2}.sib.save:hover{background:#E3F2FD}</style>
+.sib.save{border-color:#1976D2;color:#1976D2}.sib.save:hover{background:#E3F2FD}
+.skill-item.active{background:#E3F2FD;border:1px solid #1976D2}
+.skill-checkboxes{display:flex;flex-wrap:wrap;gap:6px}
+.skill-cb-label{font-size:12px;display:flex;align-items:center;gap:3px;cursor:pointer;padding:2px 6px;border-radius:4px;background:#f0f0f0}
+.skill-cb-label:hover{background:#e0e0e0}</style>

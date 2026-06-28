@@ -88,7 +88,12 @@ amiba/
 │   │   ├── catalog.ts         # Catalog 管理
 │   │   ├── skills.ts          # Skill 管理
 │   │   ├── skill-parser.ts    # SKILL.md 解析器
-│   │   └── skill-commands.ts  # /skill 命令+扫描
+│   │   ├── skill-commands.ts  # /skill 命令+扫描
+│   │   ├── skill-curator.ts   # Skill 生命周期管理
+│   │   ├── skill-consolidation-prompt.ts  # Skill 合并 Prompt
+│   │   ├── skill-usage.ts     # Skill 使用统计
+│   │   ├── provider-store.ts  # AI 供应商管理（多供应商）
+│   │   └── custom-agent-store.ts  # 自定义 Agent 管理
 │   ├── tools/                # 工具系统
 │   │   ├── tool-registry.ts   # ToolRegistry 核心
 │   │   ├── discover.ts        # 工具自动发现

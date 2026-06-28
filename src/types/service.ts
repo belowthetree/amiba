@@ -123,6 +123,28 @@ export interface AppSettings {
   curator_consolidate_enabled?: boolean
 }
 
+// --- AI Provider ---
+
+export interface AiProvider {
+  id: string          // 唯一标识，如 "deepseek"、"openai"、"ollama-local"
+  name: string        // 显示名称，如 "DeepSeek"
+  baseUrl: string     // API 地址
+  apiKey: string      // API 密钥
+  models: string[]    // 可用模型列表
+}
+
+// --- Custom Agent ---
+
+export interface CustomAgent {
+  id: string           // 唯一标识，如 "coder"、"writer"
+  name: string         // 显示名称，如 "编码助手"
+  providerId: string   // 关联的 AI 供应商 ID
+  model: string        // 使用的模型名称
+  skills: string[]     // 启用的 Skill 名称列表
+  systemPrompt?: string // 自定义 System Prompt（可选）
+  soul?: string        // 关联的人格文件（可选）
+}
+
 // --- Memory ---
 
 export interface MemoryOperation {

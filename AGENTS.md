@@ -50,6 +50,8 @@ cargo tauri build    # Tauri production build (run from src-tauri/)
 | `memory.ts` | Memory tool handler (deprecated, use memory-store) |
 | `catalog.ts` | Component catalog YAML parser |
 | `generator.ts` | Service generation pipeline |
+| `provider-store.ts` | Multi-provider AI vendor management: reactive list, CRUD, auto-persist to `amiba_providers` |
+| `custom-agent-store.ts` | Custom agent management: reactive list + activeAgentId, CRUD, auto-persist to `amiba_custom_agents` |
 
 ## Tools inventory
 

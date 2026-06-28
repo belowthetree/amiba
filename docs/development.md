@@ -33,6 +33,24 @@ npx tauri build      # 打包 Tauri 桌面应用
    - 对话模型: `deepseek-chat`
    - 生成模型: `deepseek-chat`
 
+### 多供应商配置
+
+在「AI 供应商」设置卡片中可配置多个 AI 提供商：
+
+- 每个供应商包含：名称、ID、Base URL、API Key、模型列表
+- 支持的供应商类型：DeepSeek / OpenAI / Ollama / 任何 OpenAI 兼容 API
+- API Key 按供应商独立存储，优先于全局 API Key
+
+### 自定义 Agent
+
+在「自定义 Agent」设置卡片中可创建专属 AI 助手：
+
+- 绑定供应商（下拉选择）→ 模型从供应商的模型列表中下拉选择
+- Skill 通过勾选框从已导入的 Skill 列表中多选
+- 可选自定义 System Prompt 或关联 Soul 人格文件
+- 点击「启用」切换当前使用的 Agent
+- 未选择 Agent 时使用默认 API 配置
+
 ## 项目结构
 
 ```
@@ -47,7 +65,9 @@ src/
 │   ├── generator.ts     # 服务生成：prompt → JSON → HTML 打包
 │   ├── memory.ts        # MEMORY.md / USER.md 读写
 │   ├── catalog.ts       # YAML 加载、校验、Prompt 注入
-│   └── skills.ts        # 3 个内置 Skill 模板 + 匹配
+│   ├── skills.ts        # 3 个内置 Skill 模板 + 匹配
+│   ├── provider-store.ts    # AI 供应商管理（多供应商）
+│   └── custom-agent-store.ts # 自定义 Agent 管理
 ├── host/
 │   ├── service-container.vue  # iframe 沙箱外壳
 │   ├── bridge.ts        # postMessage 通信 + __amiba__ 注入
@@ -56,7 +76,7 @@ src/
     ├── HomePage.vue         # 功能入口 + 最近使用
     ├── ChatPage.vue         # 流式 AI 对话
     ├── GeneratePage.vue     # AI 生成服务界面
-    ├── SettingsPage.vue     # API Key / 模型 / 主题
+    ├── SettingsPage.vue     # API Key / 供应商 / Agent / 主题 / Skill
     ├── MyServicesPage.vue   # 服务管理 + Demo 安装
     └── MemoryPage.vue       # MEMORY.md / USER.md 编辑器
 src-tauri/

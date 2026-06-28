@@ -13,6 +13,8 @@ import { loadUserSkills } from './ai/skills'
 import { discoverTools } from './tools/discover'
 import { soulManager } from './ai/soul'
 import { maybeRunCurator } from './ai/skill-curator'
+import { initProviderStore } from './ai/provider-store'
+import { initCustomAgentStore } from './ai/custom-agent-store'
 
 async function bootstrap() {
   await initStorage()
@@ -21,6 +23,8 @@ async function bootstrap() {
     initRegistry(),
     memoryStore.init(),
     loadUserSkills(),
+    initProviderStore(),
+    initCustomAgentStore(),
   ])
 
   // 工具自发现

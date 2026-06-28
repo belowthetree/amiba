@@ -9,6 +9,7 @@ import { toolRegistry } from '../tools/tool-registry'
 import { getToolDefinitions } from '../tools/toolsets'
 import { memoryStore } from './memory-store'
 import { buildSystemPrompt, buildSkillsIndex, consumeMemoryCheckpointPrompt } from './system-prompt'
+import type { CustomAgent } from '../types/service'
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
@@ -27,6 +28,8 @@ export interface StreamChatOptions {
   maxContextTokens?: number
   /** 当前会话已进行轮次（用于 nudge 提示） */
   turnCount?: number
+  /** 指定使用的自定义 Agent ID（可选，不传则用默认配置） */
+  agentId?: string
 }
 
 const DEFAULT_OPTIONS: Required<StreamChatOptions> = {
@@ -59,7 +62,27 @@ export async function* streamChat(
   const opts = { ...DEFAULT_OPTIONS, ...options }
 
   const s = getSettings()
-  const apiKey = await getApiKey()
+  let apiKey = await getApiKey()
+  let baseUrl = s.ai_base_url
+  let model = s.ai_model
+
+  // 如果指定了自定义 Agent，使用其供应商配置
+  let customAgent: CustomAgent | undefined
+  if (opts.agentId) {
+    const { getCustomAgent } = await import('./custom-agent-store')
+    const { getProvider } = await import('./provider-store')
+    customAgent = getCustomAgent(opts.agentId)
+    if (customAgent) {
+      const provider = getProvider(customAgent.providerId)
+      if (provider) {
+        baseUrl = provider.baseUrl
+        model = customAgent.model
+        if (provider.apiKey) {
+          apiKey = provider.apiKey
+        }
+      }
+    }
+  }
 
   if (!apiKey) {
     yield '请先在设置中配置 API Key。\n'
@@ -70,7 +93,7 @@ export async function* streamChat(
   await memoryStore.init()
 
   const client = new OpenAI({
-    baseURL: s.ai_base_url,
+    baseURL: baseUrl,
     apiKey: apiKey,
     dangerouslyAllowBrowser: true,
   })
@@ -95,6 +118,11 @@ export async function* streamChat(
       checkpoint +
       '\n\n' +
       '请在回复用户之前先处理记忆保存（如果发现有价值信息的话）。'
+  }
+
+  // 自定义 Agent 的 System Prompt 注入
+  if (customAgent?.systemPrompt) {
+    systemContent += '\n\n' + customAgent.systemPrompt
   }
 
   const systemMsg: ChatMessage = {
@@ -123,7 +151,7 @@ export async function* streamChat(
     }
 
     const stream = await client.chat.completions.create({
-      model: s.ai_model,
+      model: model,
       messages: currentMessages as any,
       stream: true,
       tools: hasTools ? (toolSchemas as any) : undefined,
