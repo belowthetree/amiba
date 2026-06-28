@@ -49,6 +49,33 @@ cargo tauri build     # Tauri desktop (package EXE/DMG/deb)
 - All data stored locally under `{AppData}/amiba/`
 - Config, memory, history, services, skills, souls — all local
 
+## Android Build
+
+### Local APK Build
+
+```bash
+# 1. Install Android SDK (Android Studio → SDK Manager → SDK 34 + NDK 27)
+# 2. Set environment variables
+export ANDROID_HOME=~/Android/Sdk
+export NDK_HOME=$ANDROID_HOME/ndk/27.0.xxxx
+
+# 3. Add Rust Android targets
+rustup target add aarch64-linux-android armv7-linux-androideabi
+
+# 4. Init Android project (generates src-tauri/gen/android/)
+cargo tauri android init
+
+# 5. Build
+cargo tauri android build     # release APK
+cargo tauri android dev       # debug to connected device
+```
+
+Output: `src-tauri/gen/android/app/build/outputs/apk/release/`
+
+### GitHub Actions CI
+
+Push version changes (`tauri.conf.json` / `Cargo.toml` / `package.json`) to trigger APK build. Download from Actions → Artifacts.
+
 ## Architecture
 
 ```
@@ -132,11 +159,12 @@ skills/               Skill files
 
 ## CI/CD
 
-GitHub Actions auto-builds:
-- **Windows**: EXE + MSI
-- **macOS**: DMG
-- **Linux**: deb + AppImage
-- **Android**: APK
+Push version files (`tauri.conf.json` / `Cargo.toml` / `package.json`) to main to auto:
+1. Bump patch version (0.1.0 → 0.1.1)
+2. Create `v0.1.1` tag
+3. Trigger 4-platform build → publish to GitHub Releases
+
+Also supports manual trigger (Actions → workflow_dispatch).
 
 ## License
 

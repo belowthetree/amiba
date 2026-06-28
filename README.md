@@ -50,6 +50,33 @@ cargo tauri build     # Tauri 桌面应用（打包 EXE/DMG/deb）
 - 所有数据本地存储在 `{AppData}/amiba/`
 - 配置、记忆、对话历史、服务文件、技能、人格文件全部本地化
 
+## Android 构建
+
+### 本地构建 APK
+
+```bash
+# 1. 安装 Android SDK（Android Studio → SDK Manager → SDK 34 + NDK 27）
+# 2. 设置环境变量
+export ANDROID_HOME=~/Android/Sdk
+export NDK_HOME=$ANDROID_HOME/ndk/27.0.xxxx
+
+# 3. 添加 Rust Android targets
+rustup target add aarch64-linux-android armv7-linux-androideabi
+
+# 4. 初始化 Android 项目（生成 src-tauri/gen/android/）
+cargo tauri android init
+
+# 5. 构建
+cargo tauri android build     # release APK
+cargo tauri android dev       # debug 到连接的设备
+```
+
+输出：`src-tauri/gen/android/app/build/outputs/apk/release/`
+
+### GitHub Actions 自动构建
+
+推送版本号变更（`tauri.conf.json` / `Cargo.toml` / `package.json`）自动触发 APK 构建，产物在 Actions → Artifacts 下载。
+
 ## 架构
 
 ```
@@ -135,11 +162,12 @@ skills/               技能文件目录
 
 ## CI/CD
 
-GitHub Actions 自动构建：
-- **Windows**: EXE + MSI
-- **macOS**: DMG
-- **Linux**: deb + AppImage
-- **Android**: APK
+推送版本文件（`tauri.conf.json` / `Cargo.toml` / `package.json`）到 main 分支自动：
+1. 自增 patch 版本号（0.1.0 → 0.1.1）
+2. 创建 `v0.1.1` tag
+3. 触发 4 平台构建 → 发布到 GitHub Releases
+
+也支持手动触发（Actions → workflow_dispatch）。
 
 ## License
 
