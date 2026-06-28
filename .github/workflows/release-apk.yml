@@ -66,27 +66,11 @@ jobs:
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION" >> $GITHUB_ENV
           echo "$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION/toolchains/llvm/prebuilt/linux-x86_64/bin" >> $GITHUB_PATH
 
-      - name: Configure cargo for Android
+      - name: Install Rust targets & cargo-tauri
         if: steps.check.outputs.skip == 'false'
         run: |
-          mkdir -p .cargo
-          cat > .cargo/config.toml << 'EOF'
-          [target.aarch64-linux-android]
-          linker = "aarch64-linux-android21-clang"
-
-          [target.armv7-linux-androideabi]
-          linker = "armv7a-linux-androideabi21-clang"
-
-          [target.i686-linux-android]
-          linker = "i686-linux-android21-clang"
-
-          [target.x86_64-linux-android]
-          linker = "x86_64-linux-android21-clang"
-          EOF
-
-      - name: Install Rust targets
-        if: steps.check.outputs.skip == 'false'
-        run: rustup target add aarch64-linux-android armv7-linux-androideabi
+          rustup target add aarch64-linux-android armv7-linux-androideabi
+          cargo install tauri-cli --version "^2"
 
       - name: Install dependencies
         if: steps.check.outputs.skip == 'false'
@@ -98,9 +82,7 @@ jobs:
 
       - name: Build APK
         if: steps.check.outputs.skip == 'false'
-        run: npx tauri android build
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: cargo tauri android build
 
       - name: Create GitHub Release
         if: steps.check.outputs.skip == 'false'
