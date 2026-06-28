@@ -62,7 +62,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          args: --target x86_64-apple-darwin
+          args: --target aarch64-apple-darwin
           tauriScript: npx tauri
 
       - name: Upload DMG artifact
