@@ -162,10 +162,9 @@ skills/               技能文件目录
 
 ## CI/CD
 
-推送版本文件（`tauri.conf.json` / `Cargo.toml` / `package.json`）到 main 分支自动：
-1. 自增 patch 版本号（0.1.0 → 0.1.1）
-2. 创建 `v0.1.1` tag
-3. 触发 4 平台构建 → 发布到 GitHub Releases
+修改 `package.json` 版本号并 push 到 main 自动：
+1. 检测版本是否已发布（tag 是否存在）
+2. 构建 4 平台 → 创建 `v{version}` tag → 发布到 GitHub Releases
 
 也支持手动触发（Actions → workflow_dispatch）。
 

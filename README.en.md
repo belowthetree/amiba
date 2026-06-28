@@ -159,12 +159,11 @@ skills/               Skill files
 
 ## CI/CD
 
-Push version files (`tauri.conf.json` / `Cargo.toml` / `package.json`) to main to auto:
-1. Bump patch version (0.1.0 → 0.1.1)
-2. Create `v0.1.1` tag
-3. Trigger 4-platform build → publish to GitHub Releases
+Change `package.json` version and push to main to auto:
+1. Check if version already released (tag exists)
+2. Build 4 platforms → create `v{version}` tag → publish to GitHub Releases
 
-Also supports manual trigger (Actions → workflow_dispatch).
+Manual trigger also available (Actions → workflow_dispatch).
 
 ## License
 
