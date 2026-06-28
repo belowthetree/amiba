@@ -74,9 +74,42 @@ Output: `src-tauri/gen/android/app/build/outputs/apk/universal/release/`
 
 **Note**: First local build needs `.cargo/config.toml` with NDK linker config (CI generates this automatically).
 
-### GitHub Actions CI
+### Signing the APK
 
-Change `package.json` version and push to main → CI auto-builds APK → publishes to GitHub Releases.
+Release APKs must be signed before they can be installed or published to Google Play.
+
+**Local signing (for personal testing):**
+
+```bash
+# 1. Generate keystore (first time only)
+keytool -genkey -v -keystore release.keystore -alias amiba \
+  -keyalg RSA -keysize 2048 -validity 10000 \
+  -dname "CN=belowthetree, OU=Dev, O=Unknown, L=Unknown, ST=Unknown, C=CN" \
+  -storepass your_password -keypass your_password
+
+# 2. Sign APK with apksigner
+$ANDROID_HOME/build-tools/35.0.0/apksigner sign \
+  --ks release.keystore --ks-key-alias amiba \
+  --out app-release-signed.apk \
+  app-universal-release-unsigned.apk
+
+# 3. Install to device
+adb install -r app-release-signed.apk
+```
+
+> ⚠️ **Never commit `release.keystore` to git** — it contains your private key. Instead, base64-encode it and store in GitHub Secrets.
+
+### CI Auto-Signing
+
+1. Add these to GitHub repository → **Settings → Secrets → Actions**:
+
+| Secret Name | Description |
+|------------|-------------|
+| `KEYSTORE_BASE64` | Base64-encoded keystore file |
+| `KEYSTORE_PASSWORD` | Keystore password |
+| `KEY_PASSWORD` | Key password |
+
+2. Bump `package.json` version and push to main → CI builds, signs, and publishes APK to GitHub Releases.
 
 ## Architecture
 

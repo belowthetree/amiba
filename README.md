@@ -75,9 +75,43 @@ cargo tauri android dev       # debug 到连接的设备
 
 **注意**：首次本地构建需要 `.cargo/config.toml` 指定 NDK 链接器（CI 自动生成，本地需手动添加）。
 
-### GitHub Actions 自动发布
+### 签名 APK
 
-修改 `package.json` 版本号 push 到 main → CI 自动构建 APK → 发布到 GitHub Releases。
+Release APK 需要签名才能安装到设备或上架 Google Play。
+
+**本地签名（自用测试）：**
+
+```bash
+# 1. 生成 keystore（仅首次）
+"C:\Program Files\Java\jdk-23.0.1\bin\keytool" -genkey -v \
+  -keystore release.keystore -alias amiba \
+  -keyalg RSA -keysize 2048 -validity 10000 \
+  -dname "CN=belowthetree, OU=Dev, O=Unknown, L=Unknown, ST=Unknown, C=CN" \
+  -storepass 你的密码 -keypass 你的密码
+
+# 2. 用 apksigner 签名 APK
+%ANDROID_HOME%\build-tools\35.0.0\apksigner sign \
+  --ks release.keystore --ks-key-alias amiba \
+  --out app-release-signed.apk \
+  app-universal-release-unsigned.apk
+
+# 3. 安装到设备
+adb install -r app-release-signed.apk
+```
+
+> ⚠️ **keystore 文件不要提交到 git**，它包含你的私钥。只需将 base64 编码后存入 GitHub Secrets。
+
+### CI 自动签名
+
+1. 在 GitHub 仓库 → **Settings → Secrets → Actions** 添加：
+
+| Secret 名称 | 说明 |
+|------------|------|
+| `KEYSTORE_BASE64` | keystore 文件的 base64 编码 |
+| `KEYSTORE_PASSWORD` | keystore 密码 |
+| `KEY_PASSWORD` | key 密码 |
+
+2. `package.json` 版本变更 push 到 main → CI 自动构建并签名 APK → 发布到 GitHub Releases。
 
 ## 架构
 

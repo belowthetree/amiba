@@ -25,3 +25,5 @@ dist-ssr
 
 example/
 .config/
+
+release.keystore
