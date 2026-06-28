@@ -1,20 +1,33 @@
 // ============================================================
-// 变形虫 (Amiba) — Session 会话管理
+// 变形虫 (Amiba) — Session 会话管理 v2（多 session）
 // ============================================================
-// 统一管理聊天会话状态：消息列表、轮次计数、历史持久化。
+// 支持多个独立会话，每个会话独立存储历史。
 // ChatPage、commands、agent 均通过此模块读写会话。
 // ============================================================
 import { ref, type Ref } from 'vue'
 import { storageGetJSON, storageSetJSON } from '../config/storage'
 import { invalidateSystemPrompt, setMemoryCheckpointFromCache } from './system-prompt'
 
-const HISTORY_KEY = 'amiba_chat_history'
+// ---- 存储路径 ----
+
+const SESSIONS_DIR = 'sessions'
+const INDEX_KEY = `${SESSIONS_DIR}/_index`
+const HISTORY_KEY_PREFIX = `${SESSIONS_DIR}/`
+
+// ---- 类型 ----
 
 export interface Message {
   role: 'user' | 'assistant' | 'system'
   content: string
-  /** 是否在界面中隐藏（系统消息/命令结果等杂项） */
   hidden?: boolean
+}
+
+export interface SessionMeta {
+  id: string
+  title: string
+  createdAt: string   // ISO 8601
+  updatedAt: string   // ISO 8601
+  messageCount: number
 }
 
 export interface SessionState {
@@ -26,9 +39,85 @@ export interface SessionState {
   errorMessage: Ref<string>
 }
 
-/** 全局单例 */
-let _session: SessionState | null = null
+// ---- 全局状态 ----
 
+let _session: SessionState | null = null
+let _currentId: string | null = null
+
+/** 生成短 ID（时间戳 + 随机） */
+function genId(): string {
+  const ts = Date.now().toString(36)
+  const rand = Math.random().toString(36).slice(2, 6)
+  return `${ts}${rand}`
+}
+
+/** 根据标题生成简短摘要 */
+function guessTitle(messages: Message[]): string {
+  const firstUser = messages.find((m) => m.role === 'user' && !m.hidden)
+  if (firstUser) {
+    const t = firstUser.content.replace(/\n/g, ' ').trim()
+    return t.length > 30 ? t.slice(0, 30) + '…' : t
+  }
+  return '新对话'
+}
+
+// ---- Session 索引 ----
+
+async function loadIndex(): Promise<SessionMeta[]> {
+  const raw = await storageGetJSON<SessionMeta[]>(INDEX_KEY)
+  return Array.isArray(raw) ? raw : []
+}
+
+async function saveIndex(metas: SessionMeta[]): Promise<void> {
+  await storageSetJSON(INDEX_KEY, metas)
+}
+
+async function addToIndex(meta: SessionMeta): Promise<void> {
+  const metas = await loadIndex()
+  // 去重：替换同 ID
+  const idx = metas.findIndex((m) => m.id === meta.id)
+  if (idx >= 0) metas[idx] = meta
+  else metas.unshift(meta)
+  await saveIndex(metas)
+}
+
+async function removeFromIndex(id: string): Promise<void> {
+  const metas = await loadIndex()
+  await saveIndex(metas.filter((m) => m.id !== id))
+}
+
+// ---- Session 持久化 ----
+
+function historyKey(id: string): string {
+  return `${HISTORY_KEY_PREFIX}${id}`
+}
+
+async function loadMessages(id: string): Promise<Message[]> {
+  const msgs = await storageGetJSON<Message[]>(historyKey(id))
+  return Array.isArray(msgs) ? msgs : []
+}
+
+async function saveMessages(id: string, messages: Message[]): Promise<void> {
+  // 只保留最近 100 条
+  await storageSetJSON(historyKey(id), messages.slice(-100))
+}
+
+async function deleteSessionFile(id: string): Promise<void> {
+  try {
+    const { remove, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const path = historyKey(id) + '.json'
+    // storageSetJSON uses its own prefix; try direct Tauri remove
+    await remove(`amiba/${historyKey(id)}`, {
+      baseDir: BaseDirectory.AppData,
+    }).catch(() => {})
+  } catch {
+    /* 非 Tauri 环境静默 */
+  }
+}
+
+// ---- 公共 API ----
+
+/** 获取当前 SessionState（懒初始化） */
 export function getSession(): SessionState {
   if (!_session) {
     _session = {
@@ -43,73 +132,231 @@ export function getSession(): SessionState {
   return _session
 }
 
-// ---- 持久化 ----
-
-export async function loadHistory(): Promise<void> {
-  const session = getSession()
-  const saved = await storageGetJSON<Message[]>(HISTORY_KEY)
-  if (saved && Array.isArray(saved)) {
-    session.messages.value = saved.slice(-50)
-    session.turnCount.value = session.messages.value.filter(
-      (m) => m.role === 'user'
-    ).length
-  }
-}
-
-export async function saveHistory(): Promise<void> {
-  const session = getSession()
-  await storageSetJSON(HISTORY_KEY, session.messages.value.slice(-50))
+/** 获取当前 session ID */
+export function getCurrentSessionId(): string | null {
+  return _currentId
 }
 
 // ---- Session 生命周期 ----
 
-/** 开始新会话 */
-export async function newSession(): Promise<string> {
-  const session = getSession()
+/** 列出所有 session 元数据 */
+export async function listSessions(): Promise<SessionMeta[]> {
+  return loadIndex()
+}
 
-  // 捕获最后一段对话作为记忆检查点
-  const visibleMessages = session.messages.value.filter((m) => !m.hidden)
-  if (visibleMessages.length > 0) {
-    const lastMessages = visibleMessages.slice(-12) // 最近 6 轮对话
-    const checkpoint = lastMessages
-      .map((m) => `[${m.role === 'user' ? '用户' : 'AI'}]: ${m.content.slice(0, 200)}`)
-      .join('\n')
-    // 通过缓存传递（避免跨模块异步依赖）
-    setMemoryCheckpointFromCache(checkpoint)
+/** 创建新 session 并切换 */
+export async function createSession(title?: string): Promise<SessionMeta> {
+  const id = genId()
+  const now = new Date().toISOString()
+  const meta: SessionMeta = {
+    id,
+    title: title || '新对话',
+    createdAt: now,
+    updatedAt: now,
+    messageCount: 0,
   }
 
-  session.messages.value = []
-  session.turnCount.value = 0
+  await addToIndex(meta)
+  await saveMessages(id, [])
+  await switchToSession(id)
+
+  return meta
+}
+
+/** 切换到指定 session */
+export async function switchToSession(id: string): Promise<void> {
+  const session = getSession()
+  _currentId = id
+
+  const msgs = await loadMessages(id)
+  session.messages.value = msgs
+  session.turnCount.value = msgs.filter((m) => m.role === 'user').length
   session.streamingContent.value = ''
   session.errorMessage.value = ''
 
-  await storageSetJSON(HISTORY_KEY, [])
+  invalidateSystemPrompt()
+  const { buildSystemPrompt } = await import('./system-prompt')
+  buildSystemPrompt({ force: true })
+}
+
+/** 删除 session */
+export async function deleteSession(id: string): Promise<void> {
+  await removeFromIndex(id)
+  await deleteSessionFile(id)
+
+  // 如果删除的是当前 session，切换到最新的或创建新的
+  if (_currentId === id) {
+    const metas = await loadIndex()
+    if (metas.length > 0) {
+      await switchToSession(metas[0].id)
+    } else {
+      await createSession()
+    }
+  }
+}
+
+/** 重命名 session */
+export async function renameSession(id: string, title: string): Promise<void> {
+  const metas = await loadIndex()
+  const meta = metas.find((m) => m.id === id)
+  if (meta) {
+    meta.title = title
+    await addToIndex(meta)
+  }
+}
+
+/** 开始新会话（/new 命令） */
+export async function newSession(): Promise<string> {
+  const session = getSession()
+  const oldId = _currentId
+
+  // 捕获记忆检查点
+  const visibleMessages = session.messages.value.filter((m) => !m.hidden)
+  if (visibleMessages.length > 0) {
+    const lastMessages = visibleMessages.slice(-12)
+    const checkpoint = lastMessages
+      .map((m) => `[${m.role === 'user' ? '用户' : 'AI'}]: ${m.content.slice(0, 200)}`)
+      .join('\n')
+    setMemoryCheckpointFromCache(checkpoint)
+  }
+
+  // 保存当前 session
+  if (oldId) {
+    await saveMessages(oldId, session.messages.value)
+    // 更新标题（用第一条用户消息）
+    const firstUser = session.messages.value.find((m) => m.role === 'user' && !m.hidden)
+    if (firstUser) {
+      const title = firstUser.content.replace(/\n/g, ' ').trim().slice(0, 30)
+      await renameSession(oldId, title || '新对话')
+    }
+    // 更新消息数
+    const metas = await loadIndex()
+    const meta = metas.find((m) => m.id === oldId)
+    if (meta) {
+      meta.messageCount = visibleMessages.length
+      meta.updatedAt = new Date().toISOString()
+      await addToIndex(meta)
+    }
+  }
+
+  // 创建新 session
+  const meta = await createSession()
+  _currentId = meta.id
 
   invalidateSystemPrompt()
   const { buildSystemPrompt } = await import('./system-prompt')
   buildSystemPrompt({ force: true })
 
-  return '已开始新会话。系统提示已重建。如有重要信息，AI 会自动保存到记忆。'
+  return `已创建新会话「${meta.title}」。`
 }
 
-/** 添加一条用户消息并增加轮次 */
+// ---- 历史加载（兼容旧版） ----
+
+const LEGACY_HISTORY_KEY = 'amiba_chat_history'
+
+export async function loadHistory(): Promise<void> {
+  const session = getSession()
+
+  // 尝试加载 session 索引
+  const metas = await loadIndex()
+
+  if (metas.length > 0) {
+    // 有 session 记录：加载最近一个
+    const latest = metas[0]
+    _currentId = latest.id
+    const msgs = await loadMessages(latest.id)
+    session.messages.value = msgs
+    session.turnCount.value = msgs.filter((m) => m.role === 'user').length
+  } else {
+    // 尝试迁移旧版单 session 数据
+    const legacy = await storageGetJSON<Message[]>(LEGACY_HISTORY_KEY)
+    if (legacy && Array.isArray(legacy) && legacy.length > 0) {
+      // 迁移：创建第一个 session 并导入旧数据
+      const id = genId()
+      const now = new Date().toISOString()
+      const meta: SessionMeta = {
+        id,
+        title: guessTitle(legacy),
+        createdAt: now,
+        updatedAt: now,
+        messageCount: legacy.length,
+      }
+      await addToIndex(meta)
+      await saveMessages(id, legacy)
+      _currentId = id
+      session.messages.value = legacy
+      session.turnCount.value = legacy.filter((m) => m.role === 'user').length
+      // 清除旧 key
+      await storageSetJSON(LEGACY_HISTORY_KEY, null)
+      console.log('[Session] 已迁移旧版历史到 session:', id)
+    } else {
+      // 全新用户：创建默认 session
+      const meta = await createSession()
+      _currentId = meta.id
+    }
+  }
+}
+
+let _saveTimer: ReturnType<typeof setTimeout> | null = null
+
+export async function saveHistory(): Promise<void> {
+  const session = getSession()
+  if (!_currentId) return
+
+  // 防抖：300ms 内多次调用只执行最后一次
+  if (_saveTimer) clearTimeout(_saveTimer)
+  _saveTimer = setTimeout(async () => {
+    _saveTimer = null
+    await saveMessages(_currentId!, session.messages.value)
+
+    // 同步更新 session 元数据
+    const visibleMessages = session.messages.value.filter((m) => !m.hidden)
+    const firstUser = session.messages.value.find((m) => m.role === 'user' && !m.hidden)
+    const title = firstUser
+      ? firstUser.content.replace(/\n/g, ' ').trim().slice(0, 30) || '新对话'
+      : '新对话'
+
+    const metas = await loadIndex()
+    const meta = metas.find((m) => m.id === _currentId)
+    if (meta) {
+      meta.messageCount = visibleMessages.length
+      meta.updatedAt = new Date().toISOString()
+      if (meta.title === '新对话' && title !== '新对话') {
+        meta.title = title
+      }
+      await addToIndex(meta)
+    }
+  }, 300)
+}
+
+/** 立即刷新保存（不防抖，用于切换 session 前） */
+export async function flushHistory(): Promise<void> {
+  if (_saveTimer) {
+    clearTimeout(_saveTimer)
+    _saveTimer = null
+  }
+  const session = getSession()
+  if (_currentId) {
+    await saveMessages(_currentId, session.messages.value)
+  }
+}
+
+// ---- 消息操作 ----
+
 export function addUserMessage(content: string): void {
   const session = getSession()
   session.messages.value.push({ role: 'user', content })
   session.turnCount.value++
 }
 
-/** 添加一条 AI 回复 */
 export function addAssistantMessage(content: string): void {
   getSession().messages.value.push({ role: 'assistant', content })
 }
 
-/** 添加一条系统消息（隐藏，记录但不显示） */
 export function addSystemMessage(content: string): void {
   getSession().messages.value.push({ role: 'system', content, hidden: true })
 }
 
-/** 设置错误（3 秒后自动清除） */
 export function flashError(msg: string): void {
   const session = getSession()
   session.errorMessage.value = msg
@@ -120,7 +367,6 @@ export function flashError(msg: string): void {
   }, 3000)
 }
 
-/** 获取可见消息（过滤隐藏的系统消息等杂项） */
 export function getVisibleMessages(): Message[] {
   return getSession().messages.value.filter((m) => !m.hidden)
 }

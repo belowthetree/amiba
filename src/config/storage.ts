@@ -19,8 +19,15 @@ async function tauriGet(key: string): Promise<string | null> {
 }
 
 async function tauriSet(key: string, value: string): Promise<void> {
-  const { writeTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
-  await writeTextFile(APP_ROOT + '/' + key, value, { baseDir: BaseDirectory.AppData })
+  const { writeTextFile, BaseDirectory, mkdir } = await import('@tauri-apps/plugin-fs')
+  // 确保父目录存在
+  const fullKey = APP_ROOT + '/' + key
+  const lastSlash = fullKey.lastIndexOf('/')
+  if (lastSlash > 0) {
+    const dir = fullKey.substring(0, lastSlash)
+    await mkdir(dir, { baseDir: BaseDirectory.AppData, recursive: true }).catch(() => {})
+  }
+  await writeTextFile(fullKey, value, { baseDir: BaseDirectory.AppData })
 }
 
 async function tauriRemove(key: string): Promise<void> {
@@ -108,7 +115,7 @@ export async function storageGetJSON<T>(key: string): Promise<T | null> {
 }
 
 export async function storageSetJSON(key: string, value: any): Promise<void> {
-  await storageSet(key, JSON.stringify(value))
+  await storageSet(key, JSON.stringify(value, null, 2))
 }
 
 // ============================================================

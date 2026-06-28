@@ -87,6 +87,7 @@ export async function* streamChat(
   // 记忆检查点：/new 后首次对话时注入上一会话片段
   const checkpoint = await consumeMemoryCheckpointPrompt()
   if (checkpoint) {
+    console.log('[Agent] 📋 记忆检查点已注入 —', checkpoint.length, '字符')
     systemContent +=
       '\n\n' +
       '=== 记忆检查点 ===\n' +

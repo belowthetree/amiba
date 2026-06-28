@@ -147,12 +147,13 @@ function buildPlatformCapabilities(): string {
 
 // ---- Stable: 行为指引（按可用工具条件注入） ----
 
-const MEMORY_GUIDANCE = `## 记忆使用指引
-当对话中出现以下情况时，使用 memory 工具保存:
-- 用户提供了个人偏好、背景信息 → 保存到 USER.md
-- 用户提出了重要目标或约束 → 保存到 MEMORY.md
-- 项目进展到关键节点 → 更新 MEMORY.md
+const MEMORY_GUIDANCE = `## 记忆使用指引（重要：请主动使用！）
+你拥有持久记忆能力。当对话中出现以下情况时，**主动调用 memory 工具**保存，不要等待用户指令：
+- 用户提供了个人偏好、背景信息、称呼 → 保存到 USER.md（target="user"）
+- 用户提出了重要目标、约束、决策 → 保存到 MEMORY.md（target="memory"）
+- 项目进展到关键节点、完成了重要任务 → 更新 MEMORY.md
 - 用户明确说"记住这个" → 保存
+- 每次对话达到 10 轮时 → 系统会强制要求你检查记忆
 
 注意: 记忆条目用 § 分隔，字符有限额 (MEMORY: 2200, USER: 1375)。满时自动挤掉旧条目。`
 
@@ -233,7 +234,20 @@ function buildNudge(turnCount?: number): string {
   if (turnCount === undefined || turnCount <= 0) return ''
   const NUDGE_INTERVAL = 10
   if (turnCount % NUDGE_INTERVAL === 0) {
-    return `[提示: 当前已是第 ${turnCount} 轮对话。如果对话中出现了值得长期保存的信息，可以用 memory 工具保存到 MEMORY.md 或 USER.md。]`
+    console.log(`[SystemPrompt] 🧠 记忆 nudge 触发 — 第 ${turnCount} 轮`)
+    return [
+      '=== 记忆保存检查（必须执行） ===',
+      `当前是第 ${turnCount} 轮对话。你必须执行以下步骤：`,
+      '',
+      '1. 快速回顾本轮的对话内容',
+      '2. 判断是否有以下值得保存的信息：',
+      '   - 用户偏好、背景、习惯 → 保存到 USER.md（target="user"）',
+      '   - 重要决策、项目约束、待办 → 保存到 MEMORY.md（target="memory"）',
+      '3. 如果有，立即调用 memory 工具保存，然后再继续回复用户',
+      '4. 如果确实没有新信息，简单说明「本轮无需更新记忆」即可',
+      '',
+      '注意：这个检查必须在回复用户之前完成。',
+    ].join('\n')
   }
   return ''
 }

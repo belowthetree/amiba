@@ -95,6 +95,7 @@ export class MemoryStore {
 
   async executeOperation(params: MemoryToolParams): Promise<string> {
     const { target, action, content, old_text, operations } = params
+    console.log(`[MemoryStore] 写入操作: target=${target}, action=${action || 'batch'}, content=${(content || '').slice(0, 60)}`)
 
     if (operations && operations.length > 0) {
       const results: string[] = []

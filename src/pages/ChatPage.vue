@@ -4,8 +4,28 @@
 <template>
   <div class="chat-page">
     <div class="chat-topbar">
-      <span class="topbar-title">AI 对话</span>
-      <button class="stats-btn" @click="showStats = true">📊</button>
+      <div class="session-selector" @click="showSessions = !showSessions">
+        <span class="session-title">{{ currentSessionTitle }}</span>
+        <span class="dropdown-arrow">▾</span>
+      </div>
+      <div class="topbar-actions">
+        <button class="action-btn" title="新会话" @click="doNewSession">＋</button>
+        <button class="stats-btn" @click="showStats = true">📊</button>
+      </div>
+      <!-- Session 下拉列表 -->
+      <div v-if="showSessions" class="session-dropdown" @click.stop>
+        <div
+          v-for="s in sessionList"
+          :key="s.id"
+          :class="['session-item', { active: s.id === currentId }]"
+          @click="switchTo(s.id)"
+        >
+          <span class="session-item-title">{{ s.title }}</span>
+          <span class="session-item-meta">{{ s.messageCount }} 条 · {{ fmtDate(s.updatedAt) }}</span>
+          <button class="session-del" title="删除" @click.stop="doDeleteSession(s.id)">✕</button>
+        </div>
+        <div v-if="sessionList.length === 0" class="session-empty">暂无历史会话</div>
+      </div>
     </div>
 
     <div class="chat-messages" ref="messagesEl">
@@ -80,7 +100,15 @@ import {
   addSystemMessage,
   flashError,
   getVisibleMessages,
+  listSessions,
+  createSession,
+  switchToSession,
+  deleteSession,
+  getCurrentSessionId,
+  newSession,
+  flushHistory,
 } from '../ai/session'
+import type { SessionMeta } from '../ai/session'
 import { soulManager } from '../ai/soul'
 
 const session = getSession()
@@ -89,13 +117,62 @@ const { messages, turnCount, sending, streaming, streamingContent, errorMessage:
 const input = ref('')
 const messagesEl = ref<HTMLDivElement | null>(null)
 const showStats = ref(false)
+const showSessions = ref(false)
+const sessionList = ref<SessionMeta[]>([])
+const currentId = ref<string | null>(null)
 
 const visibleMessages = computed(() => getVisibleMessages())
+
+const currentSessionTitle = computed(() => {
+  const s = sessionList.value.find((s) => s.id === currentId.value)
+  return s?.title || 'AI 对话'
+})
 
 const NUDGE_INTERVAL = 10
 const nudgeCountdown = computed(() => {
   return NUDGE_INTERVAL - (turnCount.value % NUDGE_INTERVAL)
 })
+
+function fmtDate(iso: string): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const now = new Date()
+  const diff = now.getTime() - d.getTime()
+  if (diff < 86400000) return '今天'
+  if (diff < 172800000) return '昨天'
+  return d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+}
+
+async function refreshSessionList() {
+  sessionList.value = await listSessions()
+  currentId.value = getCurrentSessionId()
+}
+
+async function switchTo(id: string) {
+  showSessions.value = false
+  await switchToSession(id)
+  currentId.value = id
+  await refreshSessionList()
+  scrollToBottom()
+}
+
+async function doNewSession() {
+  showSessions.value = false
+  await newSession()
+  await refreshSessionList()
+  scrollToBottom()
+}
+
+async function doDeleteSession(id: string) {
+  await deleteSession(id)
+  await refreshSessionList()
+  // 如果删除后无 session，自动创建
+  if (sessionList.value.length === 0) {
+    await createSession()
+    await refreshSessionList()
+  }
+  scrollToBottom()
+}
 
 function scrollToBottom() {
   nextTick(() => {
@@ -121,13 +198,16 @@ async function send() {
   // ---- 内置命令检测 ----
   const cmd = matchCommand(text)
   if (cmd) {
+    await flushHistory() // 切换前刷新保存
     const result = await cmd.handler()
     flashError(result)
+    await refreshSessionList()
     scrollToBottom()
     return
   }
 
   addUserMessage(text)
+  saveHistory() // 实时保存用户消息
 
   // ---- Slash 命令检测 ----
   let injectedUserMsg: string = text
@@ -164,6 +244,7 @@ async function send() {
 
     if (streamingContent.value) {
       addAssistantMessage(streamingContent.value)
+      saveHistory() // 实时保存 AI 回复
     }
   } catch (e: any) {
     errorMsg.value = `错误: ${e.message}`
@@ -206,6 +287,7 @@ async function sendOnboardingMessage(directive: string) {
 
 onMounted(async () => {
   await loadHistory()
+  await refreshSessionList()
 
   // 首次启动引导：注入人格创建指令
   if (await soulManager.isFirstLaunch()) {
@@ -237,7 +319,7 @@ watch(
 .chat-topbar {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   padding: 8px 16px;
   max-width: 1080px;
   width: 100%;
@@ -245,21 +327,135 @@ watch(
   position: relative;
 }
 
-.topbar-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: #333;
+.session-selector {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: background 0.15s;
+  max-width: 220px;
 }
 
-.stats-btn {
-  position: absolute;
-  right: 0;
+.session-selector:hover {
+  background: #f0f0f0;
+}
+
+.session-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dropdown-arrow {
+  font-size: 10px;
+  color: #999;
+  flex-shrink: 0;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.action-btn {
   background: none;
   border: 1px solid #e0e0e0;
   border-radius: 8px;
   padding: 4px 10px;
   font-size: 16px;
   cursor: pointer;
+  line-height: 1;
+}
+
+.action-btn:hover {
+  background: #f0f0f0;
+}
+
+.stats-btn {
+  background: none;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+/* Session 下拉 */
+.session-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 16px;
+  right: 16px;
+  max-width: 1080px;
+  margin: 4px auto 0;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  z-index: 50;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.session-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid #f5f5f5;
+  transition: background 0.15s;
+}
+
+.session-item:hover {
+  background: #f8f9ff;
+}
+
+.session-item.active {
+  background: #e3f2fd;
+}
+
+.session-item-title {
+  font-size: 14px;
+  color: #333;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-item-meta {
+  font-size: 11px;
+  color: #aaa;
+  flex-shrink: 0;
+}
+
+.session-del {
+  background: none;
+  border: none;
+  color: #ccc;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.session-del:hover {
+  color: #e53935;
+  background: #ffebee;
+}
+
+.session-empty {
+  padding: 24px;
+  text-align: center;
+  color: #ccc;
+  font-size: 13px;
 }
 
 .chat-messages {
