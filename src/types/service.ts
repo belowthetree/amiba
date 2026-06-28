@@ -114,6 +114,13 @@ export interface AppSettings {
   ai_generation_model: string
   theme_mode: 'light' | 'dark' | 'system'
   language: string
+  /** Curator 技能生命周期管理配置 */
+  curator_enabled?: boolean
+  curator_interval_hours?: number
+  curator_stale_after_days?: number
+  curator_archive_after_days?: number
+  /** Phase 4: LLM 智能合并（默认关闭，需手动开启） */
+  curator_consolidate_enabled?: boolean
 }
 
 // --- Memory ---

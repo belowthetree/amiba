@@ -164,7 +164,7 @@ export class SoulManager {
 
   /** 生成首次引导指令（注入 system prompt） */
   getOnboardingDirective(): string {
-    return `[系统指令: 这是用户首次使用。请**逐步**引导用户完成以下步骤，**每次只问一个问题**，等用户回复后再问下一个:
+    return `这是用户首次使用。请**逐步**引导用户完成以下步骤，**每次只问一个问题**，等用户回复后再问下一个:
 
 第1步: 先打招呼，然后问用户希望你怎么称呼 TA（姓名或昵称）
 → 等用户回复后
@@ -174,9 +174,14 @@ export class SoulManager {
 
 第3步: 确认你的主要职责和风格（如"通用助手"、"编程专家"等）
 
-全部完成后，使用 memory 工具保存:
-- target='user', action='add', content='用户称呼: [用户的回答]'
-并告知用户可以在设置中修改人格。如果用户跳过或回答模糊，使用默认值。`
+全部完成后，同时做两件事：
+1. 使用 memory 工具保存:
+   - target='user', action='add', content='用户称呼: [用户的回答]、AI名称: [AI的回答]、风格: [风格的回答]'
+2. **使用 soul_save 工具生成人格文件**:
+   - name='default', label='默认人格', user_name='[用户称呼]', ai_name='[AI名称]', style='[风格]'
+   - 这会在 souls/default.md 创建人格文件，下次启动就不再重复引导
+
+如果用户跳过或回答模糊，使用默认值。`
   }
 
   private async readActiveName(): Promise<string | null> {

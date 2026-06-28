@@ -8,7 +8,7 @@ import { getSettings, getApiKey } from '../config/config'
 import { toolRegistry } from '../tools/tool-registry'
 import { getToolDefinitions } from '../tools/toolsets'
 import { memoryStore } from './memory-store'
-import { buildSystemPrompt, buildSkillsIndex } from './system-prompt'
+import { buildSystemPrompt, buildSkillsIndex, consumeMemoryCheckpointPrompt } from './system-prompt'
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
@@ -79,12 +79,26 @@ export async function* streamChat(
   const toolSchemas = getToolDefinitions(opts.enabledToolsets)
   const hasTools = toolSchemas.length > 0
 
+  let systemContent = buildSystemPrompt({
+    enabledToolsets: opts.enabledToolsets,
+    turnCount: opts.turnCount,
+  })
+
+  // 记忆检查点：/new 后首次对话时注入上一会话片段
+  const checkpoint = await consumeMemoryCheckpointPrompt()
+  if (checkpoint) {
+    systemContent +=
+      '\n\n' +
+      '=== 记忆检查点 ===\n' +
+      '以下是你上一次会话的对话片段。请回顾其中是否有值得长期保存的信息（用户偏好、重要决策、待办事项等），如有请使用 memory 工具保存：\n\n' +
+      checkpoint +
+      '\n\n' +
+      '请在回复用户之前先处理记忆保存（如果发现有价值信息的话）。'
+  }
+
   const systemMsg: ChatMessage = {
     role: 'system',
-    content: buildSystemPrompt({
-      enabledToolsets: opts.enabledToolsets,
-      turnCount: opts.turnCount,
-    }),
+    content: systemContent,
   }
 
   let currentMessages = [systemMsg, ...messages]

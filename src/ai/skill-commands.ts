@@ -240,6 +240,12 @@ export async function buildSkillInvocationMessage(
   const content = await getSkillContent(slug)
   if (!content) return null
 
+  // 遥测：记录技能被使用
+  try {
+    const { bumpUse } = await import('./skill-usage')
+    await bumpUse(slug)
+  } catch { /* 静默 */ }
+
   const lines = [
     `[用户调用了技能「${skill.name}」，请遵循以下技能内容执行。]`,
     '',

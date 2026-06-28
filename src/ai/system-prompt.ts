@@ -12,9 +12,10 @@ import { getSkillCommands } from './skill-commands'
 import { resolveToolset } from '../tools/toolsets'
 import { soulManager } from './soul'
 
-// ---- 缓存 ----
+// ---- 缓存（stable 层缓存，volatile 层每次重建） ----
 
-let cachedSystemPrompt: string | null = null
+let cachedStable: string | null = null
+let cachedStableToolsets: string[] = [] // 记录缓存的工具集，变化时重建 stable
 
 export function buildSystemPrompt(
   options: {
@@ -26,40 +27,42 @@ export function buildSystemPrompt(
     force?: boolean
   } = {}
 ): string {
-  if (cachedSystemPrompt && !options.force) {
-    console.log('[SystemPrompt] 缓存命中 —', cachedSystemPrompt.length, '字符')
-    return cachedSystemPrompt
+  const toolsets = options.enabledToolsets || ['chat']
+  const toolsetsKey = [...toolsets].sort().join(',')
+
+  // stable 层：工具集变化或强制重建时才重建
+  if (!cachedStable || options.force || cachedStableToolsets.join(',') !== toolsetsKey) {
+    console.log('[SystemPrompt] 构建 stable 层... (toolsets:', toolsets, ')')
+    cachedStable = buildStable(options)
+    cachedStableToolsets = toolsets
+    console.log('[SystemPrompt] stable 构建完成 —', cachedStable.length, '字符')
+  } else {
+    console.log('[SystemPrompt] stable 缓存命中 —', cachedStable.length, '字符')
   }
 
-  console.log('[SystemPrompt] 构建中... (turnCount:', options.turnCount, ', toolsets:', options.enabledToolsets, ')')
-  const parts = assembleParts(options)
-  cachedSystemPrompt = [parts.stable, parts.volatile]
-    .filter(Boolean)
-    .join('\n\n')
-  console.log('[SystemPrompt] 构建完成 —', cachedSystemPrompt.length, '字符')
-  console.log('[SystemPrompt] 预览 (前120字):', cachedSystemPrompt.slice(0, 120).replace(/\n/g, '↵'))
-  return cachedSystemPrompt
+  // volatile 层：每次调用重建（nudge / 时间 / 记忆快照可能变化）
+  const volatile = buildVolatile(options)
+
+  const full = [cachedStable, volatile].filter(Boolean).join('\n\n')
+  console.log('[SystemPrompt] 完整 prompt:', full.length, '字符 (turnCount:', options.turnCount, ')')
+  return full
 }
 
 export function invalidateSystemPrompt(): void {
   console.log('[SystemPrompt] 缓存已失效')
-  cachedSystemPrompt = null
+  cachedStable = null
+  cachedStableToolsets = []
 }
 
 // ---- 组装 ----
 
-interface SystemPromptParts {
-  stable: string
-  volatile: string
-}
-
-function assembleParts(options: {
+function buildStable(options: {
   enabledToolsets?: string[]
   turnCount?: number
-}): SystemPromptParts {
+}): string {
   const availableTools = resolveToolNames(options.enabledToolsets || ['chat'])
 
-  const stable = [
+  return [
     buildIdentity(),
     buildPlatformCapabilities(),
     buildBehaviorGuidance(availableTools),
@@ -67,16 +70,53 @@ function assembleParts(options: {
   ]
     .filter(Boolean)
     .join('\n\n')
+}
 
-  const volatile = [
+function buildVolatile(options: {
+  enabledToolsets?: string[]
+  turnCount?: number
+}): string {
+  return [
     memoryStore.formatForSystemPrompt(),
     buildTimestamp(),
     buildNudge(options.turnCount),
   ]
     .filter(Boolean)
     .join('\n\n')
+}
 
-  return { stable, volatile }
+/**
+ * 记忆检查点：/new 时捕获上一会话片段，提示 AI 保存记忆。
+ * 在 buildSystemPrompt 入口处异步注入到 volatile 之后。
+ */
+let memoryCheckpointCache: string | null = null
+
+export async function consumeMemoryCheckpointPrompt(): Promise<string> {
+  if (memoryCheckpointCache !== null) {
+    const cp = memoryCheckpointCache
+    memoryCheckpointCache = null
+    return cp
+  }
+
+  try {
+    const checkpoint = await import('../config/storage').then((m) =>
+      m.storageGetJSON<{ context: string }>('amiba_memory_checkpoint')
+    )
+    if (checkpoint?.context) {
+      // 读取后清除
+      const { storageSetJSON } = await import('../config/storage')
+      await storageSetJSON('amiba_memory_checkpoint', null)
+      return checkpoint.context
+    }
+  } catch {
+    /* 非 Tauri 环境 */
+  }
+  return ''
+}
+
+/** session.ts 在 newSession() 时调用此函数设置检查点缓存 */
+export function setMemoryCheckpointFromCache(context: string): void {
+  memoryCheckpointCache = context
 }
 
 // ---- Stable: 身份定义（来自 SOUL.md） ----
@@ -128,6 +168,21 @@ const SKILL_GUIDANCE = `## 技能使用指引
 用户可通过 /skill-name 触发技能。技能内容会展开到对话中。
 你可以通过 skill_view 工具查看技能详情，skills_list 浏览可用技能列表。`
 
+const SKILL_MANAGE_GUIDANCE = `## 技能创建与改进指引
+当以下情况发生时，你应该创建或修补技能：
+- 复杂任务成功完成（5+ 次 tool call）
+- 错误被克服，找到了奏效的方法
+- 用户纠正了一个方法且该方法有效
+- 发现了值得记录的非平凡工作流
+- 用户明确要求记住某个流程
+
+修改技能时优先使用 skill_manage_patch（精确查找替换），
+只有在需要大幅度重写（超过 50% 内容变更）时才使用 skill_manage_edit。
+删除技能用 skill_manage_delete，可声明 absorbed_into 说明被哪个技能取代。
+使用 skill_manage_write_file 向技能目录添加 references/、templates/ 等支持文件。
+
+⚠️ 内置技能（counter / todo / notes / service-dev）不可修改或删除。`
+
 function buildBehaviorGuidance(availableTools: string[]): string {
   const parts: string[] = []
   if (availableTools.includes('memory')) {
@@ -138,6 +193,9 @@ function buildBehaviorGuidance(availableTools: string[]): string {
   }
   if (availableTools.includes('skill_view')) {
     parts.push(SKILL_GUIDANCE)
+  }
+  if (availableTools.includes('skill_manage_create')) {
+    parts.push(SKILL_MANAGE_GUIDANCE)
   }
   return parts.join('\n\n')
 }

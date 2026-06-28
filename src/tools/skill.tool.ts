@@ -34,6 +34,10 @@ toolRegistry.register({
     const name = String(args.name || '').trim()
     if (!name) return JSON.stringify({ error: 'name 不能为空' })
 
+    // 记录查看
+    const { bumpView } = await import('../ai/skill-usage')
+    await bumpView(name)
+
     // 动态导入避免循环依赖
     const { getSkillContent } = await import('../ai/skill-commands')
     const content = await getSkillContent(name)

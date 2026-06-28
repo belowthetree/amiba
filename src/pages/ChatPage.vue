@@ -9,14 +9,14 @@
     </div>
 
     <div class="chat-messages" ref="messagesEl">
-      <div v-if="messages.length === 0" class="chat-empty">
+      <div v-if="visibleMessages.length === 0" class="chat-empty">
         <div class="empty-icon">💬</div>
         <p>开始与 AI 对话吧</p>
         <p class="hint">记忆会在对话中自动保存</p>
       </div>
 
       <div
-        v-for="(msg, idx) in messages"
+        v-for="(msg, idx) in visibleMessages"
         :key="idx"
         :class="['message', msg.role]"
       >
@@ -77,7 +77,9 @@ import {
   saveHistory,
   addUserMessage,
   addAssistantMessage,
+  addSystemMessage,
   flashError,
+  getVisibleMessages,
 } from '../ai/session'
 import { soulManager } from '../ai/soul'
 
@@ -87,6 +89,8 @@ const { messages, turnCount, sending, streaming, streamingContent, errorMessage:
 const input = ref('')
 const messagesEl = ref<HTMLDivElement | null>(null)
 const showStats = ref(false)
+
+const visibleMessages = computed(() => getVisibleMessages())
 
 const NUDGE_INTERVAL = 10
 const nudgeCountdown = computed(() => {
@@ -203,10 +207,10 @@ async function sendOnboardingMessage(directive: string) {
 onMounted(async () => {
   await loadHistory()
 
-  // 首次启动引导：注入人格创建指令到 system prompt（不显示在用户界面）
+  // 首次启动引导：注入人格创建指令
   if (await soulManager.isFirstLaunch()) {
     const directive = soulManager.getOnboardingDirective()
-    // 作为附加的 system 消息注入（而非用户消息），AI 会看到但用户不会
+    addSystemMessage(directive)  // 记录但不显示
     await sendOnboardingMessage(directive)
     return
   }

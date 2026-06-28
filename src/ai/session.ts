@@ -6,13 +6,15 @@
 // ============================================================
 import { ref, type Ref } from 'vue'
 import { storageGetJSON, storageSetJSON } from '../config/storage'
-import { invalidateSystemPrompt } from './system-prompt'
+import { invalidateSystemPrompt, setMemoryCheckpointFromCache } from './system-prompt'
 
 const HISTORY_KEY = 'amiba_chat_history'
 
 export interface Message {
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'system'
   content: string
+  /** 是否在界面中隐藏（系统消息/命令结果等杂项） */
+  hidden?: boolean
 }
 
 export interface SessionState {
@@ -65,6 +67,17 @@ export async function saveHistory(): Promise<void> {
 export async function newSession(): Promise<string> {
   const session = getSession()
 
+  // 捕获最后一段对话作为记忆检查点
+  const visibleMessages = session.messages.value.filter((m) => !m.hidden)
+  if (visibleMessages.length > 0) {
+    const lastMessages = visibleMessages.slice(-12) // 最近 6 轮对话
+    const checkpoint = lastMessages
+      .map((m) => `[${m.role === 'user' ? '用户' : 'AI'}]: ${m.content.slice(0, 200)}`)
+      .join('\n')
+    // 通过缓存传递（避免跨模块异步依赖）
+    setMemoryCheckpointFromCache(checkpoint)
+  }
+
   session.messages.value = []
   session.turnCount.value = 0
   session.streamingContent.value = ''
@@ -76,7 +89,7 @@ export async function newSession(): Promise<string> {
   const { buildSystemPrompt } = await import('./system-prompt')
   buildSystemPrompt({ force: true })
 
-  return '已开始新会话。历史已清空，系统提示已重建。'
+  return '已开始新会话。系统提示已重建。如有重要信息，AI 会自动保存到记忆。'
 }
 
 /** 添加一条用户消息并增加轮次 */
@@ -91,6 +104,11 @@ export function addAssistantMessage(content: string): void {
   getSession().messages.value.push({ role: 'assistant', content })
 }
 
+/** 添加一条系统消息（隐藏，记录但不显示） */
+export function addSystemMessage(content: string): void {
+  getSession().messages.value.push({ role: 'system', content, hidden: true })
+}
+
 /** 设置错误（3 秒后自动清除） */
 export function flashError(msg: string): void {
   const session = getSession()
@@ -100,4 +118,9 @@ export function flashError(msg: string): void {
       session.errorMessage.value = ''
     }
   }, 3000)
+}
+
+/** 获取可见消息（过滤隐藏的系统消息等杂项） */
+export function getVisibleMessages(): Message[] {
+  return getSession().messages.value.filter((m) => !m.hidden)
 }

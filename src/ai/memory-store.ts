@@ -55,14 +55,13 @@ export class MemoryStore {
     return this.formatFromSnapshot(snap)
   }
 
-  /** 构建时冻结的快照（供 system-prompt.ts 用） */
+  /** 构建注入 system prompt 的记忆上下文（使用当前实时缓存） */
   formatForSystemPrompt(): string {
-    if (this.snapshot) {
-      return this.formatFromSnapshot(this.snapshot)
-    }
-    // 若尚未初始化，当场冻结
-    this.snapshot = { memory: this.memoryCache, user: this.userCache }
-    return this.formatFromSnapshot(this.snapshot)
+    // 始终使用实时缓存（volatile 层每次重建，需要最新数据）
+    return this.formatFromSnapshot({
+      memory: this.memoryCache,
+      user: this.userCache,
+    })
   }
 
   private formatFromSnapshot(snap: { memory: string; user: string }): string {

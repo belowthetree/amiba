@@ -16,6 +16,12 @@ const CORE_TOOLS = [
   'service_file_list',
   'service_file_read',
   'service_file_write',
+  'skill_manage_create',
+  'skill_manage_patch',
+  'skill_manage_edit',
+  'skill_manage_delete',
+  'skill_manage_write_file',
+  'soul_save',
 ]
 
 // ---- 工具集定义 ----
