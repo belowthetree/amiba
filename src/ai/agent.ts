@@ -32,8 +32,8 @@ export interface StreamChatOptions {
   agentId?: string
 }
 
-const DEFAULT_OPTIONS: Required<StreamChatOptions> = {
-  enabledToolsets: ['chat'],
+const DEFAULT_OPTIONS = {
+  enabledToolsets: ['chat'] as string[],
   maxIterations: 25,
   maxContextTokens: 128_000,
   turnCount: 0,
