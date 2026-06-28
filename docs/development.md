@@ -37,7 +37,7 @@ npx tauri build      # 打包 Tauri 桌面应用
 
 在「AI 供应商」设置卡片中可配置多个 AI 提供商：
 
-- 每个供应商包含：名称、ID、Base URL、API Key、模型列表
+- 每个供应商包含：名称、ID、Base URL、API Key、模型列表（每行一个模型名）
 - 支持的供应商类型：DeepSeek / OpenAI / Ollama / 任何 OpenAI 兼容 API
 - API Key 按供应商独立存储，优先于全局 API Key
 

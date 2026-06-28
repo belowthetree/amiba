@@ -61,7 +61,7 @@
               <input v-model="providerForm.id" class="form-input" placeholder="唯一 ID（英文）" style="margin-bottom:4px" />
               <input v-model="providerForm.baseUrl" class="form-input" placeholder="Base URL" style="margin-bottom:4px" />
               <input v-model="providerForm.apiKey" class="form-input" placeholder="API Key" style="margin-bottom:4px" />
-              <textarea v-model="providerForm.modelsStr" class="form-input" placeholder="模型列表（逗号分隔）" rows="2" style="margin-bottom:6px;resize:vertical" />
+              <textarea v-model="providerForm.modelsStr" class="form-input" placeholder="模型列表（每行一个）" rows="2" style="margin-bottom:6px;resize:vertical" />
               <div class="action-row">
                 <button class="sib save" @click="saveProviderEdit(i)">💾 保存</button>
                 <button class="sx" @click="providerEditingIdx = -1">取消</button>
@@ -327,7 +327,7 @@ function addProviderDialog() {
 
 function startProviderEdit(idx: number) {
   const p = providerList[idx]
-  providerForm.value = { name: p.name, id: p.id, baseUrl: p.baseUrl, apiKey: p.apiKey, modelsStr: p.models.join(', ') }
+  providerForm.value = { name: p.name, id: p.id, baseUrl: p.baseUrl, apiKey: p.apiKey, modelsStr: p.models.join('\n') }
   providerEditingIdx.value = idx
 }
 
@@ -339,7 +339,7 @@ function saveProviderEdit(idx: number) {
     id: f.id.trim(),
     baseUrl: f.baseUrl.trim(),
     apiKey: f.apiKey.trim(),
-    models: f.modelsStr.split(/[,，]/).map(m => m.trim()).filter(Boolean),
+    models: f.modelsStr.split('\n').map(m => m.trim()).filter(Boolean),
   }
   try {
     if (providerList[idx] && providerList[idx].id !== f.id.trim()) {
