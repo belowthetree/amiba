@@ -648,4 +648,77 @@ watch(
   font-size: 14px;
   cursor: pointer;
 }
+
+/* === 响应式：移动端适配 === */
+@media (max-width: 768px) {
+  .chat-page {
+    height: 100%;
+  }
+
+  .chat-topbar {
+    padding: 6px 8px;
+  }
+
+  .session-selector {
+    max-width: 140px;
+  }
+
+  .session-title {
+    font-size: 13px;
+  }
+
+  .session-dropdown {
+    left: 8px;
+    right: 8px;
+    max-height: 260px;
+  }
+
+  .chat-messages {
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .message {
+    max-width: 92%;
+  }
+
+  .message-content {
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+
+  .chat-input-bar {
+    padding: 6px 6px 6px 12px;
+    border-radius: 0;
+    gap: 4px;
+  }
+
+  .chat-input {
+    font-size: 13px;
+    min-height: 44px;
+  }
+
+  .send-btn {
+    padding: 8px 14px;
+    font-size: 13px;
+    border-radius: 10px;
+  }
+
+  .stats-btn {
+    padding: 2px 8px;
+    font-size: 14px;
+  }
+
+  .action-btn {
+    padding: 2px 8px;
+    font-size: 14px;
+  }
+}
+
+/* 安全区域（刘海屏/底部指示条） */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .chat-input-bar {
+    padding-bottom: calc(6px + env(safe-area-inset-bottom));
+  }
+}
 </style>

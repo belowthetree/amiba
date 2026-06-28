@@ -172,4 +172,21 @@ button {
   opacity: 0;
   transform: translateX(-20px);
 }
+
+/* === 响应式：移动端全局 === */
+@media (max-width: 768px) {
+  .topbar {
+    padding: 0 8px;
+  }
+
+  .topbar-title {
+    font-size: 15px;
+  }
+
+  .nav-btn {
+    width: 36px;
+    height: 36px;
+    font-size: 18px;
+  }
+}
 </style>
