@@ -231,7 +231,10 @@ async function send() {
   streamingContent.value = ''
 
   try {
-    const history = messages.value.map((m) => ({ role: m.role, content: m.content }))
+    // 过滤掉隐藏的系统消息，只传 user/assistant 给 API
+    const history = messages.value
+      .filter((m) => !m.hidden)
+      .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
     const chatMsgs = buildMessages(history.slice(0, -1))
     chatMsgs.push({ role: 'user', content: injectedUserMsg })
 

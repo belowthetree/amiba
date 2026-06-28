@@ -3,6 +3,10 @@ name: Build APK
 on:
   push:
     branches: [main]
+    paths:
+      - 'src-tauri/tauri.conf.json'
+      - 'src-tauri/Cargo.toml'
+      - 'package.json'
   workflow_dispatch:
 
 jobs:
