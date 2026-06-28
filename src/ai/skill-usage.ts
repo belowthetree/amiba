@@ -152,7 +152,7 @@ export async function bumpUse(slug: string): Promise<void> {
     }
 
     await saveUsage(db)
-    console.debug(`[SkillUsage] bumpUse: ${slug} (${entry.use_count})`)
+    console.log(`[SkillUsage] 👁️ bumpUse: ${slug} (${entry.use_count})`)
   } catch (e) {
     console.debug(`[SkillUsage] bumpUse 失败: ${slug}`, e)
   }
@@ -168,7 +168,7 @@ export async function bumpView(slug: string): Promise<void> {
     entry.view_count++
     entry.last_viewed_at = new Date().toISOString()
     await saveUsage(db)
-    console.debug(`[SkillUsage] bumpView: ${slug} (${entry.view_count})`)
+    console.log(`[SkillUsage] 📖 bumpView: ${slug} (${entry.view_count})`)
   } catch (e) {
     console.debug(`[SkillUsage] bumpView 失败: ${slug}`, e)
   }
@@ -184,7 +184,7 @@ export async function bumpPatch(slug: string): Promise<void> {
     entry.patch_count++
     entry.last_patched_at = new Date().toISOString()
     await saveUsage(db)
-    console.debug(`[SkillUsage] bumpPatch: ${slug} (${entry.patch_count})`)
+    console.log(`[SkillUsage] ✏️ bumpPatch: ${slug} (${entry.patch_count})`)
   } catch (e) {
     console.debug(`[SkillUsage] bumpPatch 失败: ${slug}`, e)
   }

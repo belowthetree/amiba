@@ -159,6 +159,7 @@ export async function createSession(title?: string): Promise<SessionMeta> {
   await addToIndex(meta)
   await saveMessages(id, [])
   await switchToSession(id)
+  console.log('[Session] ✨ 创建:', id, `"${meta.title}"`)
 
   return meta
 }
@@ -177,12 +178,15 @@ export async function switchToSession(id: string): Promise<void> {
   invalidateSystemPrompt()
   const { buildSystemPrompt } = await import('./system-prompt')
   buildSystemPrompt({ force: true })
+
+  console.log('[Session] 🔄 切换:', id, `(${msgs.length} 条消息)`)
 }
 
 /** 删除 session */
 export async function deleteSession(id: string): Promise<void> {
   await removeFromIndex(id)
   await deleteSessionFile(id)
+  console.log('[Session] 🗑️ 删除:', id)
 
   // 如果删除的是当前 session，切换到最新的或创建新的
   if (_currentId === id) {
@@ -308,6 +312,7 @@ export async function saveHistory(): Promise<void> {
   _saveTimer = setTimeout(async () => {
     _saveTimer = null
     await saveMessages(_currentId!, session.messages.value)
+    console.log('[Session] 💾 保存:', _currentId, `(${session.messages.value.length} 条)`)
 
     // 同步更新 session 元数据
     const visibleMessages = session.messages.value.filter((m) => !m.hidden)
@@ -338,6 +343,7 @@ export async function flushHistory(): Promise<void> {
   const session = getSession()
   if (_currentId) {
     await saveMessages(_currentId, session.messages.value)
+    console.log('[Session] 💾 flush:', _currentId, `(${session.messages.value.length} 条)`)
   }
 }
 

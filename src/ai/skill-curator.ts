@@ -142,6 +142,7 @@ async function applyAutomaticTransitions(
 
     if (entry.state === 'active' && daysSinceUsed > config.staleAfterDays) {
       await setState(slug, 'stale')
+      console.log(`[Curator] ⏳ stale: ${slug}（${Math.round(daysSinceUsed)} 天未使用）`)
       transitions.push({
         slug,
         from: 'active',
@@ -155,6 +156,7 @@ async function applyAutomaticTransitions(
       // 归档：移动目录
       await archiveSkillDir(slug)
       await setState(slug, 'archived')
+      console.log(`[Curator] 📦 归档: ${slug}（${Math.round(daysSinceUsed)} 天未使用）`)
       transitions.push({
         slug,
         from: 'stale',
@@ -631,9 +633,10 @@ async function runConsolidation(
 
     // 解析 YAML 输出
     const parsed = parseConsolidationYaml(reply)
-    console.log(
-      `[Curator] 合并决策: ${parsed.consolidations.length} 个合并, ${parsed.skips.length} 个跳过`
-    )
+    console.log('[Curator] 🤖 LLM 合并决策:', parsed.consolidations.length, '个合并,', parsed.skips.length, '个跳过')
+    for (const c of parsed.consolidations) {
+      console.log(`[Curator]   → ${c.from} → ${c.into} (${c.action}): ${c.reason}`)
+    }
 
     // 执行合并
     let umbrellasCreated = 0

@@ -213,6 +213,8 @@ export async function addRequirement(
   const md = buildRequirementMd(doc.frontmatter, doc.sections)
   await writeFile(serviceReqPath(serviceId), md)
 
+  console.log(`[Requirement] ➕ ${section}: ${serviceId} — "${content.slice(0, 50)}"`)
+
   // 同步更新全局文件
   await syncGlobalRequirements()
 }
@@ -300,6 +302,7 @@ export async function syncGlobalRequirements(): Promise<void> {
   lines.push('（由 AI 在需求检查时自动填充）', '')
 
   await writeFile(GLOBAL_REQ_PATH, lines.join('\n'))
+  console.log(`[Requirement] 📊 全局同步: ${serviceDirs.length} 个服务`)
 }
 
 /** 向全局文件追加潜在服务机会 */
