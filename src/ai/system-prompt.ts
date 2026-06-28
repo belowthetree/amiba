@@ -184,6 +184,15 @@ const SKILL_MANAGE_GUIDANCE = `## 技能创建与改进指引
 
 ⚠️ 内置技能（counter / todo / notes / service-dev）不可修改或删除。`
 
+const REQUIREMENT_GUIDANCE = `## 需求追踪指引（重要：主动使用！）
+你拥有需求追踪能力。当对话涉及已生成的服务时，**主动使用 requirement_update 工具**记录：
+- 用户提出新功能需求 → type="requirement"，追加到对应服务
+- 用户反馈界面/体验问题 → type="optimization" 或 type="feedback"
+- 需求完成 → type="done"
+- 需求可能暗示需要全新服务 → 设 global_opportunity 参数
+
+生成新服务前，先用 requirements_summary 检查是否已有类似需求或可通过修改现有服务满足。`
+
 function buildBehaviorGuidance(availableTools: string[]): string {
   const parts: string[] = []
   if (availableTools.includes('memory')) {
@@ -197,6 +206,9 @@ function buildBehaviorGuidance(availableTools: string[]): string {
   }
   if (availableTools.includes('skill_manage_create')) {
     parts.push(SKILL_MANAGE_GUIDANCE)
+  }
+  if (availableTools.includes('requirement_update')) {
+    parts.push(REQUIREMENT_GUIDANCE)
   }
   return parts.join('\n\n')
 }
@@ -236,17 +248,22 @@ function buildNudge(turnCount?: number): string {
   if (turnCount % NUDGE_INTERVAL === 0) {
     console.log(`[SystemPrompt] 🧠 记忆 nudge 触发 — 第 ${turnCount} 轮`)
     return [
-      '=== 记忆保存检查（必须执行） ===',
+      '=== 记忆与需求保存检查（必须执行） ===',
       `当前是第 ${turnCount} 轮对话。你必须执行以下步骤：`,
       '',
       '1. 快速回顾本轮的对话内容',
-      '2. 判断是否有以下值得保存的信息：',
-      '   - 用户偏好、背景、习惯 → 保存到 USER.md（target="user"）',
-      '   - 重要决策、项目约束、待办 → 保存到 MEMORY.md（target="memory"）',
-      '3. 如果有，立即调用 memory 工具保存，然后再继续回复用户',
-      '4. 如果确实没有新信息，简单说明「本轮无需更新记忆」即可',
+      '2. 记忆检查：',
+      '   - 用户偏好、背景、习惯 → memory(target="user")',
+      '   - 重要决策、项目约束、待办 → memory(target="memory")',
+      '3. 需求检查（如果对话涉及已生成的服务）：',
+      '   - 新功能需求 → requirement_update(type="requirement")',
+      '   - 界面/体验优化 → requirement_update(type="optimization")',
+      '   - 用户反馈 → requirement_update(type="feedback")',
+      '   - 需求如果无法通过修改现有服务满足 → 标记 global_opportunity',
+      '4. 如果有内容需要保存，立即调用相应工具，然后再回复用户',
+      '5. 如果确实没有新信息，说明「本轮无需更新」即可',
       '',
-      '注意：这个检查必须在回复用户之前完成。',
+      '注意：这些检查必须在回复用户之前完成。',
     ].join('\n')
   }
   return ''

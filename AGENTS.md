@@ -22,13 +22,53 @@ cargo tauri build    # Tauri production build (run from src-tauri/)
 
 | Module | Path | Role |
 |--------|------|------|
-| **AI Core** | `src/ai/` | LLM agent (multi-tool loop), system prompt assembler (system-prompt.ts), personality system (soul.ts), session manager (session.ts), memory store (memory-store.ts), skill system, service generator, catalog |
-| **Tools** | `src/tools/` | ToolRegistry (deferred-queue), auto-discovery, 3 toolsets (core/chat/create), 6 tool impls + service file tools (service-file.tool.ts) |
+| **AI Core** | `src/ai/` | LLM agent (multi-tool loop), system prompt assembler (system-prompt.ts: stable/volatile split cache + nudge), personality system (soul.ts), session manager v2 (session.ts: multi-session with create/switch/delete), memory store (memory-store.ts: real-time cache), skill system (skills.ts + skill-parser + skill-commands + skill-usage + skill-curator + skill-consolidation-prompt), requirement store (requirement-store.ts: per-service + global REQUIREMENT.md), service generator, catalog |
+| **Tools** | `src/tools/` | ToolRegistry (deferred-queue), auto-discovery, 3 toolsets (core/chat/create), 20+ tool impls: memory, generate, catalog, skill_view/list, skill_manage_*(5 tools), service_file_*(3 tools), soul_save, requirement_*(3 tools) |
 | **Host Runtime** | `src/host/` | iframe sandbox (`service-container.vue`), postMessage JSBridge (`bridge.ts`), service registry (`registry.ts`) |
 | **Pages** | `src/pages/` | 7 routes: Chat, Home, Generate, Memory, MyServices, ServiceBrowse, Settings |
-| **Config** | `src/config/` | Reactive settings persisted via Tauri FS plugin (`config.ts`), storage abstraction (`storage.ts`) |
+| **Config** | `src/config/` | Reactive settings persisted via Tauri FS plugin (`config.ts`), storage abstraction (`storage.ts`: auto-mkdir + pretty-print JSON) |
 | **Router** | `src/router/` | `createWebHistory` with lazy-loaded page components |
 | **Types** | `src/types/` | `ServiceManifest`, `ServicePackage`, `ServiceRequest/Response`, `AppSettings`, `MemoryToolParams`, etc. |
+
+## AI Core modules
+
+| File | Role |
+|------|------|
+| `agent.ts` | OpenAI-compatible streaming chat loop with multi-tool dispatch, memory checkpoint injection |
+| `system-prompt.ts` | Two-layer assembler: stable (identity+rules+skills, cached) + volatile (memory snapshot+time+nudge, rebuilt each call) |
+| `soul.ts` | Personality system: `souls/<name>.md` files, `soul_save` tool integration, onboarding directive |
+| `session.ts` | **v2 multi-session**: `createSession`/`switchToSession`/`deleteSession`/`listSessions`, per-session `sessions/<id>.json` storage, legacy migration, 300ms debounced save |
+| `memory-store.ts` | MEMORY.md / USER.md read/write, live cache for system prompt, §-delimited entries, FIFO eviction |
+| `skills.ts` | User skill CRUD (Settings UI), import from folder |
+| `skill-parser.ts` | YAML frontmatter + Markdown parser, slug generator, validation |
+| `skill-commands.ts` | Skill scanning (builtin + Tauri), slash-command detection, skill invocation message builder |
+| `skill-usage.ts` | `.usage.json` telemetry: use/view/patch counters, agent-created marking, pin/archive/restore state management |
+| `skill-curator.ts` | Background lifecycle: deterministic active→stale→archived transitions, archive/restore, LLM consolidation (Phase 4), run reports |
+| `skill-consolidation-prompt.ts` | Consolidation agent system prompt: prefix clustering, 3 merge strategies, YAML decision output |
+| `requirement-store.ts` | Per-service `REQUIREMENT.md` + global `REQUIREMENTS.md` engine: parse/build, add/done/feedback, auto-sync |
+| `commands.ts` | Built-in slash commands (`/new` → multi-session create) |
+| `memory.ts` | Memory tool handler (deprecated, use memory-store) |
+| `catalog.ts` | Component catalog YAML parser |
+| `generator.ts` | Service generation pipeline |
+
+## Tools inventory
+
+| Tool | Toolset | Role |
+|------|---------|------|
+| `memory` | core | Write to MEMORY.md / USER.md |
+| `generate_service` | core | Generate mini-app from natural language |
+| `catalog_search` | core | Search component catalog |
+| `skill_view` / `skills_list` | core | Read skill contents / list available skills |
+| `skill_manage_create` | core | Create new SKILL.md |
+| `skill_manage_patch` | core | Targeted find-replace in SKILL.md (preferred edit) |
+| `skill_manage_edit` | core | Full rewrite SKILL.md (major refactor only) |
+| `skill_manage_delete` | core | Archive skill to `.archive/` |
+| `skill_manage_write_file` | core | Add supporting files to skill dir |
+| `service_file_list/read/write` | core | Direct file editing on generated services |
+| `soul_save` | core | Create/update personality file (`souls/<name>.md`) |
+| `requirement_view` | core | Read per-service REQUIREMENT.md |
+| `requirement_update` | core | Add requirement/optimization/feedback/done entries |
+| `requirements_summary` | core | Read global REQUIREMENTS.md |
 
 ## Conventions
 
@@ -37,14 +77,31 @@ cargo tauri build    # Tauri production build (run from src-tauri/)
 - **Naming:** PascalCase for `.vue` components; kebab-case for directories; camelCase for functions/variables.
 - **Async init:** Entry modules export `initXxx()` called from `bootstrap()` in `main.ts`; each guards with an `initialized` flag.
 - **State:** Reactive config via `reactive()` + `watch()` with debounced persistence; Pinia stores for page-level state.
-- **AI:** Multi-tool calling via ToolRegistry + toolsets. System prompt assembled by system-prompt.ts (stable + volatile layers, cached). Personality via soul.ts (souls/*.md files). Session state via session.ts singleton. Memory via memory-store.ts (immediate persistence). Skills via SKILL.md with /skill-name commands. Onboarding flow on first launch guides personality creation.
+- **AI:** Multi-tool calling via ToolRegistry + toolsets. System prompt: stable layer (identity+rules+skills, cached) + volatile layer (memory+time+nudge, rebuilt each call). Personality via soul.ts (souls/*.md files, `soul_save` tool). Session: multi-session v2 (create/switch/delete, per-session `sessions/<id>.json`). Memory: real-time cache via memory-store.ts (MEMORY.md/USER.md, §-delimited). Skills: SKILL.md with /skill-name commands; skill evolution via skill-usage telemetry + skill-curator lifecycle + optional LLM consolidation. Requirements: per-service REQUIREMENT.md + global summary, 10-turn nudge triggers both memory and requirement checks. Onboarding: first launch → soul_save tool creates personality.
 - **JSBridge:** iframe `postMessage` protocol — `ServiceRequest` (type: api, module, method, params, requestId) → `ServiceResponse` (type: api-response, requestId, result/error). Permission-checked by module name.
 
 ## Notes
 
-- **Storage layout:** `{AppData}/amiba/` → flat K/V files, `services/{id}/` dirs, `skills/{slug}/SKILL.md` dirs, `souls/{name}.md` personality files
-- **Tools:** add `src/tools/xxx.tool.ts` + `registry.register(...)` → auto-discovered
-- **Skills:** add `skills/{slug}/SKILL.md` → scanned by `scanSkills()`
-- **Personality:** edit `souls/{name}.md` via Settings page → `invalidateSystemPrompt()` → next chat applies new personality
-- **Commands:** built-in `/new` starts new session (clears history + rebuilds system prompt). Add commands via `registerCommand()` in `src/ai/commands.ts`
-- **Onboarding:** first launch detects no `default.md` → AI guides user through persona creation step-by-step
+- **Storage layout:** `{AppData}/amiba/` →
+  - Flat K/V files: `amiba_settings`, `amiba_api_key`, `amiba_memory_md`, `amiba_user_md`, `amiba_active_soul`
+  - `services/{id}/` — generated app files + `REQUIREMENT.md` (per-service)
+  - `services/REQUIREMENTS.md` — global requirement summary
+  - `sessions/_index` — session metadata index
+  - `sessions/{id}.json` — per-session chat history
+  - `skills/{slug}/SKILL.md` — skill files
+  - `skills/.usage.json` — skill telemetry
+  - `skills/.archive/` — archived skills
+  - `skills/.curator_state` / `.curator-logs/` — curator lifecycle
+  - `souls/{name}.md` — personality files
+- **Storage auto-mkdir:** `storageSet` creates parent directories automatically before writing
+- **JSON pretty-print:** all `storageSetJSON` writes use 2-space indentation
+- **Real-time save:** chat history saves on every message with 300ms debounce; `/new` flushes before switching
+- **Memory nudge:** at turn 10/20/30... system prompt injects mandatory memory + requirement check directive
+- **Tools:** add `src/tools/xxx.tool.ts` + `registry.register(...)` → auto-discovered via `import.meta.glob`
+- **Skills:** add `skills/{slug}/SKILL.md` → scanned by `scanSkills()`; agent can create via `skill_manage_create`
+- **Skill evolution:** usage telemetry (`.usage.json`) + curator (auto stale→archive, optional LLM consolidation)
+- **Personality:** edit `souls/{name}.md` via Settings or use `soul_save` tool via AI; `invalidateSystemPrompt()` → next chat applies
+- **Commands:** built-in `/new` creates new session (saves old, starts fresh). Add commands via `registerCommand()` in `src/ai/commands.ts`
+- **Onboarding:** first launch → `isFirstLaunch()` → injects 3-step directive → AI uses `soul_save` tool to persist personality
+- **Session management:** multi-session with dropdown selector in ChatPage; sessions persist independently; legacy `amiba_chat_history` auto-migrated
+- **Documentation:** `AGENTS.md` is the concise index; `docs/*.md` holds detailed design docs. When project structure or features change, **both** must be updated in sync. New major features must have corresponding `docs/<feature>.md`.

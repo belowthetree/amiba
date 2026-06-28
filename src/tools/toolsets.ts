@@ -22,6 +22,9 @@ const CORE_TOOLS = [
   'skill_manage_delete',
   'skill_manage_write_file',
   'soul_save',
+  'requirement_view',
+  'requirement_update',
+  'requirements_summary',
 ]
 
 // ---- 工具集定义 ----

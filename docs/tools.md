@@ -2,53 +2,69 @@
 
 ## 概述
 
-`src/tools/` 实现工具注册、发现、调度系统。所有工具通过 `toolRegistry.register()` 注册，
-`import.meta.glob` 自动发现 `*.tool.ts` 文件。
-
-## 核心组件
-
-| 文件 | 职责 |
-|------|------|
-| `tool-registry.ts` | ToolRegistry 类（register/dispatch/getDefinitions）+ deferred queue |
-| `discover.ts` | `import.meta.glob` 自发现 + `flush()` |
-| `toolsets.ts` | 工具集定义（core/chat/create）+ `resolveToolset()` 递归解析 |
-
-## 已注册工具（8 个）
-
-| 工具 | 工具集 | 用途 |
-|------|--------|------|
-| `memory` | core | 持久记忆读写 |
-| `generate_service` | core | 生成 Web 应用 |
-| `catalog_search` | core | UI 组件目录查询 |
-| `skill_view` | core | 查看技能内容 |
-| `skills_list` | core | 列出可用技能 |
-| `service_list` | core | 列出用户服务 |
-| `service_file_list` | core | 列出服务文件 |
-| `service_file_read` | core | 读取服务文件 |
-| `service_file_write` | core | 编辑服务文件 |
+`src/tools/` 提供 AI Agent 可调用的工具集。通过 `ToolRegistry` 注册，`import.meta.glob` 自发现。
 
 ## 工具集
 
-| 工具集 | 包含工具 |
-|--------|----------|
-| `core` | 全部 8 个工具 |
-| `chat` | memory + core |
-| `create` | generate_service + catalog_search + core |
+| 工具集 | 工具数 | 说明 |
+|--------|--------|------|
+| `core` | 20+ | 所有核心工具 |
+| `chat` | 继承 core | 对话模式 |
+| `create` | 继承 core + generate_service | 创建模式 |
 
-## 添加新工具
+## 工具清单
+
+### 记忆 & 人格
+
+| 工具 | 文件 | 说明 |
+|------|------|------|
+| `memory` | `memory.tool.ts` | 写入 MEMORY.md / USER.md |
+| `soul_save` | `soul.tool.ts` | 创建/更新人格文件 |
+
+### 服务生成 & 编辑
+
+| 工具 | 文件 | 说明 |
+|------|------|------|
+| `generate_service` | `generate.tool.ts` | 自然语言生成迷你应用 |
+| `catalog_search` | `catalog.tool.ts` | 搜索组件目录 |
+| `service_file_list` | `service-file.tool.ts` | 列出服务文件 |
+| `service_file_read` | `service-file.tool.ts` | 读取服务文件 |
+| `service_file_write` | `service-file.tool.ts` | 写入服务文件 |
+
+### 技能管理
+
+| 工具 | 文件 | 说明 |
+|------|------|------|
+| `skill_view` | `skill.tool.ts` | 查看技能内容 |
+| `skills_list` | `skill.tool.ts` | 列出可用技能 |
+| `skill_manage_create` | `skill-manage.tool.ts` | 创建新技能 |
+| `skill_manage_patch` | `skill-manage.tool.ts` | 精确查找替换（首选） |
+| `skill_manage_edit` | `skill-manage.tool.ts` | 完整重写（重大重构） |
+| `skill_manage_delete` | `skill-manage.tool.ts` | 归档技能 |
+| `skill_manage_write_file` | `skill-manage.tool.ts` | 添加支持文件 |
+
+### 需求追踪
+
+| 工具 | 文件 | 说明 |
+|------|------|------|
+| `requirement_view` | `requirement.tool.ts` | 查看服务需求文档 |
+| `requirement_update` | `requirement.tool.ts` | 追加需求/反馈/优化/完成 |
+| `requirements_summary` | `requirement.tool.ts` | 全局需求汇总 |
+
+## 注册方式
 
 ```ts
-// src/tools/my-tool.tool.ts
+// src/tools/xxx.tool.ts
 import { toolRegistry } from './tool-registry'
 
 toolRegistry.register({
   name: 'my_tool',
   toolset: 'core',
-  description: '工具描述',
-  schema: { type: 'function', function: { name: 'my_tool', parameters: { ... } } },
-  handler: async (args) => { ... },
   emoji: '🔧',
+  description: '...',
+  schema: { /* OpenAI function schema */ },
+  handler: async (args) => { /* ... */ },
 })
 ```
 
-文件保存后自动被发现，无需修改任何配置。
+文件放在 `src/tools/*.tool.ts` 即被 `discoverTools()` 自动发现。
