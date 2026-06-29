@@ -313,7 +313,7 @@ impl SessionDB {
         // FTS5 搜索 + JOIN messages 获取上下文
         let mut stmt = conn.prepare(
             "SELECT m.session_id, m.id, m.role, COALESCE(m.content, ''), m.timestamp, m.tool_name,
-                    snippet(messages_fts, 2, '<mark>', '</mark>', '…', 40) as snippet
+                    snippet(messages_fts, 0, '<mark>', '</mark>', '…', 40) as snippet
              FROM messages_fts
              JOIN messages m ON m.id = messages_fts.rowid
              WHERE messages_fts MATCH ?1 AND m.active = 1
@@ -353,8 +353,22 @@ impl SessionDB {
             }
             seen_sessions.insert(sid.clone());
 
-            // 获取 session meta
-            let meta = self.get_session(sid).ok().flatten();
+            // 获取 session meta（直接查询，避免嵌套锁）
+            let meta = conn
+                .query_row(
+                    "SELECT id, title, created_at, updated_at, message_count FROM sessions WHERE id = ?1",
+                    params![sid],
+                    |row| {
+                        Ok(SessionMeta {
+                            id: row.get(0)?,
+                            title: row.get(1)?,
+                            created_at: row.get(2)?,
+                            updated_at: row.get(3)?,
+                            message_count: row.get(4)?,
+                        })
+                    },
+                )
+                .ok();
             let title = meta
                 .as_ref()
                 .map(|m| m.title.clone())
@@ -480,13 +494,28 @@ impl SessionDB {
 
     pub fn read_session(&self, session_id: &str, head: usize, tail: usize) -> SqlResult<SessionRead> {
         let conn = self.conn.lock().unwrap();
-        let meta = self.get_session(session_id)?.unwrap_or(SessionMeta {
-            id: session_id.to_string(),
-            title: "Unknown".to_string(),
-            created_at: String::new(),
-            updated_at: String::new(),
-            message_count: 0,
-        });
+        // 直接在锁内查询，避免嵌套调用 get_session() 导致死锁
+        let meta = conn
+            .query_row(
+                "SELECT id, title, created_at, updated_at, message_count FROM sessions WHERE id = ?1",
+                params![session_id],
+                |row| {
+                    Ok(SessionMeta {
+                        id: row.get(0)?,
+                        title: row.get(1)?,
+                        created_at: row.get(2)?,
+                        updated_at: row.get(3)?,
+                        message_count: row.get(4)?,
+                    })
+                },
+            )
+            .unwrap_or(SessionMeta {
+                id: session_id.to_string(),
+                title: "Unknown".to_string(),
+                created_at: String::new(),
+                updated_at: String::new(),
+                message_count: 0,
+            });
 
         let mut stmt = conn.prepare(
             "SELECT id, role, COALESCE(content, ''), timestamp, tool_name FROM messages
@@ -701,5 +730,229 @@ pub mod commands {
             .read_session(&session_id, head.unwrap_or(20), tail.unwrap_or(10))
             .map_err(|e| format!("Read session failed: {e}"))?;
         serde_json::to_string(&session).map_err(|e| format!("Serialize failed: {e}"))
+    }
+}
+
+// ============================================================
+// Tests
+// ============================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+use std::sync::atomic::{AtomicU32, Ordering};
+
+    static DB_COUNTER: AtomicU32 = AtomicU32::new(0);
+
+    fn temp_db() -> (SessionDB, PathBuf) {
+        let id = DB_COUNTER.fetch_add(1, Ordering::SeqCst);
+        let dir = std::env::temp_dir().join(format!("amiba_test_{}_{}", std::process::id(), id));
+        std::fs::create_dir_all(&dir).ok();
+        let path = dir.join("test_state.db");
+        let _ = std::fs::remove_file(&path);
+        let db = SessionDB::open(&path).expect("open test db");
+        (db, dir)
+    }
+
+    fn cleanup(dir: PathBuf) {
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn test_sanitize_fts5_query_basic() {
+        assert_eq!(sanitize_fts5_query("hello world"), "hello world");
+    }
+
+    #[test]
+    fn test_sanitize_fts5_query_special_chars() {
+        let result = sanitize_fts5_query("test\"query(here)");
+        assert!(!result.contains('"'));
+        assert!(!result.contains('('));
+        assert!(!result.contains(')'));
+    }
+
+    #[test]
+    fn test_sanitize_fts5_query_colons() {
+        let result = sanitize_fts5_query("col:value");
+        assert!(!result.contains(':'), "colons should be stripped");
+    }
+
+    #[test]
+    fn test_sanitize_fts5_query_preserve_words() {
+        let result = sanitize_fts5_query("rust sqlite fts5 search");
+        assert_eq!(result, "rust sqlite fts5 search");
+    }
+
+    #[test]
+    fn test_sanitize_fts5_query_empty() {
+        assert_eq!(sanitize_fts5_query(""), "");
+    }
+
+    #[test]
+    fn test_open_and_schema() {
+        let (db, dir) = temp_db();
+
+        // Schema should exist
+        let conn = db.conn.lock().unwrap();
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='sessions'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+
+        let msg_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='messages'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(msg_count, 1);
+
+        cleanup(dir);
+    }
+
+    #[test]
+    fn test_upsert_and_get_session() {
+        let (db, dir) = temp_db();
+
+        db.upsert_session("sess_1", "Test Chat", 5).unwrap();
+        let meta = db.get_session("sess_1").unwrap().unwrap();
+        assert_eq!(meta.title, "Test Chat");
+        assert_eq!(meta.message_count, 5);
+
+        // Upsert update
+        db.upsert_session("sess_1", "Updated Chat", 10).unwrap();
+        let meta = db.get_session("sess_1").unwrap().unwrap();
+        assert_eq!(meta.title, "Updated Chat");
+        assert_eq!(meta.message_count, 10);
+
+        // Non-existent
+        assert!(db.get_session("nonexistent").unwrap().is_none());
+
+        cleanup(dir);
+    }
+
+    #[test]
+    fn test_index_and_search() {
+        let (db, dir) = temp_db();
+
+        // Index messages
+        db.upsert_session("sess_a", "Search Test", 2).unwrap();
+        db.index_message("sess_a", "user", "hello world rust programming", None, None).unwrap();
+        db.index_message("sess_a", "assistant", "rust is a systems language", None, Some("reply")).unwrap();
+
+        // Search should find it
+        let results = db.search("rust programming", 5).unwrap();
+        assert!(!results.is_empty(), "should find rust programming");
+        assert_eq!(results[0].session_id, "sess_a");
+
+        // Non-matching query
+        let empty = db.search("python django flask", 5).unwrap();
+        assert!(empty.is_empty());
+
+        cleanup(dir);
+    }
+
+    #[test]
+    fn test_search_with_bookends() {
+        let (db, dir) = temp_db();
+
+        db.upsert_session("sess_b", "Bookend Test", 10).unwrap();
+        for i in 0..10 {
+            db.index_message("sess_b", "user", &format!("message number {}", i), None, None).unwrap();
+        }
+
+        let results = db.search("message number 5", 3).unwrap();
+        assert!(!results.is_empty());
+        let r = &results[0];
+        // Should have bookends
+        assert!(r.bookend_start.len() <= 3);
+        assert!(r.bookend_end.len() <= 3);
+        // Window should contain the match
+        assert!(r.window.iter().any(|m| m.anchor));
+
+        cleanup(dir);
+    }
+
+    #[test]
+    fn test_list_sessions() {
+        let (db, dir) = temp_db();
+
+        db.upsert_session("a", "Alpha", 1).unwrap();
+        db.upsert_session("b", "Beta", 2).unwrap();
+        db.upsert_session("c", "Gamma", 3).unwrap();
+
+        let sessions = db.list_sessions(10, None).unwrap();
+        assert_eq!(sessions.len(), 3);
+
+        let excl = db.list_sessions(10, Some("b")).unwrap();
+        assert_eq!(excl.len(), 2);
+
+        cleanup(dir);
+    }
+
+    #[test]
+    fn test_read_session_truncation() {
+        let (db, dir) = temp_db();
+
+        db.upsert_session("sess_c", "Truncation Test", 50).unwrap();
+        for i in 0..50 {
+            db.index_message("sess_c", "user", &format!("msg {}", i), None, None).unwrap();
+        }
+
+        let session = db.read_session("sess_c", 5, 5).unwrap();
+        assert!(session.truncated);
+        assert_eq!(session.messages.len(), 10); // 5 head + 5 tail
+        assert_eq!(session.message_count, 50);
+
+        cleanup(dir);
+    }
+
+    #[test]
+    fn test_delete_session_cascades() {
+        let (db, dir) = temp_db();
+
+        db.upsert_session("sess_d", "Delete Test", 3).unwrap();
+        db.index_message("sess_d", "user", "msg1", None, None).unwrap();
+        db.index_message("sess_d", "user", "msg2", None, None).unwrap();
+
+        db.delete_session("sess_d").unwrap();
+        assert!(db.get_session("sess_d").unwrap().is_none());
+
+        // Messages should also be gone
+        let conn = db.conn.lock().unwrap();
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM messages WHERE session_id = 'sess_d'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 0);
+
+        cleanup(dir);
+    }
+
+    #[test]
+    fn test_scroll_window() {
+        let (db, dir) = temp_db();
+
+        db.upsert_session("sess_e", "Scroll Test", 20).unwrap();
+        for i in 0..20 {
+            db.index_message("sess_e", "user", &format!("line {}", i), None, None).unwrap();
+        }
+
+        // Scroll around message 10
+        let messages = db.scroll("sess_e", 10, 3).unwrap();
+        assert!(messages.len() <= 7); // anchor ±3, max 7
+        assert!(messages.iter().any(|m| m.id == 10 && m.anchor));
+
+        cleanup(dir);
     }
 }

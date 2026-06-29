@@ -24,7 +24,7 @@ function getMaxChars(target: 'memory' | 'user'): number {
 // ---- 威胁模式（借鉴 Hermes threat_patterns.py 精简版） ----
 
 const THREAT_PATTERNS: { pattern: RegExp; label: string; severity: 'high' | 'medium' }[] = [
-  { pattern: /ignore\s+(previous|all|above|prior)\s+instructions/i, label: 'Prompt injection attempt', severity: 'high' },
+  { pattern: /ignore\s+.*\s+instructions/i, label: 'Prompt injection attempt', severity: 'high' },
   { pattern: /system\s+prompt\s+override/i, label: 'System prompt override', severity: 'high' },
   { pattern: /[\u200B\u200C\u200D\uFEFF\u202A-\u202E]/, label: 'Hidden Unicode characters', severity: 'medium' },
   { pattern: /curl\s+.*\$\{?\w*(KEY|TOKEN|SECRET)/i, label: 'Potential data exfiltration', severity: 'high' },
