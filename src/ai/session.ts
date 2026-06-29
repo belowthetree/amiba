@@ -99,19 +99,71 @@ async function loadMessages(id: string): Promise<Message[]> {
 
 async function saveMessages(id: string, messages: Message[]): Promise<void> {
   // 只保留最近 100 条
-  await storageSetJSON(historyKey(id), messages.slice(-100))
+  const trimmed = messages.slice(-100)
+  const errors: string[] = []
+
+  // 1. JSON 文件保存（主路径）
+  try {
+    await storageSetJSON(historyKey(id), trimmed)
+  } catch (e) {
+    errors.push(`json_save: ${e}`)
+  }
+
+  // 2. SQLite FTS5 索引（独立 try/catch，借鉴 Hermes turn_finalizer.py）
+  try {
+    const { indexMessageBatch } = await import('../config/session-db')
+    await indexMessageBatch(id, trimmed)
+  } catch (e) {
+    errors.push(`fts5_index: ${e}`)
+  }
+
+  // 3. SQLite session meta 同步
+  try {
+    const visibleCount = trimmed.filter((m: Message) => !m.hidden).length
+    const { invoke } = await import('@tauri-apps/api/core')
+    // 尝试 upsert（可能 SQLite 不可用，静默忽略）
+    await invoke('get_session', { sessionId: id }).then(async (raw: string) => {
+      const meta = raw ? JSON.parse(raw) : null
+      const firstUser = trimmed.find((m) => m.role === 'user' && !m.hidden)
+      const title = firstUser
+        ? firstUser.content.replace(/\n/g, ' ').trim().slice(0, 30) || 'New Chat'
+        : (meta?.title || 'New Chat')
+      try {
+        await invoke('index_message_batch', {
+          sessionId: id,
+          messages: [{
+            role: '_meta',
+            content: JSON.stringify({ title, message_count: visibleCount }),
+          }],
+        })
+      } catch { /* meta sync best-effort */ }
+    }).catch(() => { /* session not in SQLite yet */ })
+  } catch {
+    /* best-effort — non-critical */
+  }
+
+  if (errors.length > 0) {
+    console.warn('[Session] 持久化警告:', errors.join('; '))
+  }
 }
 
 async function deleteSessionFile(id: string): Promise<void> {
+  // 1. 删除 JSON 文件
   try {
     const { remove, BaseDirectory } = await import('@tauri-apps/plugin-fs')
-    const path = historyKey(id) + '.json'
-    // storageSetJSON uses its own prefix; try direct Tauri remove
     await remove(`amiba/${historyKey(id)}`, {
       baseDir: BaseDirectory.AppData,
     }).catch(() => {})
   } catch {
     /* 非 Tauri 环境静默 */
+  }
+
+  // 2. 删除 SQLite 记录
+  try {
+    const { deleteSession } = await import('../config/session-db')
+    await deleteSession(id)
+  } catch {
+    /* best-effort */
   }
 }
 

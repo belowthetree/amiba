@@ -25,6 +25,7 @@ const CORE_TOOLS = [
   'requirement_view',
   'requirement_update',
   'requirements_summary',
+  'session_search',
 ]
 
 // ---- 工具集定义 ----

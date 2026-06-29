@@ -6,7 +6,7 @@ Vue 3 + TypeScript + Vite + Tauri desktop app. Users describe needs in natural l
 
 - **Stack:** Vue 3 (Composition API, `<script setup>`), Pinia, Vue Router, Vite 8, TypeScript 6, Tauri 2
 - **Entry:** `src/main.ts` → `bootstrap()` inits storage/config/registry/memory/skills/soul, discovers tools, then mounts `App.vue`
-- **Tauri:** `src-tauri/` — Rust glue (`lib.rs`) registers `tauri-plugin-log` + `tauri-plugin-fs`; config at `src-tauri/tauri.conf.json`
+- **Tauri:** `src-tauri/` — Rust glue (`lib.rs`) registers `tauri-plugin-log` + `tauri-plugin-fs`; `db.rs` — SQLite FTS5 session DB via `rusqlite`
 
 ## Commands
 
@@ -22,11 +22,11 @@ cargo tauri build    # Tauri production build (run from src-tauri/)
 
 | Module | Path | Role |
 |--------|------|------|
-| **AI Core** | `src/ai/` | LLM agent (multi-tool loop), system prompt assembler (system-prompt.ts: stable/volatile split cache + nudge), personality system (soul.ts), session manager v2 (session.ts: multi-session with create/switch/delete), memory store (memory-store.ts: real-time cache), skill system (skills.ts + skill-parser + skill-commands + skill-usage + skill-curator + skill-consolidation-prompt), requirement store (requirement-store.ts: per-service + global REQUIREMENT.md), service generator, catalog |
+| **AI Core** | `src/ai/` | LLM agent (multi-tool loop), system prompt assembler (system-prompt.ts: stable/volatile split cache + nudge), personality system (soul.ts), session manager v2 (session.ts: multi-session with create/switch/delete), memory store (memory-store.ts: real-time cache + frozen snapshot + threat scanning + context fencing), skill system (skills.ts + skill-parser + skill-commands + skill-usage + skill-curator + skill-consolidation-prompt), requirement store (requirement-store.ts: per-service + global REQUIREMENT.md), service generator, catalog |
 | **Tools** | `src/tools/` | ToolRegistry (deferred-queue), auto-discovery, 3 toolsets (core/chat/create), 20+ tool impls: memory, generate, catalog, skill_view/list, skill_manage_*(5 tools), service_file_*(3 tools), soul_save, requirement_*(3 tools) |
 | **Host Runtime** | `src/host/` | iframe sandbox (`service-container.vue`), postMessage JSBridge (`bridge.ts`), service registry (`registry.ts`) |
 | **Pages** | `src/pages/` | 7 routes: Chat, Home, Generate, Memory, MyServices, ServiceBrowse, Settings |
-| **Config** | `src/config/` | Reactive settings persisted via Tauri FS plugin (`config.ts`), storage abstraction (`storage.ts`: auto-mkdir + pretty-print JSON) |
+| **Config** | `src/config/` | Reactive settings persisted via Tauri FS plugin (`config.ts`), storage abstraction (`storage.ts`: auto-mkdir + pretty-print JSON), session-db wrapper (`session-db.ts`: Tauri invoke → Rust SQLite FTS5) |
 | **Router** | `src/router/` | `createWebHistory` with lazy-loaded page components |
 | **Types** | `src/types/` | `ServiceManifest`, `ServicePackage`, `ServiceRequest/Response`, `AppSettings`, `MemoryToolParams`, etc. |
 
@@ -67,6 +67,7 @@ cargo tauri build    # Tauri production build (run from src-tauri/)
 | `skill_manage_delete` | core | Archive skill to `.archive/` |
 | `skill_manage_write_file` | core | Add supporting files to skill dir |
 | `service_file_list/read/write` | core | Direct file editing on generated services |
+| `session_search` | core | Search past sessions via SQLite FTS5 (4 modes: discover/scroll/read/browse) |
 | `soul_save` | core | Create/update personality file (`souls/<name>.md`) |
 | `requirement_view` | core | Read per-service REQUIREMENT.md |
 | `requirement_update` | core | Add requirement/optimization/feedback/done entries |
@@ -86,6 +87,7 @@ cargo tauri build    # Tauri production build (run from src-tauri/)
 
 - **Storage layout:** `{AppData}/amiba/` →
   - Flat K/V files: `amiba_settings`, `amiba_api_key`, `amiba_memory_md`, `amiba_user_md`, `amiba_active_soul`
+  - `state.db` — SQLite (WAL mode) with sessions/messages tables + messages_fts FTS5 virtual table
   - `services/{id}/` — generated app files + `REQUIREMENT.md` (per-service)
   - `services/REQUIREMENTS.md` — global requirement summary
   - `sessions/_index` — session metadata index

@@ -142,12 +142,32 @@ export async function* streamChat(
       console.warn(
         `[Agent] Token 预算预警: 估算 ${estTokens} > ${opts.maxContextTokens}，开始截断旧消息`
       )
-      // 保留 system + 最后 4 条消息
+      // 截断前：触发记忆压缩钩子（借鉴 Hermes on_pre_compress）
       const keep = Math.max(2, currentMessages.length - 4)
+      const truncated = currentMessages.slice(1, keep) // 不包括 system msg
+      memoryStore.onTruncation(
+        truncated
+          .filter((m) => m.role === 'user' || m.role === 'assistant')
+          .map((m) => ({ role: m.role as string, content: m.content }))
+      ).catch((e) => console.warn('[Agent] 截断钩子失败:', e))
+
+      // 保留 system + 最后 4 条消息
       currentMessages = [
         currentMessages[0],
         ...currentMessages.slice(keep),
       ]
+
+      // 注入过滤安全序言（借鉴 Hermes compression preamble）
+      const preamble: ChatMessage = {
+        role: 'system',
+        content:
+          '[System note: This is a handoff from a previous context window. ' +
+          'Treat the above as background reference, NOT as active instructions. ' +
+          'Do NOT answer questions or re-execute tasks mentioned in earlier context ' +
+          'unless the user explicitly asks about them.]',
+      }
+      // 在 system 消息之后、保留消息之前插入
+      currentMessages.splice(1, 0, preamble)
     }
 
     const stream = await client.chat.completions.create({

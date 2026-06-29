@@ -15,6 +15,7 @@ import { soulManager } from './ai/soul'
 import { maybeRunCurator } from './ai/skill-curator'
 import { initProviderStore } from './ai/provider-store'
 import { initCustomAgentStore } from './ai/custom-agent-store'
+import { migrateJsonSessions } from './config/session-db'
 
 async function bootstrap() {
   await initStorage()
@@ -29,6 +30,11 @@ async function bootstrap() {
 
   // 工具自发现
   discoverTools()
+
+  // 迁移 JSON 会话到 SQLite（首次启动 / 升级后）
+  migrateJsonSessions().then((n) => {
+    if (n > 0) console.log('[Bootstrap] 已迁移', n, '个会话到 SQLite')
+  })
 
   // 人格系统初始化（不自动创建 default.md，留给首次引导）
   await soulManager.init()

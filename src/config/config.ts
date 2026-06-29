@@ -10,8 +10,8 @@ const API_KEY_KEY = 'amiba_api_key'
 
 const defaults: AppSettings = {
   ai_base_url: 'https://api.deepseek.com/v1',
-  ai_model: 'deepseek-chat',
-  ai_generation_model: 'deepseek-chat',
+  ai_model: 'deepseek-v4-flash',
+  ai_generation_model: 'deepseek-v4-flash',
   theme_mode: 'system',
   language: 'zh-CN',
 }
