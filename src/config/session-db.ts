@@ -110,7 +110,6 @@ export async function indexMessageBatch(
   if (!(await isTauri())) return
   try {
     const { invoke } = await import('@tauri-apps/api/core')
-    // Convert Message[] to JSON-safe array for Rust side
     const msgs = messages.map((m) => ({
       role: m.role,
       content: m.content || '',
@@ -192,43 +191,5 @@ export async function readSession(
     return JSON.parse(raw)
   } catch {
     return null
-  }
-}
-
-/**
- * 一次性迁移：将现有 JSON 会话导入 SQLite。
- * 由 bootstrap() 在启动时调用。
- */
-export async function migrateJsonSessions(): Promise<number> {
-  if (!(await isTauri())) return 0
-  try {
-    const { listSessions: listJsSessions } = await import('../ai/session')
-    const sessions = await listJsSessions()
-    let count = 0
-
-    for (const meta of sessions) {
-      try {
-        // Upsert session meta
-        const { invoke } = await import('@tauri-apps/api/core')
-        // Read messages from JSON
-        const { storageGetJSON } = await import('../config/storage')
-        const msgs = await storageGetJSON<Message[]>(`sessions/${meta.id}`)
-        if (msgs && msgs.length > 0) {
-          await indexMessageBatch(meta.id, msgs)
-        }
-        // Upsert session in SQLite
-        await invoke('get_session', { sessionId: meta.id }).catch(async () => {
-          // Session not in SQLite yet — create via index_message_batch already indexed
-        })
-        count++
-      } catch {
-        // skip individual failures
-      }
-    }
-    console.log(`[SessionDB] 迁移完成: ${count}/${sessions.length} 个会话`)
-    return count
-  } catch (e) {
-    console.error('[SessionDB] 迁移失败:', e)
-    return 0
   }
 }

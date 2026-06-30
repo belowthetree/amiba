@@ -179,6 +179,12 @@ impl SessionDB {
             .unwrap()
             .as_secs_f64();
 
+        // 确保 session 存在
+        conn.execute(
+            "INSERT OR IGNORE INTO sessions (id, title, created_at, updated_at, message_count) VALUES (?1, ?2, ?3, ?3, 0)",
+            params![session_id, "Imported Chat", &chrono_now()],
+        )?;
+
         conn.execute(
             "INSERT INTO messages (session_id, role, content, tool_calls, tool_name, timestamp) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![session_id, role, content, tool_calls, tool_name, timestamp],
@@ -193,6 +199,13 @@ impl SessionDB {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_secs_f64();
+
+        // 确保 session 行存在（第一次迁移时 session 可能还没插入）
+        // 直接用 ON CONFLICT IGNORE 避免锁内再锁
+        conn.execute(
+            "INSERT OR IGNORE INTO sessions (id, title, created_at, updated_at, message_count) VALUES (?1, ?2, ?3, ?3, 0)",
+            params![session_id, "Imported Chat", &chrono_now()],
+        )?;
 
         // 先删除该 session 的现有消息（幂等重写）
         conn.execute(
