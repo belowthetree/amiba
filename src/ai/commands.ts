@@ -42,3 +42,33 @@ registerCommand({
   description: '开始新的对话会话',
   handler: () => newSession(),
 })
+
+// ---- 内置命令: /review ----
+
+registerCommand({
+  name: 'review',
+  description: '审查当前对话，自动更新 skill 库',
+  handler: () => {
+    import('./session').then(({ getVisibleMessages }) => {
+      const messages = getVisibleMessages()
+      if (messages.length < 5) {
+        console.log('[Review] 消息不足，跳过审查')
+        return
+      }
+      import('./skill-reviewer').then(({ forkReviewAgent }) => {
+        forkReviewAgent(
+          messages.map((m) => ({ role: m.role, content: m.content })),
+          'manual',
+        ).then((result) => {
+          if (result.ran) {
+            console.log(
+              `[Review] 创建 ${result.skillsCreated}, ` +
+              `修补 ${result.skillsPatched}, 删除 ${result.skillsDeleted}`,
+            )
+          }
+        })
+      })
+    })
+    return '🔍 Skill 审查已启动，正在后台分析对话内容…'
+  },
+})

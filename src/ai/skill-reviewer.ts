@@ -1,0 +1,229 @@
+// ============================================================
+// 变形虫 (Amiba) — Skill 审查引擎
+// ============================================================
+// 借鉴 Hermes background_review.py 的审查 Agent 设计。
+// 在多个触发点 fork 独立 LLM 调用，审查对话内容，自动维护 skill 库。
+//
+// 触发点：
+//   session_end  — /new 时审查旧会话
+//   manual       — /review 命令
+//   curator      — 7 天 curator 运行时附带
+//   mid_session  — 超过 20 轮时后台审查
+// ============================================================
+
+import OpenAI from 'openai'
+import { getSettings, getApiKey } from '../config/config'
+import { buildSystemPrompt } from './system-prompt'
+import { getToolDefinitions } from '../tools/toolsets'
+import { toolRegistry } from '../tools/tool-registry'
+import { getSkillCommands } from './skill-commands'
+
+export type ReviewTrigger = 'session_end' | 'manual' | 'curator' | 'mid_session'
+
+export interface ReviewResult {
+  ran: boolean
+  trigger: ReviewTrigger
+  skillsCreated: number
+  skillsPatched: number
+  skillsDeleted: number
+  summary: string
+  error?: string
+}
+
+// ---- 审查专用 System Prompt ----
+
+const REVIEW_PROMPT = `## Skill 审查模式
+
+你是 Amiba 的 **Skill 审查员**。你的任务是审查对话记录，判断是否需要创建或更新 skill。
+
+### 可用工具
+- skills_list — 列出所有 skill
+- skill_view — 查看 skill 详情
+- skill_manage_create — 创建新 skill
+- skill_manage_patch — 精确修补已有 skill
+- skill_manage_delete — 归档无用 skill
+
+### 审查规则（按优先级）
+
+**1. PATCH 已存在的 skill**（最高优先）
+- 对话中加载/使用过的 skill 有错误、过时、不完整 → 立即修补
+- 用户纠正过你的做法 → 把纠正固化到 skill 中
+
+**2. CREATE 新 skill**
+- 完成了 5+ 步的复杂任务 → 创建 skill 记录流程
+- 发现了可复用的技巧、配置、命令序列
+
+**3. DELETE 过时 skill**
+- 某个 skill 完全被另一个取代 → 归档（设 absorbed_into）
+
+**4. 什么都不做**
+- 对话太短、没有新知识、纯信息查询
+- 输出 "审查完成：无需更新。"
+
+### 不要记录
+- 环境相关的一次性错误（缺依赖、网络问题）
+- "X 坏了 / 不能用" 这类否定性声明
+- 单次任务（"帮我查 X"）
+
+### 风格要求
+- 新 skill 命名用类级别（如 "deploy-railway"），不用单次任务名
+- patch 优先于 create
+- 中文，简洁
+`
+
+// ---- 审查引擎 ----
+
+const MIN_MESSAGES = 5
+
+export async function forkReviewAgent(
+  messages: { role: string; content: string }[],
+  trigger: ReviewTrigger,
+  loadedSkillSlugs: string[] = [],
+): Promise<ReviewResult> {
+  const visibleMessages = messages.filter(
+    (m) => (m.role === 'user' || m.role === 'assistant') && !m.content.startsWith('/'),
+  )
+
+  if (visibleMessages.length < MIN_MESSAGES) {
+    return {
+      ran: false,
+      trigger,
+      skillsCreated: 0,
+      skillsPatched: 0,
+      skillsDeleted: 0,
+      summary: `跳过：消息不足（${visibleMessages.length} < ${MIN_MESSAGES}）`,
+    }
+  }
+
+  const s = getSettings()
+  const apiKey = await getApiKey()
+  if (!apiKey) {
+    return { ran: false, trigger, skillsCreated: 0, skillsPatched: 0, skillsDeleted: 0, summary: '', error: 'No API key' }
+  }
+
+  const client = new OpenAI({
+    baseURL: s.ai_base_url,
+    apiKey,
+    dangerouslyAllowBrowser: true,
+  })
+
+  // 限制工具：只看 skill 管理
+  const reviewToolset = 'review'
+  const toolSchemas = getToolDefinitions([reviewToolset])
+
+  // 构建对话摘要（取最近 30 条，截断过长内容）
+  const conversationSummary = visibleMessages
+    .slice(-30)
+    .map((m) => `[${m.role === 'user' ? '用户' : 'AI'}]: ${m.content.slice(0, 300)}`)
+    .join('\n\n')
+
+  // 根据 trigger 微调 prompt
+  let triggerNote = ''
+  switch (trigger) {
+    case 'session_end':
+      triggerNote = '\n这是一个完整的会话，请全面审查。'
+      break
+    case 'mid_session':
+      triggerNote = '\n这是对话中段（仍在进行）。只做明显的修补，不要创建新 skill（信息可能不完整）。'
+      break
+    case 'curator':
+      triggerNote = '\n这是定期维护审查。重点检查长期未用的 skill 是否需要归档，或是否有多个 skill 可以合并。'
+      break
+  }
+
+  const systemMsg = `${
+    buildSystemPrompt({ enabledToolsets: [reviewToolset], force: true }).split('\n\n').slice(1).join('\n\n')
+  }\n\n${REVIEW_PROMPT}${triggerNote}`
+
+  let currentMessages: any[] = [
+    { role: 'system', content: systemMsg },
+    { role: 'user', content: `请审查以下对话，必要时更新 skill：\n\n${conversationSummary}\n\n开始审查。` },
+  ]
+
+  let skillsCreated = 0
+  let skillsPatched = 0
+  let skillsDeleted = 0
+  const maxTurns = 5
+  let summary = ''
+
+  try {
+    for (let turn = 0; turn < maxTurns; turn++) {
+      const resp = await client.chat.completions.create({
+        model: s.ai_model,
+        messages: currentMessages,
+        tools: toolSchemas.length > 0 ? (toolSchemas as any) : undefined,
+        tool_choice: toolSchemas.length > 0 ? 'auto' : undefined,
+      })
+
+      const choice = resp.choices[0]
+      const msg = choice.message
+
+      // 记录文本回复
+      if (msg.content) {
+        summary = msg.content.slice(0, 500)
+      }
+
+      // 无工具调用 → 结束
+      if (!msg.tool_calls || msg.tool_calls.length === 0) {
+        break
+      }
+
+      // 添加 assistant 消息
+      currentMessages.push({
+        role: 'assistant',
+        content: msg.content || '',
+        tool_calls: msg.tool_calls,
+      })
+
+      // 执行工具
+      for (const tc of msg.tool_calls) {
+        const tcAny = tc as any
+        const toolName = tcAny.function?.name || ''
+        let toolArgs: any = {}
+        try {
+          toolArgs = JSON.parse(tcAny.function?.arguments || '{}')
+        } catch { toolArgs = {} }
+
+        const result = await toolRegistry.dispatch(toolName, toolArgs, {
+          enabledToolsets: [reviewToolset],
+        })
+
+        currentMessages.push({
+          role: 'tool',
+          content: result,
+          tool_call_id: tc.id,
+        })
+
+        // 统计
+        if (toolName === 'skill_manage_create') skillsCreated++
+        else if (toolName === 'skill_manage_patch' || toolName === 'skill_manage_edit') skillsPatched++
+        else if (toolName === 'skill_manage_delete') skillsDeleted++
+      }
+    }
+  } catch (e: any) {
+    console.error('[SkillReviewer] 审查失败:', e)
+    return {
+      ran: true,
+      trigger,
+      skillsCreated,
+      skillsPatched,
+      skillsDeleted,
+      summary,
+      error: e.message || String(e),
+    }
+  }
+
+  console.log(
+    `[SkillReviewer] 审查完成 (${trigger}): ` +
+    `创建 ${skillsCreated}, 修补 ${skillsPatched}, 删除 ${skillsDeleted}`,
+  )
+
+  return {
+    ran: true,
+    trigger,
+    skillsCreated,
+    skillsPatched,
+    skillsDeleted,
+    summary,
+  }
+}

@@ -371,6 +371,20 @@ export async function maybeRunCurator(
     }
   }
 
+  // LLM 审查（curator 定期触发 — 检查长期未用的 skill 是否需要归档/合并）
+  let reviewResult: any = null
+  if (cfg.consolidateEnabled) {
+    try {
+      const { forkReviewAgent } = await import('./skill-reviewer')
+      reviewResult = await forkReviewAgent(
+        [{ role: 'user', content: '定期 curator 维护审查 — 检查长期未用的 skill' }],
+        'curator',
+      )
+    } catch (e) {
+      console.warn('[Curator] 审查跳过:', e)
+    }
+  }
+
   // 刷新缓存，重新读取
   invalidateUsageCache()
   const dbAfter = await getUsage()

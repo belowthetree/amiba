@@ -46,6 +46,17 @@ export const TOOLSETS: Record<string, ToolsetDef> = {
     tools: ['generate_service', 'catalog_search'],
     includes: ['core'],
   },
+
+  review: {
+    tools: [
+      'skill_view',
+      'skills_list',
+      'skill_manage_create',
+      'skill_manage_patch',
+      'skill_manage_edit',
+      'skill_manage_delete',
+    ],
+  },
 }
 
 // ---- 解析 ----

@@ -121,6 +121,8 @@ export interface AppSettings {
   curator_archive_after_days?: number
   /** Phase 4: LLM 智能合并（默认关闭，需手动开启） */
   curator_consolidate_enabled?: boolean
+  /** Skill 自动审查（会话结束时后台 fork 审查 Agent） */
+  skill_auto_review_enabled?: boolean
 }
 
 // --- AI Provider ---

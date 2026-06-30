@@ -119,28 +119,9 @@ async function saveMessages(id: string, messages: Message[]): Promise<void> {
 
   // 3. SQLite session meta 同步
   try {
-    const visibleCount = trimmed.filter((m: Message) => !m.hidden).length
     const { invoke } = await import('@tauri-apps/api/core')
-    // 尝试 upsert（可能 SQLite 不可用，静默忽略）
-    await invoke('get_session', { sessionId: id }).then(async (raw: string) => {
-      const meta = raw ? JSON.parse(raw) : null
-      const firstUser = trimmed.find((m) => m.role === 'user' && !m.hidden)
-      const title = firstUser
-        ? firstUser.content.replace(/\n/g, ' ').trim().slice(0, 30) || 'New Chat'
-        : (meta?.title || 'New Chat')
-      try {
-        await invoke('index_message_batch', {
-          sessionId: id,
-          messages: [{
-            role: '_meta',
-            content: JSON.stringify({ title, message_count: visibleCount }),
-          }],
-        })
-      } catch { /* meta sync best-effort */ }
-    }).catch(() => { /* session not in SQLite yet */ })
-  } catch {
-    /* best-effort — non-critical */
-  }
+    await invoke('get_session', { sessionId: id }).catch(() => {})
+  } catch { /* best-effort */ }
 
   if (errors.length > 0) {
     console.warn('[Session] 持久化警告:', errors.join('; '))
@@ -299,6 +280,26 @@ export async function newSession(): Promise<string> {
   const meta = await createSession()
   _currentId = meta.id
 
+  // 触发 skill 审查（后台异步，不阻塞）
+  if (visibleMessages.length >= 5) {
+    const settings = (await import('../config/config')).getSettings()
+    if ((settings as any).skill_auto_review_enabled ?? true) {
+      import('./skill-reviewer').then(({ forkReviewAgent }) => {
+        forkReviewAgent(
+          visibleMessages.map((m) => ({ role: m.role, content: m.content })),
+          'session_end',
+        ).then((result) => {
+          if (result.ran) {
+            console.log(
+              `[Session] 🔍 Skill 审查: 创建 ${result.skillsCreated}, ` +
+              `修补 ${result.skillsPatched}, 删除 ${result.skillsDeleted}`,
+            )
+          }
+        })
+      })
+    }
+  }
+
   invalidateSystemPrompt()
   const { buildSystemPrompt } = await import('./system-prompt')
   buildSystemPrompt({ force: true })
@@ -427,4 +428,35 @@ export function flashError(msg: string): void {
 
 export function getVisibleMessages(): Message[] {
   return getSession().messages.value.filter((m) => !m.hidden)
+}
+
+/**
+ * 中场审查钩子：当对话超过阈值时，后台异步审查前半段。
+ * 由 ChatPage 在每轮对话后调用。
+ */
+let _midReviewTurnCount = 0
+export async function maybeMidSessionReview(): Promise<void> {
+  const session = getSession()
+  const threshold = 20
+  if (session.turnCount.value < threshold) return
+  if (session.turnCount.value - _midReviewTurnCount < threshold) return
+
+  _midReviewTurnCount = session.turnCount.value
+  const settings = (await import('../config/config')).getSettings()
+  if (!((settings as any).skill_auto_review_enabled ?? true)) return
+
+  const visibleMessages = session.messages.value
+    .filter((m) => !m.hidden)
+    .slice(-Math.floor(session.messages.value.length * 0.6)) // 前半段
+
+  import('./skill-reviewer').then(({ forkReviewAgent }) => {
+    forkReviewAgent(
+      visibleMessages.map((m) => ({ role: m.role, content: m.content })),
+      'mid_session',
+    ).then((result) => {
+      if (result.ran) {
+        console.log(`[Session] 🔍 中场审查: 修补 ${result.skillsPatched}`)
+      }
+    })
+  })
 }
