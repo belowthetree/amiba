@@ -70,6 +70,16 @@ export async function clickElement(selector: string): Promise<EvalResult> {
   return invoke<EvalResult>('web_click', { selector })
 }
 
+/**
+ * 向匹配 CSS 选择器的输入框输入文本（focus → value → input event → change event → 等待 DOM 稳定）。
+ */
+export async function inputText(
+  selector: string,
+  text: string,
+): Promise<EvalResult> {
+  return invoke<EvalResult>('web_input_text', { selector, text })
+}
+
 // ---- 会话管理 ----
 
 /**

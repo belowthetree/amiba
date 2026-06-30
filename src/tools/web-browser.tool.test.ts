@@ -73,4 +73,14 @@ describe('Web Browse tool', () => {
     const result = await toolRegistry.dispatch('web_browse', { action: 'close' })
     expect(typeof result).toBe('string')
   })
+
+  it('should reject input_text without selector', async () => {
+    const result = await toolRegistry.dispatch('web_browse', { action: 'input_text', text: 'hi' })
+    expect(result).toContain('Error')
+  })
+
+  it('should reject input_text without text', async () => {
+    const result = await toolRegistry.dispatch('web_browse', { action: 'input_text', selector: '#x' })
+    expect(result).toContain('Error')
+  })
 })

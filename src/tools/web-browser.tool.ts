@@ -10,6 +10,7 @@ import {
   fetchPage,
   getContent,
   clickElement,
+  inputText,
   closeBrowser,
 } from '../config/web-bridge'
 
@@ -79,11 +80,12 @@ toolRegistry.register({
         properties: {
           action: {
             type: 'string',
-            enum: ['navigate', 'click', 'get_content', 'close'],
+            enum: ['navigate', 'click', 'input_text', 'get_content', 'close'],
             description: '操作类型',
           },
           url: { type: 'string', description: '[navigate] 目标 URL' },
-          selector: { type: 'string', description: '[click] CSS 选择器，如 "#btn" 或 ".item"' },
+          selector: { type: 'string', description: '[click/input_text] CSS 选择器' },
+          text: { type: 'string', description: '[input_text] 输入文本' },
           session_id: { type: 'string', description: '[close] 指定会话 ID，不传则关闭全部' },
         },
         required: ['action'],
@@ -110,6 +112,16 @@ toolRegistry.register({
           const content = await getContent()
           console.log('[web_browse] click → get_content:\n', content.result)
           return `✅ 已点击 "${sel}"\n\n页面结构:\n${content.result.slice(0, 6000)}`
+        }
+        case 'input_text': {
+          const sel = String(p.selector ?? '')
+          const txt = String(p.text ?? '')
+          if (!sel) return 'Error: selector required'
+          if (!txt) return 'Error: text required'
+          await inputText(sel, txt)
+          const content = await getContent()
+          console.log('[web_browse] input_text → get_content:\n', content.result)
+          return `✅ 已在 "${sel}" 输入 ${txt.length} 个字符\n\n页面结构:\n${content.result.slice(0, 6000)}`
         }
         case 'get_content': {
           const content = await getContent()

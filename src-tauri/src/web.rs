@@ -222,22 +222,38 @@ mod desktop {
             wv.navigate(parsed).map_err(|e| format!("navigate: {e}"))?;
         }
 
-        // 轮询 document.readyState 等待加载完成（比 sleep(5s) 智能）
+        // 1. 轮询 readyState 等页面框架加载
         for _ in 0..30 {
             std::thread::sleep(std::time::Duration::from_millis(500));
             let (tx, rx) = mpsc::channel::<String>();
             let _ = wv.eval_with_callback("document.readyState", move |r| { let _ = tx.send(r); });
             if let Ok(state) = rx.recv_timeout(std::time::Duration::from_secs(1)) {
-                if state.contains("complete") || state.contains("interactive") {
-                    break;
-                }
+                if state.contains("complete") || state.contains("interactive") { break; }
             }
         }
 
-        // 额外等 1s 让动态内容渲染
-        std::thread::sleep(std::time::Duration::from_secs(1));
+        // 2. MutationObserver 等待 AJAX/SPA 动态内容渲染完成
+        let (tx_mo, rx_mo) = mpsc::channel::<String>();
+        wv.eval_with_callback(
+            r#"(function(){
+              return new Promise(function(resolve){
+                var settled=false, timer;
+                var done=function(){ if(!settled){ settled=true; observer.disconnect(); resolve('stable'); } };
+                var observer=new MutationObserver(function(){
+                  clearTimeout(timer);
+                  timer=setTimeout(done,800);
+                });
+                observer.observe(document.body,{childList:true,subtree:true,attributes:true,characterData:true});
+                timer=setTimeout(done,800);
+                setTimeout(done,10000);
+              });
+            })()"#,
+            move |r| { let _ = tx_mo.send(r); },
+        ).map_err(|e| format!("MutationObserver eval: {e}"))?;
 
-        // 提取内容
+        let _ = rx_mo.recv_timeout(std::time::Duration::from_secs(15));
+
+        // 3. 提取内容
         let (tx2, rx2) = mpsc::channel::<String>();
         wv.eval_with_callback(EXTRACT_JS, move |r| { let _ = tx2.send(r); })
             .map_err(|e| format!("eval: {e}"))?;
@@ -509,13 +525,97 @@ pub async fn web_eval(
 
 #[tauri::command]
 pub async fn web_click(
-    app: tauri::AppHandle,
+    #[allow(unused)] app: tauri::AppHandle,
     pool: tauri::State<'_, BrowserPool>,
     selector: String,
 ) -> Result<EvalResult, String> {
-    let js = format!("(function(){{ var el=document.querySelector('{}'); if(el){{ el.click(); return 'clicked'; }} return 'not found: {}'; }})()",
-        selector.replace('\'', "\\'"), selector);
-    web_eval(app, pool, js).await
+    // 点击 + MutationObserver 等待 DOM 稳定（SPA 渲染完成后才返回）
+    let safe_sel = selector.replace('\\', "\\\\").replace('\'', "\\'");
+    let js = format!(r#"(function(){{
+  var el=document.querySelector('{safe_sel}');
+  if(!el) return 'not found: {safe_sel}';
+  el.click();
+  return new Promise(function(resolve){{
+    var settled=false, timer;
+    var done=function(){{ if(!settled){{ settled=true; observer.disconnect(); resolve('stabilized'); }} }};
+    var observer=new MutationObserver(function(){{
+      clearTimeout(timer);
+      timer=setTimeout(done,800);
+    }});
+    observer.observe(document.body,{{childList:true,subtree:true,attributes:true}});
+    timer=setTimeout(done,800);
+    setTimeout(done,5000);
+  }});
+}})()"#);
+    // 用 eval_with_callback 直接拿到 Promise resolve 的值
+    #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+    {
+        let sessions = pool.sessions.lock().unwrap();
+        for (_id, handle) in sessions.iter() {
+            if let BrowserHandle::Desktop(wv) = handle {
+                let (tx, rx) = std::sync::mpsc::channel::<String>();
+                wv.eval_with_callback(&js, move |r| { let _ = tx.send(r); })
+                    .map_err(|e| format!("eval: {e}"))?;
+                let result = rx.recv_timeout(std::time::Duration::from_secs(12))
+                    .unwrap_or_else(|_| "timeout".to_string());
+                return Ok(EvalResult { result });
+            }
+        }
+        Err("No active browser session".into())
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        web_eval(app, pool, js).await
+    }
+}
+
+#[tauri::command]
+pub async fn web_input_text(
+    #[allow(unused)] app: tauri::AppHandle,
+    pool: tauri::State<'_, BrowserPool>,
+    selector: String,
+    text: String,
+) -> Result<EvalResult, String> {
+    let safe_sel = selector.replace('\\', "\\\\").replace('\'', "\\'");
+    let safe_text = text.replace('\\', "\\\\").replace('\'', "\\'").replace('\n', "\\n");
+    let js = format!(r#"(function(){{
+  var el=document.querySelector('{safe_sel}');
+  if(!el) return 'not found: {safe_sel}';
+  el.focus();
+  el.value='{safe_text}';
+  el.dispatchEvent(new Event('input',{{bubbles:true}}));
+  el.dispatchEvent(new Event('change',{{bubbles:true}}));
+  return new Promise(function(resolve){{
+    var settled=false, timer;
+    var done=function(){{ if(!settled){{ settled=true; observer.disconnect(); resolve('typed: '+el.value.length+' chars'); }} }};
+    var observer=new MutationObserver(function(){{
+      clearTimeout(timer);
+      timer=setTimeout(done,800);
+    }});
+    observer.observe(document.body,{{childList:true,subtree:true,attributes:true}});
+    timer=setTimeout(done,800);
+    setTimeout(done,5000);
+  }});
+}})()"#);
+    #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+    {
+        let sessions = pool.sessions.lock().unwrap();
+        for (_id, handle) in sessions.iter() {
+            if let BrowserHandle::Desktop(wv) = handle {
+                let (tx, rx) = std::sync::mpsc::channel::<String>();
+                wv.eval_with_callback(&js, move |r| { let _ = tx.send(r); })
+                    .map_err(|e| format!("eval: {e}"))?;
+                let result = rx.recv_timeout(std::time::Duration::from_secs(12))
+                    .unwrap_or_else(|_| "timeout".to_string());
+                return Ok(EvalResult { result });
+            }
+        }
+        Err("No active browser session".into())
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        web_eval(app, pool, js).await
+    }
 }
 
 #[tauri::command]

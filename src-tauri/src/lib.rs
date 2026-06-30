@@ -45,6 +45,7 @@ pub fn run() {
       web::web_fetch,
       web::web_eval,
       web::web_click,
+      web::web_input_text,
       web::web_get_content,
       web::web_close,
     ])
