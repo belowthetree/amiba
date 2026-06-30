@@ -1,73 +1,37 @@
 // ============================================================
-// 变形虫 (Amiba) — Web Browser 工具（WebView + HTTP fallback）
+// 变形虫 (Amiba) — Web Browser 工具
 // ============================================================
-// 桌面端：Tauri 隐藏 WebView（完整浏览器引擎，JS 渲染、反反爬）
-// 移动端：HTTP fallback（reqwest + HTML 解析）
+// 依赖 web-bridge.ts 封装所有 Tauri invoke 调用。
+// 提供 web_fetch / web_browse 两个 AI 工具。
 // ============================================================
 import { toolRegistry } from './tool-registry'
+import {
+  isTauri,
+  fetchPage,
+  getContent,
+  clickElement,
+  closeBrowser,
+} from '../config/web-bridge'
 
-// ---- Types ----
-
-interface FetchResult {
-  url: string
-  title: string
-  text: string
-  content_type: string
-}
-
-// ---- Tauri invoke wrapper ----
-
-async function isTauri(): Promise<boolean> {
-  try {
-    const mod = await import('@tauri-apps/api/core')
-    return typeof mod.invoke === 'function'
-  } catch {
-    return false
-  }
-}
-
-async function invokeWebFetch(url: string, useWebview = true): Promise<FetchResult> {
-  const { invoke } = await import('@tauri-apps/api/core')
-  return invoke<FetchResult>('web_fetch', { url, useWebview })
-}
-
-// ---- Tool params ----
-
-interface WebFetchParams {
-  url: string
-  /** 是否使用 WebView（默认 true，桌面端启用完整渲染）。false 则用 HTTP 快速抓取 */
-  use_webview?: boolean
-}
-
-// ---- Tool registration ----
+// ---- web_fetch ----
 
 toolRegistry.register({
   name: 'web_fetch',
   toolset: 'core',
   emoji: '🌐',
-  description:
-    '获取网页可读文本内容。桌面端使用系统 WebView（支持 JS 渲染、反反爬），移动端使用 HTTP 抓取。适合获取文档、文章、API 响应等。',
+  description: '获取网页可读文本。WebView 渲染 JS 页面，失败自动降级 HTTP。',
   maxResultSizeChars: 6000,
   schema: {
     type: 'function',
     function: {
       name: 'web_fetch',
-      description:
-        '获取指定 URL 的网页可读文本内容。\n' +
-        '桌面端（Windows/macOS/Linux）：使用系统 WebView 引擎，可渲染 JavaScript、通过 Cloudflare 等反爬检测。\n' +
-        '移动端（Android/iOS）：使用 HTTP 请求 + HTML 解析，不支持 JS 渲染。\n' +
-        '适合获取：文档页面、博客文章、Wikipedia、公开 API 响应、新闻网站等。\n' +
-        '不适合：需要登录的页面、验证码页面、大文件下载。',
+      description: '获取指定 URL 的网页可读文本。全平台 WebView 引擎。',
       parameters: {
         type: 'object',
         properties: {
           url: {
             type: 'string',
-            description: '要获取的网页 URL（必须以 http:// 或 https:// 开头）',
-          },
-          use_webview: {
-            type: 'boolean',
-            description: '是否使用 WebView 渲染（默认 true）。设为 false 可快速抓取纯 HTML 页面，不执行 JS。',
+            description: '网页 URL（http/https）',
           },
         },
         required: ['url'],
@@ -75,49 +39,92 @@ toolRegistry.register({
     },
   },
   handler: async (args) => {
-    const params = args as unknown as WebFetchParams
-    if (!params.url || !params.url.trim()) {
-      return 'Error: url is required'
+    const { url } = args as Record<string, unknown>
+    const urlStr = String(url ?? '').trim()
+    if (!urlStr) return 'Error: url is required'
+    if (!/^https?:\/\//.test(urlStr)) return 'Error: url must start with http:// or https://'
+    if (!(await isTauri())) return '⚠️ web_fetch requires Tauri runtime.'
+
+    try {
+      const result = await fetchPage(urlStr)
+      let out = `## ${result.title || 'No title'}\nURL: ${result.url}\n\n`
+      const text = result.text.length > 5000
+        ? result.text.slice(0, 5000) + `\n\n…[${result.text.length} chars total]`
+        : result.text
+      out += text.trim() || '（页面无文本内容）'
+      return out
+    } catch (e: any) {
+      return `❌ 获取失败: ${e.message ?? e}`
     }
-    if (!/^https?:\/\//.test(params.url.trim())) {
-      return 'Error: url must start with http:// or https://'
-    }
-    return handleWebFetch(params)
   },
 })
 
-// ---- Handler ----
+// ---- web_browse ----
 
-async function handleWebFetch(params: WebFetchParams): Promise<string> {
-  const url = params.url.trim()
-  const useWebview = params.use_webview ?? true
+toolRegistry.register({
+  name: 'web_browse',
+  toolset: 'core',
+  emoji: '🌐',
+  description:
+    '浏览器交互操作。navigate=导航到URL, click=点击元素, get_content=获取页面结构, close=关闭释放资源。',
+  maxResultSizeChars: 8000,
+  schema: {
+    type: 'function',
+    function: {
+      name: 'web_browse',
+      description:
+        '浏览器交互操作：navigate 导航到 URL、click 点击 CSS 选择器元素、get_content 获取页面 DOM 结构（标签/id/class）、close 关闭释放资源。',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: {
+            type: 'string',
+            enum: ['navigate', 'click', 'get_content', 'close'],
+            description: '操作类型',
+          },
+          url: { type: 'string', description: '[navigate] 目标 URL' },
+          selector: { type: 'string', description: '[click] CSS 选择器，如 "#btn" 或 ".item"' },
+          session_id: { type: 'string', description: '[close] 指定会话 ID，不传则关闭全部' },
+        },
+        required: ['action'],
+      },
+    },
+  },
+  handler: async (args) => {
+    const p = args as Record<string, unknown>
+    const action = String(p.action ?? '')
+    if (!(await isTauri())) return '⚠️ web_browse requires Tauri runtime.'
 
-  if (!(await isTauri())) {
-    return '⚠️ web_fetch requires Tauri runtime (desktop or mobile app). In dev mode, this tool is unavailable.'
-  }
-
-  try {
-    const result = await invokeWebFetch(url, useWebview)
-
-    let out = `## ${result.title || 'No title'}\n`
-    out += `URL: ${result.url}\n`
-    out += `Type: ${result.content_type}\n\n`
-
-    // 截断过长文本
-    const text = result.text.length > 5000
-      ? result.text.slice(0, 5000) + `\n\n…[truncated: ${result.text.length} chars total]`
-      : result.text
-
-    if (text.trim()) {
-      out += text
-    } else {
-      out += '（页面无文本内容，可能是纯图片/视频页面，或需要 JS 渲染的 SPA）'
+    try {
+      switch (action) {
+        case 'navigate': {
+          const url = String(p.url ?? '').trim()
+          if (!url) return 'Error: url required'
+          const r = await fetchPage(url)
+          return `✅ 已导航到 ${r.url}\n标题: ${r.title}\n\n${r.text.slice(0, 3000)}`
+        }
+        case 'click': {
+          const sel = String(p.selector ?? '')
+          if (!sel) return 'Error: selector required'
+          await clickElement(sel)
+          const content = await getContent()
+          console.log('[web_browse] click → get_content:\n', content.result)
+          return `✅ 已点击 "${sel}"\n\n页面结构:\n${content.result.slice(0, 6000)}`
+        }
+        case 'get_content': {
+          const content = await getContent()
+          console.log('[web_browse] get_content:\n', content.result)
+          return content.result.slice(0, 7000)
+        }
+        case 'close': {
+          await closeBrowser((p.session_id as string) || undefined)
+          return '✅ 会话已关闭'
+        }
+        default:
+          return `Error: unknown action "${action}"`
+      }
+    } catch (e: any) {
+      return `❌ ${action} 失败: ${e.message ?? e}`
     }
-
-    return out
-  } catch (e: any) {
-    // 提取错误信息
-    const msg = typeof e === 'string' ? e : (e.message || String(e))
-    return `❌ 获取页面失败: ${msg}`
-  }
-}
+  },
+})

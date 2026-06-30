@@ -27,6 +27,7 @@ const CORE_TOOLS = [
   'requirements_summary',
   'session_search',
   'web_fetch',
+  'web_browse',
 ]
 
 // ---- 工具集定义 ----

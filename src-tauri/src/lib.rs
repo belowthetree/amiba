@@ -28,6 +28,9 @@ pub fn run() {
         .expect("Failed to open session database");
       app.manage(db);
 
+      // 初始化浏览器池
+      app.manage(web::BrowserPool::new());
+
       Ok(())
     })
     .invoke_handler(tauri::generate_handler![
@@ -41,6 +44,8 @@ pub fn run() {
       db::commands::read_session_cmd,
       web::web_fetch,
       web::web_eval,
+      web::web_click,
+      web::web_get_content,
       web::web_close,
     ])
     .run(tauri::generate_context!())
