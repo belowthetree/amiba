@@ -1,4 +1,5 @@
 mod db;
+mod web;
 
 use tauri::Manager;
 
@@ -38,6 +39,9 @@ pub fn run() {
       db::commands::delete_session_cmd,
       db::commands::scroll_session,
       db::commands::read_session_cmd,
+      web::web_fetch,
+      web::web_eval,
+      web::web_close,
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

@@ -26,3 +26,15 @@ tauri-plugin-log = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-dialog = "2"
 rusqlite = { version = "0.39", features = ["bundled"] }
+reqwest = { version = "0.12", features = ["rustls-tls"], default-features = false }
+scraper = "0.22"
+tokio = { version = "1", features = ["sync", "time", "rt", "macros"] }
+url = "2"
+
+[target.'cfg(target_os = "android")'.dependencies]
+jni = { version = "0.21", features = ["invocation"] }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = "0.6"
+objc2-web-kit = "0.3"
+objc2-foundation = "0.3"
