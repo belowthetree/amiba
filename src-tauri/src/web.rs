@@ -304,7 +304,7 @@ mod mobile {
             return Ok(wv.clone());
         }
 
-        let ctx = ndk_context::android_context().context().as_ptr();
+        let ctx = ndk_context::android_context().context();
         let ctx_obj = unsafe { JObject::from_raw(ctx as *mut _) };
         let cls = env.find_class("android/webkit/WebView").map_err(|e| format!("class: {e}"))?;
         let wv = env.new_object(&cls, "(Landroid/content/Context;)V", &[JValue::Object(&ctx_obj)])
@@ -341,10 +341,10 @@ mod mobile {
 
         // 提取内容 — 使用 evaluateJavascript + ValueCallback
         let js = env.new_string(EXTRACT_JS).map_err(|e| format!("js str: {e}"))?;
-        let (tx, rx) = mpsc::channel::<String>();
+        let (_tx, rx) = mpsc::channel::<String>();
 
         // 创建匿名 ValueCallback
-        let cb_cls = env.find_class("com/amiba/JsCallback")
+        let _cb_cls = env.find_class("com/amiba/JsCallback")
             .or_else(|_| {
                 // fallback: 使用 loadUrl("javascript:...") 同步方式
                 Ok::<_, jni::errors::Error>(Default::default())
@@ -386,7 +386,7 @@ mod mobile {
         let mut env = vm.attach_current_thread().map_err(|e| format!("attach: {e}"))?;
         let wv = get_or_create_webview(&mut env)?;
         let jjs = env.new_string(js).map_err(|e| format!("str: {e}"))?;
-        let (tx, rx) = mpsc::channel::<String>();
+        let (_tx, rx) = mpsc::channel::<String>();
         let _ = env.call_method(&wv, "evaluateJavascript",
             "(Ljava/lang/String;Landroid/webkit/ValueCallback;)V",
             &[JValue::Object(&jjs.into())]);
@@ -484,7 +484,7 @@ pub async fn web_fetch(
         {
             let ctx = ndk_context::android_context();
             let vm = unsafe { jni::JavaVM::from_raw(
-                ctx.vm().as_ptr() as *mut _
+                ctx.vm() as *mut _
             ).map_err(|e| format!("JVM: {e}"))? };
             return mobile::mobile_fetch_sync(&vm, &url);
         }
@@ -518,7 +518,7 @@ pub async fn web_eval(
     {
         let ctx = ndk_context::android_context();
         let vm = unsafe { jni::JavaVM::from_raw(
-            ctx.vm().as_ptr() as *mut _
+            ctx.vm() as *mut _
         ).map_err(|e| format!("JVM: {e}"))? };
         mobile::mobile_eval_sync(&vm, &js).map(|r| EvalResult { result: r })
     }
