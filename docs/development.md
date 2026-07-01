@@ -5,6 +5,8 @@
 - Node.js >= 18
 - npm >= 9
 - Rust >= 1.77 (安装: https://rustup.rs)
+- Android SDK + NDK 28 (仅 Android 构建需要)
+- Android Studio（或 `sdkmanager`）用于模拟器管理
 
 ## 快速开始
 
@@ -22,6 +24,34 @@ npm run build        # 生产构建 (vue-tsc + vite)
 npm run preview      # 预览生产构建
 npx tauri dev        # 启动 Tauri 桌面应用（开发模式）
 npx tauri build      # 打包 Tauri 桌面应用
+npx tauri android dev    # Tauri Android 开发构建（需模拟器/设备）
+npx tauri android build  # Tauri Android 生产构建
+```
+
+### Android 构建
+
+```bash
+# 前置条件：Android SDK 28+, NDK 28, 模拟器运行中
+# 检查设备连接
+adb devices
+
+# 开发构建（自动编译 Kotlin + Rust，安装并启动）
+npx tauri android dev
+
+# 生产构建
+npx tauri android build
+```
+
+**注意**: `tauri android init` 会重置 `gen/android/` 目录。自定义 Kotlin 代码放在 `MainActivity.kt` 中（位于 `gen/android/app/src/main/java/com/amiba/desktop/`），该文件不会被 `tauri android dev` 覆盖。
+
+### Rust 依赖（Android 新增）
+
+```toml
+# src-tauri/Cargo.toml
+[target.'cfg(target_os = "android")'.dependencies]
+jni = { version = "0.21", features = ["invocation"] }
+ndk-context = "0.1"
+libloading = "0.8"  # 用于动态加载 libnativehelper.so 获取 JVM
 ```
 
 ## 配置 AI
@@ -83,9 +113,14 @@ src-tauri/
 ├── Cargo.toml          # Rust 依赖配置
 ├── tauri.conf.json     # Tauri 窗口/打包配置
 ├── capabilities/       # 权限声明
-└── src/
-    ├── main.rs         # Rust 入口
-    └── lib.rs          # 插件注册
+├── src/
+│   ├── main.rs         # Rust 入口
+│   ├── lib.rs          # 插件注册 + AndroidJvm 状态缓存
+│   ├── db.rs           # SQLite FTS5 会话
+│   └── web.rs          # WebView 浏览器引擎（三平台）
+└── gen/android/        # Android 项目（Gradle）
+    └── app/src/main/java/com/amiba/desktop/
+        └── MainActivity.kt  # Activity + JsCallback + WebViewHelper
 ```
 
 ## 添加新页面

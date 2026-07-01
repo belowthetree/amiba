@@ -6,7 +6,8 @@ Vue 3 + TypeScript + Vite + Tauri desktop app. Users describe needs in natural l
 
 - **Stack:** Vue 3 (Composition API, `<script setup>`), Pinia, Vue Router, Vite 8, TypeScript 6, Tauri 2
 - **Entry:** `src/main.ts` → `bootstrap()` inits storage/config/registry/memory/skills/soul, discovers tools, then mounts `App.vue`
-- **Tauri:** `src-tauri/` — Rust glue (`lib.rs`) registers `tauri-plugin-log` + `tauri-plugin-fs`; `db.rs` — SQLite FTS5 session DB via `rusqlite`
+- **Tauri:** `src-tauri/` — Rust glue (`lib.rs`) registers `tauri-plugin-log` + `tauri-plugin-fs`; `db.rs` — SQLite FTS5 session DB via `rusqlite`; `web.rs` — WebView 浏览器引擎（桌面 WebView + Android JNI/Kotlin + iOS WKWebView），提供 `web_fetch`/`web_browse` 等命令
+- **Android 特定:** Kotlin 辅助类在 `MainActivity.kt`（`JsCallback` + `WebViewHelper`）; JVM 通过 `libloading` 动态查找 `JNI_GetCreatedJavaVMs`; App ClassLoader 用于 native 线程加载 app 类
 
 ## Commands
 
@@ -16,6 +17,7 @@ npm run build        # vue-tsc -b && vite build → dist/
 npm run preview      # Vite preview of dist/
 cargo tauri dev      # Tauri desktop dev (run from src-tauri/)
 cargo tauri build    # Tauri production build (run from src-tauri/)
+npx tauri android dev   # Tauri Android dev build (emulator/device)
 ```
 
 ## Architecture
@@ -23,8 +25,9 @@ cargo tauri build    # Tauri production build (run from src-tauri/)
 | Module | Path | Role |
 |--------|------|------|
 | **AI Core** | `src/ai/` | LLM agent (multi-tool loop), system prompt assembler (system-prompt.ts: stable/volatile split cache + nudge), personality system (soul.ts), session manager v2 (session.ts: multi-session with create/switch/delete), memory store (memory-store.ts: real-time cache + frozen snapshot + threat scanning + context fencing), skill system (skills.ts + skill-parser + skill-commands + skill-usage + skill-curator + skill-consolidation-prompt), requirement store (requirement-store.ts: per-service + global REQUIREMENT.md), service generator, catalog |
-| **Tools** | `src/tools/` | ToolRegistry (deferred-queue), auto-discovery, 3 toolsets (core/chat/create), 20+ tool impls: memory, generate, catalog, skill_view/list, skill_manage_*(5 tools), service_file_*(3 tools), soul_save, requirement_*(3 tools) |
+| **Tools** | `src/tools/` | ToolRegistry (deferred-queue), auto-discovery, 3 toolsets (core/chat/create), 20+ tool impls: memory, generate, catalog, skill_view/list, skill_manage_*(5 tools), service_file_*(3 tools), soul_save, requirement_*(3 tools), web_fetch, web_browse |
 | **Host Runtime** | `src/host/` | iframe sandbox (`service-container.vue`), postMessage JSBridge (`bridge.ts`), service registry (`registry.ts`) |
+| **Web Bridge** | `src/config/web-bridge.ts` | 封装 Tauri `web_fetch`/`web_click`/`web_input_text`/`web_get_content`/`web_close` 命令，含超时和日志 |
 | **Pages** | `src/pages/` | 7 routes: Chat, Home, Generate, Memory, MyServices, ServiceBrowse, Settings |
 | **Config** | `src/config/` | Reactive settings persisted via Tauri FS plugin (`config.ts`), storage abstraction (`storage.ts`: auto-mkdir + pretty-print JSON), session-db wrapper (`session-db.ts`: Tauri invoke → Rust SQLite FTS5) |
 | **Router** | `src/router/` | `createWebHistory` with lazy-loaded page components |
@@ -72,6 +75,8 @@ cargo tauri build    # Tauri production build (run from src-tauri/)
 | `requirement_view` | core | Read per-service REQUIREMENT.md |
 | `requirement_update` | core | Add requirement/optimization/feedback/done entries |
 | `requirements_summary` | core | Read global REQUIREMENTS.md |
+| `web_fetch` | core | 获取网页可读文本（全平台 WebView，Android 走 Kotlin helper） |
+| `web_browse` | core | 浏览器交互：navigate / click / input_text / get_content / close |
 
 ## Conventions
 
@@ -97,6 +102,7 @@ cargo tauri build    # Tauri production build (run from src-tauri/)
   - `skills/.archive/` — archived skills
   - `skills/.curator_state` / `.curator-logs/` — curator lifecycle
   - `souls/{name}.md` — personality files
+- **Android 源码:** Kotlin 类在 `src-tauri/gen/android/app/src/main/java/com/amiba/desktop/MainActivity.kt`（`JsCallback` + `WebViewHelper`）；`tauri android init` 会重置 `gen/android`，自定义代码需在重置后重新写入
 - **Storage auto-mkdir:** `storageSet` creates parent directories automatically before writing
 - **JSON pretty-print:** all `storageSetJSON` writes use 2-space indentation
 - **Real-time save:** chat history saves on every message with 300ms debounce; `/new` flushes before switching

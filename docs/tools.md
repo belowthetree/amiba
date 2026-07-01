@@ -8,7 +8,7 @@
 
 | 工具集 | 工具数 | 说明 |
 |--------|--------|------|
-| `core` | 20+ | 所有核心工具 |
+| `core` | 22+ | 所有核心工具 |
 | `chat` | 继承 core | 对话模式 |
 | `create` | 继承 core + generate_service | 创建模式 |
 
@@ -50,6 +50,15 @@
 | `requirement_view` | `requirement.tool.ts` | 查看服务需求文档 |
 | `requirement_update` | `requirement.tool.ts` | 追加需求/反馈/优化/完成 |
 | `requirements_summary` | `requirement.tool.ts` | 全局需求汇总 |
+
+### 网页浏览
+
+| 工具 | 文件 | 说明 |
+|------|------|------|
+| `web_fetch` | `web-browser.tool.ts` | 获取网页可读文本。桌面 WebView JS 渲染，移动端平台原生 WebView，失败降级 HTTP |
+| `web_browse` | `web-browser.tool.ts` | 浏览器交互操作：`navigate` 导航、`click` 点击 CSS 选择器、`input_text` 输入文本、`get_content` 提取页面 DOM 结构、`close` 关闭释放资源 |
+
+**架构**: `web-bridge.ts` 封装 Tauri invoke → `web.rs` 三平台引擎 → Android 上通过 `libloading` 获取 JVM → Kotlin `WebViewHelper` 主线程管理 WebView → `JsCallback` 跨线程返回 JS 结果。
 
 ## 注册方式
 

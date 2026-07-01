@@ -131,3 +131,44 @@ amiba/
 | API 鉴权 | 服务 manifest 声明权限，宿主检查后放行 |
 | 输入校验 | 所有 postMessage 消息验证来源 origin |
 | CSP | Content-Security-Policy 限制外部资源加载 |
+
+## Android WebView 浏览器引擎
+
+`src-tauri/src/web.rs` — 三平台 WebView 引擎（桌面 WebView / Android JNI+Kotlin / iOS WKWebView）。
+
+### Android 架构（v3）
+
+```
+Tauri Command (web_fetch / web_eval / web_click / web_input_text / web_close)
+    │
+    ├─ 获取 JVM: libloading → dlopen("libnativehelper.so") → dlsym("JNI_GetCreatedJavaVMs")
+    │                    （不依赖 ndk_context，因其 OnceLock 在 setup 阶段尚未初始化）
+    │
+    ├─ 加载 Kotlin 类: ActivityThread.currentApplication()
+    │                  → Context.getClassLoader()
+    │                  → ClassLoader.loadClass("com.amiba.desktop.WebViewHelper")
+    │                    （native 线程只有 system class loader，必须通过 App ClassLoader）
+    │
+    └─ Kotlin WebViewHelper (MainActivity.kt 内)
+         ├─ Handler(Looper.getMainLooper()) ← 所有 WebView 操作必须在主线程
+         ├─ WebViewClient.onPageFinished 等待页面加载
+         ├─ JsCallback (ValueCallback<String>) 跨线程传 JS 结果
+         │    └─ synchronized/wait/notifyAll: Rust 线程 wait(), 主线程 notify()
+         └─ evaluateJavascript(script, callback) 执行 JS 并返回结果
+```
+
+### 关键踩坑
+
+1. **`ndk_context` OnceLock 未初始化** — Tauri 的 `setup` 在 `wry` 初始化前运行，此时 `ndk_context::android_context()` panic。改用 `libloading` 动态查找 `JNI_GetCreatedJavaVMs`。
+
+2. **`JNI_GetCreatedJavaVMs` 非导出符号** — Android NDK 将其实现为 `inline` 函数，不能通过 `extern "C"` 静态链接。必须 `dlopen/dlsym`。
+
+3. **Native 线程的 ClassLoader** — `attach_current_thread()` 附加的线程只有 system class loader，`find_class` 找不到 app 类。必须通过 `Context.getClassLoader().loadClass()` 加载。
+
+4. **`evaluateJavascript` 必须传 ValueCallback** — 方法签名 `(String, ValueCallback)V` 需要两个参数，缺一不可。旧代码只传了一个参数导致 JNI 调用失败。
+
+5. **Android WebView 必须在主线程操作** — 通过 `Handler(Looper.getMainLooper()).post {}` + `CountDownLatch` 实现跨线程同步。
+
+## 经验教训
+
+- **2025-07-01**: Android `ndk_context::android_context()` 在 Tauri setup 阶段 panic 因 OnceLock 未初始化。换用 `libloading` 动态加载 `JNI_GetCreatedJavaVMs` 获取 JVM，通过 `ActivityThread.currentApplication().getClassLoader().loadClass()` 加载 Kotlin 类。`tauri android dev` 会重置 `gen/android` 目录，自定义 Kotlin 代码需放在可能被覆盖的文件（如 `MainActivity.kt`）中或构建后重新注入。
