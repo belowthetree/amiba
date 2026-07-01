@@ -105,8 +105,13 @@ impl BrowserPool {
 
     pub fn remove(&self, id: &str) {
         let mut sessions = self.sessions.lock().unwrap();
+        #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
         if let Some(BrowserHandle::Desktop(wv)) = sessions.remove(id) {
             let _ = wv.close();
+        }
+        #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+        {
+            sessions.remove(id);
         }
     }
 }
@@ -299,7 +304,7 @@ mod mobile {
             return Ok(wv.clone());
         }
 
-        let ctx = tauri::android::plugin::android_context().ok_or("No context")?;
+        let ctx = ndk_context::android_context().context().as_ptr();
         let ctx_obj = unsafe { JObject::from_raw(ctx as *mut _) };
         let cls = env.find_class("android/webkit/WebView").map_err(|e| format!("class: {e}"))?;
         let wv = env.new_object(&cls, "(Landroid/content/Context;)V", &[JValue::Object(&ctx_obj)])
@@ -309,7 +314,8 @@ mod mobile {
         // 启用 JS
         let settings = env.call_method(&gref, "getSettings", "()Landroid/webkit/WebSettings;", &[])
             .map_err(|e| format!("settings: {e}"))?;
-        env.call_method(&settings.l()?, "setJavaScriptEnabled", "(Z)V", &[JValue::Bool(true.into())])
+        let settings_obj = settings.l().map_err(|e| format!("settings.l: {e}"))?;
+        env.call_method(&settings_obj, "setJavaScriptEnabled", "(Z)V", &[JValue::Bool(true.into())])
             .map_err(|e| format!("js: {e}"))?;
 
         *guard = Some(gref.clone());
@@ -342,7 +348,8 @@ mod mobile {
             .or_else(|_| {
                 // fallback: 使用 loadUrl("javascript:...") 同步方式
                 Ok::<_, jni::errors::Error>(Default::default())
-            })?;
+            })
+            .map_err(|e| format!("find_class JsCallback: {e}"))?;
 
         let result = env.call_method(
             &wv, "evaluateJavascript",
@@ -475,8 +482,9 @@ pub async fn web_fetch(
         }
         #[cfg(target_os = "android")]
         {
+            let ctx = ndk_context::android_context();
             let vm = unsafe { jni::JavaVM::from_raw(
-                tauri::android::plugin::raw_jvm_handle().ok_or("No JVM")?
+                ctx.vm().as_ptr() as *mut _
             ).map_err(|e| format!("JVM: {e}"))? };
             return mobile::mobile_fetch_sync(&vm, &url);
         }
@@ -508,8 +516,9 @@ pub async fn web_eval(
     }
     #[cfg(target_os = "android")]
     {
+        let ctx = ndk_context::android_context();
         let vm = unsafe { jni::JavaVM::from_raw(
-            tauri::android::plugin::raw_jvm_handle().ok_or("No JVM")?
+            ctx.vm().as_ptr() as *mut _
         ).map_err(|e| format!("JVM: {e}"))? };
         mobile::mobile_eval_sync(&vm, &js).map(|r| EvalResult { result: r })
     }
