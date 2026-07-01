@@ -229,6 +229,7 @@ impl SessionDB {
 
     // ---- Session CRUD ----
 
+    #[allow(dead_code)]
     pub fn upsert_session(&self, id: &str, title: &str, message_count: i64) -> SqlResult<()> {
         let conn = self.conn.lock().unwrap();
         let now = chrono_now();

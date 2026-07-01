@@ -34,6 +34,7 @@ pub struct EvalResult {
 
 pub struct BrowserPool {
     sessions: Mutex<HashMap<String, BrowserHandle>>,
+    #[allow(dead_code)]
     counter: Mutex<u32>,
 }
 
@@ -53,6 +54,7 @@ impl BrowserPool {
         }
     }
 
+    #[allow(dead_code)]
     fn next_id(&self) -> String {
         let mut c = self.counter.lock().unwrap();
         *c += 1;
@@ -464,6 +466,7 @@ mod mobile {
 // ============================================================
 
 #[tauri::command]
+#[allow(unused_variables)]
 pub async fn web_fetch(
     app: tauri::AppHandle,
     pool: tauri::State<'_, BrowserPool>,
@@ -499,7 +502,7 @@ pub async fn web_fetch(
 #[tauri::command]
 pub async fn web_eval(
     #[allow(unused)] app: tauri::AppHandle,
-    pool: tauri::State<'_, BrowserPool>,
+    #[allow(unused)] pool: tauri::State<'_, BrowserPool>,
     js: String,
 ) -> Result<EvalResult, String> {
     #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
