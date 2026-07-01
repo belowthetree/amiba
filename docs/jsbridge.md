@@ -57,6 +57,32 @@ interface HostEvent {
 | `navigateTo` | `{ url: string }` | `void` | — |
 | `navigateBack` | `{ delta?: number }` | `void` | — |
 
+### widgets
+
+| 方法 | 参数 | 返回 | 权限 |
+|------|------|------|------|
+| `registerWidget` | `{ config: FloatingWidgetConfig }` | `void` | widgets |
+| `removeWidget` | `{ id: string }` | `void` | widgets |
+| `showWidget` | `{ id: string }` | `void` | widgets |
+| `hideWidget` | `{ id: string }` | `void` | widgets |
+
+`FloatingWidgetConfig` 结构：
+
+```ts
+interface FloatingWidgetConfig {
+  id: string              // 唯一标识，如 "quick-note"
+  icon: string            // emoji 图标，如 "📝"
+  label?: string          // 悬停提示
+  page: string            // widget HTML 文件路径，如 "widgets/quick-note.html"
+  edge: 'left' | 'right' // 吸附边缘
+  position: number        // 初始 y 位置（px，距顶部）
+  showOn: string[]        // 可见路由名称，空数组 = 全局可见
+  trigger: 'always' | 'manual'
+}
+```
+
+Widget 也可以通过服务目录下的 `widget.json` 声明式配置，服务加载时自动注册。参见 [服务模型](services.md)。
+
 ## 服务内全局注入
 
 宿主在 iframe 加载完成后注入 `window.__amiba__` 对象，封装 postMessage 为 Promise 风格：

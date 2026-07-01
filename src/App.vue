@@ -26,6 +26,9 @@
           <component :is="Component" />
         </transition>
       </router-view>
+
+      <!-- 全局悬浮块容器 -->
+      <FloatingWidgetContainer />
     </main>
   </div>
 </template>
@@ -33,6 +36,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
+import FloatingWidgetContainer from './host/floating-widget-container.vue'
 
 const route = useRoute()
 

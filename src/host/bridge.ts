@@ -60,6 +60,12 @@ export const BRIDGE_SCRIPT = `
     showToast: function(title, icon) { return callHost('notification', 'showToast', { title: title, icon: icon || 'none' }); },
     navigateTo: function(url) { return callHost('ui', 'navigateTo', { url: url }); },
     navigateBack: function(delta) { return callHost('ui', 'navigateBack', { delta: delta || 1 }); },
+    widgets: {
+      register: function(config) { return callHost('widgets', 'registerWidget', { config: config }); },
+      remove: function(id) { return callHost('widgets', 'removeWidget', { id: id }); },
+      show: function(id) { return callHost('widgets', 'showWidget', { id: id }); },
+      hide: function(id) { return callHost('widgets', 'hideWidget', { id: id }); },
+    },
   };
 })();
 `
@@ -86,6 +92,10 @@ export function createBridge(
     }
     if (req.module === 'notification' && !allowedPermissions.includes('notification')) {
       sendResponse(req.requestId, undefined, 'Permission denied: notification')
+      return
+    }
+    if (req.module === 'widgets' && !allowedPermissions.includes('widgets')) {
+      sendResponse(req.requestId, undefined, 'Permission denied: widgets')
       return
     }
 

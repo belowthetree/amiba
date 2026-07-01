@@ -11,7 +11,7 @@ export interface ServiceManifest {
   permissions: Permission[]
 }
 
-export type Permission = 'storage' | 'notification'
+export type Permission = 'storage' | 'notification' | 'widgets'
 
 // --- Service Registry Entry ---
 export interface ServiceEntry {
@@ -81,7 +81,7 @@ export interface ServicePackage {
 
 export interface ServiceRequest {
   type: 'api'
-  module: 'storage' | 'notification' | 'ui' | 'task'
+  module: 'storage' | 'notification' | 'ui' | 'task' | 'widgets'
   method: string
   params: Record<string, any>
   requestId: string
@@ -161,4 +161,30 @@ export interface MemoryToolParams {
   content?: string
   old_text?: string
   operations?: MemoryOperation[]
+}
+
+// --- Floating Widget ---
+
+export interface FloatingWidgetConfig {
+  id: string                    // 唯一标识，如 "quick-note"
+  serviceId: string             // 所属服务 ID
+  icon: string                  // emoji 图标，如 "📝"
+  label?: string                // 悬停提示文字
+  page: string                  // widget HTML 文件路径，如 "widgets/quick-note.html"
+  edge: 'left' | 'right'       // 吸附边缘
+  position: number              // 初始 y 位置（px，距顶部）
+  showOn: string[]              // 可见路由名称列表，空数组表示全局可见
+  trigger: 'always' | 'manual' // 出现时机：always=服务加载即显示，manual=代码调用 show
+}
+
+export interface FloatingWidgetManifest {
+  widgets: FloatingWidgetConfig[]
+}
+
+export interface FloatingWidgetState {
+  config: FloatingWidgetConfig
+  visible: boolean              // 当前是否可见（路由匹配 + trigger）
+  expanded: boolean             // 面板是否展开
+  yPosition: number             // 当前 y 位置（可拖动改变）
+  htmlContent: string           // 已处理（注入 bridge）的 widget HTML
 }

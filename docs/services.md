@@ -91,6 +91,90 @@ removeServiceData(serviceId, key): void
 6. 注入 `__amiba__` 全局对象建立 JSBridge
 7. 根据 manifest 权限放行 API 调用
 
+### 悬浮块（Widget）
+
+服务可通过 `widget.json` 声明式配置悬浮快捷展示块。服务加载时自动注册，卸载时自动清理。
+
+**widget.json 格式**（放在服务文件列表根目录）：
+
+```json
+{
+  "widgets": [
+    {
+      "id": "quick-note",
+      "icon": "📝",
+      "label": "快速笔记",
+      "page": "widgets/quick-note.html",
+      "edge": "right",
+      "position": 120,
+      "showOn": ["chat", "home"],
+      "trigger": "always"
+    }
+  ]
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `id` | string | ✅ | 唯一标识，kebab-case |
+| `icon` | string | ✅ | emoji 图标 |
+| `label` | string | — | 悬停提示文字 |
+| `page` | string | ✅ | Widget HTML 文件路径 |
+| `edge` | `"left" \| "right"` | ✅ | 吸附边缘 |
+| `position` | number | ✅ | 初始 y 位置（px） |
+| `showOn` | string[] | ✅ | 可见路由名列表，空数组=全局 |
+| `trigger` | `"always" \| "manual"` | ✅ | 出现时机 |
+
+**服务需声明 `widgets` 权限** 才能使用悬浮块功能（包括 widget.json 和编程式 API）。
+
+**Widget UI 文件规范**：
+
+| 约定 | 说明 |
+|------|------|
+| 路径 | `widgets/<name>.html`，放在服务 files 中 |
+| 命名 | kebab-case，与 widget id 对应 |
+| 内容 | 独立 HTML 片段，含 `<style>` 和 `<script>` |
+| Bridge | 使用 `<!-- AMIBA_BRIDGE -->` 占位符，宿主自动注入 |
+| 尺寸 | 自适应，面板宽 280px，推荐内容高 200-400px |
+| 入口 | 不含 `<html>/<body>` 标签，直接是 `<div class="widget-root">...</div>` |
+
+示例：
+
+```html
+<!-- AMIBA_BRIDGE -->
+<style>
+  .widget-root { padding: 12px; font-family: sans-serif; }
+  .count { font-size: 24px; font-weight: bold; }
+</style>
+<div class="widget-root">
+  <div class="count" id="count">0</div>
+  <button onclick="increment()">+1</button>
+</div>
+<script>
+  function increment() {
+    const el = document.getElementById('count');
+    el.textContent = parseInt(el.textContent) + 1;
+  }
+</script>
+```
+
+**编程式 API**（运行时动态注册）：
+
+```js
+await __amiba__.widgets.register({
+  id: 'dynamic-widget',
+  icon: '🔔',
+  page: 'widgets/alert.html',
+  edge: 'right',
+  position: 200,
+  showOn: [],
+  trigger: 'always'
+})
+__amiba__.widgets.show('dynamic-widget')
+__amiba__.widgets.hide('dynamic-widget')
+__amiba__.widgets.remove('dynamic-widget')
+```
+
 ## 命名规范
 
 - **服务 ID**: 内置 `system.xxx`，用户 `user.yyy`

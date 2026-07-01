@@ -150,3 +150,46 @@ Catalog 从"严格组件约束"变为"风格参考"：
 5. 输出完整 HTML → 设置到 iframe `srcdoc`
 
 宿主随后通过 `injectBridge()` 覆写 `__amiba__` 为真实的 JSBridge。
+
+## Widget 生成
+
+AI 可在生成服务时附带悬浮块（widget）。widget 通过 `widget.json` 声明，AI 需同时生成 widget HTML 文件。
+
+**生成提示**：
+
+```
+如果用户需求涉及"快捷入口"、"悬浮按钮"、"侧边栏小工具"、"快速查看"等场景，
+请在 files 中额外包含：
+
+1. widget.json — 声明 widget 配置（id/icon/page/edge/position/showOn/trigger）
+2. widgets/<name>.html — widget 界面文件
+
+widget HTML 规范：
+- 第一行写 <!-- AMIBA_BRIDGE --> 占位符
+- 不含 <html>/<body> 标签，直接用 <div class="widget-root"> 包裹
+- 内嵌 <style> 和 <script>
+- 可使用 window.__amiba__ 调用宿主 API（前提：服务 manifest 已声明 widgets 权限）
+- 面板宽 280px，内容高度建议 200-400px
+- widget 中访问 __amiba__.storage 实际读写的是所属服务的数据
+```
+
+**widget.json 示例**（放在 files[0]）：
+
+```json
+{
+  "widgets": [
+    {
+      "id": "quick-calc",
+      "icon": "🧮",
+      "label": "快速计算",
+      "page": "widgets/quick-calc.html",
+      "edge": "right",
+      "position": 200,
+      "showOn": [],
+      "trigger": "always"
+    }
+  ]
+}
+```
+
+**注意**：服务 manifest.permissions 必须包含 `"widgets"` 才能使 widget 正常工作。

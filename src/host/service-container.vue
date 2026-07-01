@@ -29,8 +29,14 @@ import { useRoute, useRouter } from 'vue-router'
 import { getService, getServicePackage, setServiceData, getServiceData, removeServiceData } from './registry'
 import { createBridge, BRIDGE_SCRIPT } from './bridge'
 import { inlinePackage } from '../ai/generator'
+import {
+  registerWidget,
+  unregisterWidget,
+  unregisterServiceWidgets,
+  setWidgetVisible,
+} from './floating-widget-manager'
 import type { ApiHandler } from './bridge'
-import type { ServicePackage } from '../types/service'
+import type { ServicePackage, FloatingWidgetManifest } from '../types/service'
 
 const route = useRoute()
 const router = useRouter()
@@ -59,6 +65,50 @@ function goBack() {
 
 function onIframeLoad() {
   loading.value = false
+}
+
+/** 从已加载的 ServicePackage 中读取 widget HTML 文件内容 */
+function getWidgetHtmlFromPackage(page: string): string | null {
+  if (!servicePkg.value) return null
+  const file = servicePkg.value.files.find((f) => f.path === page)
+  return file ? file.content : null
+}
+
+/** 从 ServicePackage 加载 widget.json 并注册所有 widget */
+function loadWidgetsFromPackage(pkg: ServicePackage, permissions: string[]) {
+  const widgetJsonFile = pkg.files.find((f) => f.path === 'widget.json')
+  if (!widgetJsonFile) return
+
+  let manifest: FloatingWidgetManifest
+  try {
+    manifest = JSON.parse(widgetJsonFile.content)
+  } catch {
+    console.warn('[ServiceContainer] widget.json 解析失败')
+    return
+  }
+
+  if (!manifest.widgets || !Array.isArray(manifest.widgets)) return
+
+  for (const config of manifest.widgets) {
+    // 查找 widget HTML 文件
+    const widgetFile = pkg.files.find((f) => f.path === config.page)
+    if (!widgetFile) {
+      console.warn(`[ServiceContainer] Widget "${config.id}" 页面文件不存在: ${config.page}`)
+      continue
+    }
+
+    // 注入 bridge 脚本
+    const processed = widgetFile.content.replace(
+      '<!-- AMIBA_BRIDGE -->',
+      '<script>' + BRIDGE_SCRIPT + '<\/script>'
+    )
+
+    registerWidget(
+      { ...config, serviceId: serviceId.value },
+      processed
+    )
+    console.log(`[ServiceContainer] Widget 已注册: ${config.id}`)
+  }
 }
 
 function makeApiHandler(): ApiHandler {
@@ -98,6 +148,42 @@ function makeApiHandler(): ApiHandler {
             return
           default:
             throw new Error(`Unknown ui method: ${method}`)
+        }
+      }
+      case 'widgets': {
+        switch (method) {
+          case 'registerWidget': {
+            const config = params.config
+            if (!config || !config.id || !config.page) {
+              throw new Error('Invalid widget config: id and page required')
+            }
+            // 从服务文件读取 widget HTML
+            const widgetHtml = getWidgetHtmlFromPackage(config.page)
+            if (!widgetHtml) {
+              throw new Error(`Widget page not found: ${config.page}`)
+            }
+            // 注入 bridge 脚本
+            const processed = widgetHtml.replace(
+              '<!-- AMIBA_BRIDGE -->',
+              '<script>' + BRIDGE_SCRIPT + '<\/script>'
+            )
+            registerWidget(
+              { ...config, serviceId: serviceId.value },
+              processed
+            )
+            return
+          }
+          case 'removeWidget':
+            unregisterWidget(params.id)
+            return
+          case 'showWidget':
+            setWidgetVisible(params.id, true)
+            return
+          case 'hideWidget':
+            setWidgetVisible(params.id, false)
+            return
+          default:
+            throw new Error(`Unknown widgets method: ${method}`)
         }
       }
       default:
@@ -164,6 +250,9 @@ onMounted(async () => {
   serviceHtml.value = html
   loading.value = false
 
+  // ---- 加载 widget.json（声明式 widget 配置） ----
+  loadWidgetsFromPackage(pkg, svc.manifest.permissions || [])
+
   // Wait for iframe to render, then set up host-side listener BEFORE browser parses srcdoc
   await nextTick()
   const iframe = iframeRef.value
@@ -179,6 +268,8 @@ onUnmounted(() => {
     bridgeCleanup()
     bridgeCleanup = null
   }
+  // 注销该服务的所有 widget
+  unregisterServiceWidgets(serviceId.value)
 })
 </script>
 
