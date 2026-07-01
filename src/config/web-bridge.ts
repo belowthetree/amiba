@@ -51,6 +51,7 @@ export async function fetchPage(
   if (!(await isTauri())) {
     throw new Error('Tauri runtime required')
   }
+  console.log('[web-bridge] fetchPage:', url)
   return invoke<FetchResult>('web_fetch', { url, useWebview })
 }
 
@@ -60,6 +61,7 @@ export async function fetchPage(
  * 获取当前页面的简化 DOM 结构（只保留标签名、id、class）。
  */
 export async function getContent(): Promise<EvalResult> {
+  console.log('[web-bridge] getContent')
   return invoke<EvalResult>('web_get_content', {})
 }
 
@@ -67,6 +69,7 @@ export async function getContent(): Promise<EvalResult> {
  * 点击匹配 CSS 选择器的第一个元素。
  */
 export async function clickElement(selector: string): Promise<EvalResult> {
+  console.log('[web-bridge] clickElement:', selector)
   return invoke<EvalResult>('web_click', { selector })
 }
 
@@ -77,6 +80,7 @@ export async function inputText(
   selector: string,
   text: string,
 ): Promise<EvalResult> {
+  console.log('[web-bridge] inputText:', selector, `(${text.length} chars)`)
   return invoke<EvalResult>('web_input_text', { selector, text })
 }
 
@@ -86,5 +90,6 @@ export async function inputText(
  * 关闭浏览器会话。不传 sessionId 则关闭所有。
  */
 export async function closeBrowser(sessionId?: string): Promise<void> {
+  console.log('[web-bridge] closeBrowser:', sessionId || 'all')
   await invoke('web_close', { sessionId: sessionId ?? null })
 }

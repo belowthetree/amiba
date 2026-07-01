@@ -1,16 +1,18 @@
 // ============================================================
-// 变形虫 (Amiba) — WebView 浏览器引擎 v2
+// 变形虫 (Amiba) — WebView 浏览器引擎 v3
 // ============================================================
-// v2 改进：
-//   1. 智能等待 — 监听 PageLoadFinished 而非 sleep(5s)
-//   2. 导航事件 — 全平台统一的页面加载回调
-//   3. Android JS — 正确的 ValueCallback 实现
-//   4. BrowserPool — 复用隐藏 WebView，避免重复创建
-//   5. 移动端交互 — web_eval/web_click/web_type 全平台
+// v3 改进：
+//   1. Android — 通过 WebViewHelper/JsCallback Kotlin 类，
+//      Handler 主线程调度 + evaluateJavascript 正确传 ValueCallback
+//   2. 智能等待 — 监听 PageLoadFinished 而非 sleep(5s)
+//   3. BrowserPool — 复用隐藏 WebView，避免重复创建
+//   4. 移动端交互 — web_eval/web_click/web_type 全平台
 // ============================================================
 
 use std::collections::HashMap;
 use std::sync::Mutex;
+#[cfg(target_os = "android")]
+use tauri::Manager;
 use url::Url;
 
 // ---- Types ----
@@ -293,106 +295,218 @@ mod desktop {
 #[cfg(target_os = "android")]
 mod mobile {
     use super::*;
-    use std::sync::mpsc;
-    use jni::objects::{GlobalRef, JObject, JValue};
+    use jni::objects::{JObject, JValue};
     use jni::JavaVM;
 
-    static MOBILE_WEBVIEW: std::sync::OnceLock<Mutex<Option<GlobalRef>>> = std::sync::OnceLock::new();
+    /// 通过 JNI 获取 Android Application Context（不依赖 ndk_context）
+    fn get_app_context<'a>(env: &mut jni::JNIEnv<'a>) -> Result<JObject<'a>, String> {
+        let at_cls = env
+            .find_class("android/app/ActivityThread")
+            .map_err(|e| format!("ActivityThread class: {e}"))?;
+        let at_obj = env
+            .call_static_method(
+                &at_cls,
+                "currentActivityThread",
+                "()Landroid/app/ActivityThread;",
+                &[],
+            )
+            .map_err(|e| format!("currentActivityThread: {e}"))?
+            .l()
+            .map_err(|e| format!("currentActivityThread obj: {e}"))?;
+        let app = env
+            .call_method(
+                &at_obj,
+                "getApplication",
+                "()Landroid/app/Application;",
+                &[],
+            )
+            .map_err(|e| format!("getApplication: {e}"))?
+            .l()
+            .map_err(|e| format!("getApplication obj: {e}"))?;
+        Ok(app)
+    }
 
-    fn get_or_create_webview(env: &mut jni::JNIEnv) -> Result<GlobalRef, String> {
-        let lock = MOBILE_WEBVIEW.get_or_init(|| Mutex::new(None));
-        let mut guard = lock.lock().unwrap();
-        if let Some(ref wv) = *guard {
-            return Ok(wv.clone());
+    /// 使用 Application ClassLoader 查找 app 类（native 线程只有 system class loader）
+    pub(crate) fn find_app_class<'a>(env: &mut jni::JNIEnv<'a>, name: &str) -> Result<jni::objects::JClass<'a>, String> {
+        // 通过 ActivityThread 拿到 Application Context
+        let at_cls = env.find_class("android/app/ActivityThread")
+            .map_err(|e| format!("ActivityThread class: {e}"))?;
+        let at_obj = env.call_static_method(
+            &at_cls, "currentActivityThread", "()Landroid/app/ActivityThread;", &[]
+        ).map_err(|e| format!("currentActivityThread: {e}"))?.l().map_err(|e| format!("obj: {e}"))?;
+        let app = env.call_method(
+            &at_obj, "getApplication", "()Landroid/app/Application;", &[]
+        ).map_err(|e| format!("getApplication: {e}"))?.l().map_err(|e| format!("obj: {e}"))?;
+
+        // Context.getClassLoader()
+        let class_loader = env.call_method(
+            &app, "getClassLoader", "()Ljava/lang/ClassLoader;", &[]
+        ).map_err(|e| format!("getClassLoader: {e}"))?.l().map_err(|e| format!("obj: {e}"))?;
+
+        // ClassLoader.loadClass(name)
+        let jname = env.new_string(name).map_err(|e| format!("str: {e}"))?;
+        let cls = env.call_method(
+            &class_loader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;",
+            &[JValue::Object(&jname.into())]
+        ).map_err(|e| format!("loadClass({name}): {e}"))?.l().map_err(|e| format!("obj: {e}"))?;
+
+        Ok(cls.into())
+    }
+
+    /// 确保 WebViewHelper 已初始化（幂等）
+    fn ensure_init(env: &mut jni::JNIEnv) -> Result<(), String> {
+        eprintln!("[rust:web] ensure_init: looking up WebViewHelper via app ClassLoader...");
+        let helper_cls = find_app_class(env, "com.amiba.desktop.WebViewHelper")?;
+        eprintln!("[rust:web] ensure_init: class found, checking isInitialized...");
+
+        let initialized = env
+            .call_static_method(&helper_cls, "isInitialized", "()Z", &[])
+            .map_err(|e| format!("isInitialized: {e}"))?
+            .z()
+            .map_err(|e| format!("isInitialized result: {e}"))?;
+
+        eprintln!("[rust:web] ensure_init: isInitialized={initialized}");
+        if initialized {
+            return Ok(());
         }
 
-        let ctx = ndk_context::android_context().context();
-        let ctx_obj = unsafe { JObject::from_raw(ctx as *mut _) };
-        let cls = env.find_class("android/webkit/WebView").map_err(|e| format!("class: {e}"))?;
-        let wv = env.new_object(&cls, "(Landroid/content/Context;)V", &[JValue::Object(&ctx_obj)])
-            .map_err(|e| format!("create: {e}"))?;
-        let gref = env.new_global_ref(&wv).map_err(|e| format!("gref: {e}"))?;
+        // 首次初始化：获取 Application Context
+        let ctx_obj = get_app_context(env)?;
+        eprintln!("[rust:web] ensure_init: calling WebViewHelper.init...");
 
-        // 启用 JS
-        let settings = env.call_method(&gref, "getSettings", "()Landroid/webkit/WebSettings;", &[])
-            .map_err(|e| format!("settings: {e}"))?;
-        let settings_obj = settings.l().map_err(|e| format!("settings.l: {e}"))?;
-        env.call_method(&settings_obj, "setJavaScriptEnabled", "(Z)V", &[JValue::Bool(true.into())])
-            .map_err(|e| format!("js: {e}"))?;
+        let init_ok = env
+            .call_static_method(
+                &helper_cls,
+                "init",
+                "(Landroid/content/Context;)Z",
+                &[JValue::Object(&ctx_obj)],
+            )
+            .map_err(|e| {
+                eprintln!("[rust:web] ensure_init: FAIL init call: {e}");
+                format!("init: {e}")
+            })?
+            .z()
+            .map_err(|e| format!("init result: {e}"))?;
 
-        *guard = Some(gref.clone());
-        Ok(gref)
+        eprintln!("[rust:web] ensure_init: init returned {init_ok}");
+        if !init_ok {
+            return Err("WebViewHelper.init returned false (UI thread timeout?)".into());
+        }
+
+        eprintln!("[rust:web] ensure_init: OK");
+        Ok(())
     }
 
     pub fn mobile_fetch_sync(vm: &JavaVM, url: &str) -> Result<FetchResult, String> {
-        let mut env = vm.attach_current_thread().map_err(|e| format!("attach: {e}"))?;
-        let wv = get_or_create_webview(&mut env)?;
+        eprintln!("[rust:web] mobile_fetch_sync: url={url}");
+        let mut env = vm
+            .attach_current_thread()
+            .map_err(|e| format!("attach: {e}"))?;
+        eprintln!("[rust:web] mobile_fetch_sync: thread attached");
 
-        let jurl = env.new_string(url).map_err(|e| format!("str: {e}"))?;
-        env.call_method(&wv, "loadUrl", "(Ljava/lang/String;)V", &[JValue::Object(&jurl.into())])
-            .map_err(|e| format!("loadUrl: {e}"))?;
+        ensure_init(&mut env)?;
+        let helper_cls = find_app_class(&mut env, "com.amiba.desktop.WebViewHelper")?;
 
-        // 等待加载（Android 上用轮询检测进度）
-        for _ in 0..30 {
-            std::thread::sleep(std::time::Duration::from_millis(500));
-            let progress = env.call_method(&wv, "getProgress", "()I", &[])
-                .and_then(|v| v.i())
-                .unwrap_or(0);
-            if progress >= 100 { break; }
+        // ---- 1. 导航并等待页面加载 ----
+        let jurl = env
+            .new_string(url)
+            .map_err(|e| format!("str: {e}"))?;
+
+        eprintln!("[rust:web] mobile_fetch_sync: calling loadUrlAndWait...");
+        let loaded = env
+            .call_static_method(
+                &helper_cls,
+                "loadUrlAndWait",
+                "(Ljava/lang/String;I)Z",
+                &[JValue::Object(&jurl.into()), JValue::Int(15_000)],
+            )
+            .map_err(|e| format!("loadUrlAndWait: {e}"))?
+            .z()
+            .map_err(|e| format!("loadUrlAndWait result: {e}"))?;
+
+        eprintln!("[rust:web] mobile_fetch_sync: loaded={loaded}");
+        if !loaded {
+            return Err("Page load timeout".into());
         }
 
-        // 提取内容 — 使用 evaluateJavascript + ValueCallback
-        let js = env.new_string(EXTRACT_JS).map_err(|e| format!("js str: {e}"))?;
-        let (_tx, rx) = mpsc::channel::<String>();
+        // ---- 2. 提取页面内容 ----
+        let js = env
+            .new_string(EXTRACT_JS)
+            .map_err(|e| format!("js str: {e}"))?;
 
-        // 创建匿名 ValueCallback
-        let _cb_cls = env.find_class("com/amiba/JsCallback")
-            .or_else(|_| {
-                // fallback: 使用 loadUrl("javascript:...") 同步方式
-                Ok::<_, jni::errors::Error>(Default::default())
-            })
-            .map_err(|e| format!("find_class JsCallback: {e}"))?;
+        eprintln!("[rust:web] mobile_fetch_sync: calling evaluateJavascript...");
+        let result = env
+            .call_static_method(
+                &helper_cls,
+                "evaluateJavascript",
+                "(Ljava/lang/String;I)Ljava/lang/String;",
+                &[JValue::Object(&js.into()), JValue::Int(10_000)],
+            )
+            .map_err(|e| format!("evaluateJavascript: {e}"))?;
 
-        let result = env.call_method(
-            &wv, "evaluateJavascript",
-            "(Ljava/lang/String;Landroid/webkit/ValueCallback;)V",
-            &[JValue::Object(&js.into())],
-        );
+        let jobj = result.l().map_err(|e| format!("result obj: {e}"))?;
+        let jstr: jni::objects::JString = jobj.into();
+        let rust_str: String = env
+            .get_string(&jstr)
+            .map_err(|e| format!("get_string: {e}"))?
+            .into();
 
-        match result {
-            Ok(_) => {
-                let json = rx.recv_timeout(std::time::Duration::from_secs(5))
-                    .unwrap_or_else(|_| "{}".to_string());
-                let (title, text) = if let Ok(v) = serde_json::from_str::<serde_json::Value>(&json) {
-                    (v["title"].as_str().unwrap_or("").to_string(), v["text"].as_str().unwrap_or("").to_string())
-                } else { (format!("[Android WebView] {}", url), json) };
-                Ok(FetchResult { url: url.to_string(), title, text, content_type: "text/html".to_string() })
-            }
-            Err(_) => {
-                // fallback: loadUrl javascript:
-                let js2 = env.new_string(&format!("javascript:window._r={}", EXTRACT_JS.replace('\'', "\\'")))
-                    .map_err(|e| format!("js2: {e}"))?;
-                let _ = env.call_method(&wv, "loadUrl", "(Ljava/lang/String;)V", &[JValue::Object(&js2.into())]);
-                std::thread::sleep(std::time::Duration::from_millis(300));
-                Ok(FetchResult {
-                    url: url.to_string(),
-                    title: format!("[Android] {}", url),
-                    text: format!("Page loaded via Android WebView: {}", url),
-                    content_type: "text/html".to_string(),
-                })
-            }
-        }
+        eprintln!("[rust:web] mobile_fetch_sync: JS result len={}", rust_str.len());
+
+        let (title, text) =
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(&rust_str) {
+                (
+                    v["title"].as_str().unwrap_or("").to_string(),
+                    v["text"].as_str().unwrap_or("").to_string(),
+                )
+            } else {
+                (format!("[Android] {}", url), rust_str)
+            };
+
+        let text = if text.len() > 50_000 {
+            text[..50_000].to_string()
+        } else {
+            text
+        };
+
+        eprintln!("[rust:web] mobile_fetch_sync: OK title={title} text_len={}", text.len());
+        Ok(FetchResult {
+            url: url.to_string(),
+            title,
+            text,
+            content_type: "text/html".to_string(),
+        })
     }
 
     pub fn mobile_eval_sync(vm: &JavaVM, js: &str) -> Result<String, String> {
-        let mut env = vm.attach_current_thread().map_err(|e| format!("attach: {e}"))?;
-        let wv = get_or_create_webview(&mut env)?;
+        eprintln!("[rust:web] mobile_eval_sync: js_len={}", js.len());
+        let mut env = vm
+            .attach_current_thread()
+            .map_err(|e| format!("attach: {e}"))?;
+
+        ensure_init(&mut env)?;
+        let helper_cls = find_app_class(&mut env, "com.amiba.desktop.WebViewHelper")?;
+
         let jjs = env.new_string(js).map_err(|e| format!("str: {e}"))?;
-        let (_tx, rx) = mpsc::channel::<String>();
-        let _ = env.call_method(&wv, "evaluateJavascript",
-            "(Ljava/lang/String;Landroid/webkit/ValueCallback;)V",
-            &[JValue::Object(&jjs.into())]);
-        rx.recv_timeout(std::time::Duration::from_secs(5)).map_err(|e| format!("timeout: {e}"))
+
+        let result = env
+            .call_static_method(
+                &helper_cls,
+                "evaluateJavascript",
+                "(Ljava/lang/String;I)Ljava/lang/String;",
+                &[JValue::Object(&jjs.into()), JValue::Int(10_000)],
+            )
+            .map_err(|e| format!("evaluateJavascript: {e}"))?;
+
+        let jobj = result.l().map_err(|e| format!("result obj: {e}"))?;
+        let jstr: jni::objects::JString = jobj.into();
+        let rust_str: String = env
+            .get_string(&jstr)
+            .map_err(|e| format!("get_string: {e}"))?
+            .into();
+
+        eprintln!("[rust:web] mobile_eval_sync: OK result_len={}", rust_str.len());
+        Ok(rust_str)
     }
 }
 
@@ -473,29 +587,37 @@ pub async fn web_fetch(
     url: String,
     use_webview: Option<bool>,
 ) -> Result<FetchResult, String> {
+    eprintln!("[rust:web] web_fetch ENTRY: url={url} use_webview={use_webview:?}");
     let use_wv = use_webview.unwrap_or(true);
     let parsed = is_safe_url(&url)?;
+    eprintln!("[rust:web] web_fetch: url passed safety check");
 
     if use_wv {
         #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
         {
+            eprintln!("[rust:web] web_fetch: taking DESKTOP path");
             let (_id, wv) = pool.get_or_create_desktop(&app, &parsed)?;
             return desktop::webview_fetch_sync(&wv, &url)
                 .or_else(|e| { eprintln!("[WebView] {e}"); Err(e) });
         }
         #[cfg(target_os = "android")]
         {
-            let ctx = ndk_context::android_context();
-            let vm = unsafe { jni::JavaVM::from_raw(
-                ctx.vm() as *mut _
-            ).map_err(|e| format!("JVM: {e}"))? };
+            eprintln!("[rust:web] web_fetch: taking ANDROID path");
+            let jvm_ptr = app.state::<crate::AndroidJvm>();
+            let vm = unsafe {
+                jni::JavaVM::from_raw(jvm_ptr.0 as *mut _)
+            }.map_err(|e| format!("JVM: {e}"))?;
+            eprintln!("[rust:web] web_fetch: calling mobile_fetch_sync...");
             return mobile::mobile_fetch_sync(&vm, &url);
         }
         #[cfg(target_os = "ios")]
         {
+            eprintln!("[rust:web] web_fetch: taking IOS path");
             return mobile::mobile_fetch_sync(&url);
         }
+        eprintln!("[rust:web] web_fetch: WARNING — no platform matched, falling to http_fetch");
     }
+    eprintln!("[rust:web] web_fetch: using http_fetch fallback");
     http_fetch(&url).await
 }
 
@@ -519,10 +641,10 @@ pub async fn web_eval(
     }
     #[cfg(target_os = "android")]
     {
-        let ctx = ndk_context::android_context();
-        let vm = unsafe { jni::JavaVM::from_raw(
-            ctx.vm() as *mut _
-        ).map_err(|e| format!("JVM: {e}"))? };
+        let jvm_ptr = app.state::<crate::AndroidJvm>();
+        let vm = unsafe {
+            jni::JavaVM::from_raw(jvm_ptr.0 as *mut _)
+        }.map_err(|e| format!("JVM: {e}"))?;
         mobile::mobile_eval_sync(&vm, &js).map(|r| EvalResult { result: r })
     }
     #[cfg(target_os = "ios")]
@@ -642,7 +764,9 @@ pub async fn web_get_content(
 }
 
 #[tauri::command]
+#[allow(unused_variables)]
 pub async fn web_close(
+    app: tauri::AppHandle,
     pool: tauri::State<'_, BrowserPool>,
     session_id: Option<String>,
 ) -> Result<(), String> {
@@ -656,6 +780,21 @@ pub async fn web_close(
             pool.remove(&id);
         }
     }
+
+    // Android: 销毁 WebViewHelper 中的 WebView
+    #[cfg(target_os = "android")]
+    {
+        let jvm_ptr = app.state::<crate::AndroidJvm>();
+        let vm = unsafe {
+            jni::JavaVM::from_raw(jvm_ptr.0 as *mut _)
+        }.map_err(|e| format!("JVM: {e}"))?;
+        let mut env = vm.attach_current_thread()
+            .map_err(|e| format!("attach: {e}"))?;
+        let helper_cls = mobile::find_app_class(&mut env, "com.amiba.desktop.WebViewHelper")?;
+        env.call_static_method(&helper_cls, "close", "()V", &[])
+            .map_err(|e| format!("close: {e}"))?;
+    }
+
     Ok(())
 }
 

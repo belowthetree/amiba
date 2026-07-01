@@ -95,6 +95,7 @@ toolRegistry.register({
   handler: async (args) => {
     const p = args as Record<string, unknown>
     const action = String(p.action ?? '')
+    console.log('[web_browse] action:', action, JSON.stringify(p))
     if (!(await isTauri())) return '⚠️ web_browse requires Tauri runtime.'
 
     try {
@@ -102,7 +103,9 @@ toolRegistry.register({
         case 'navigate': {
           const url = String(p.url ?? '').trim()
           if (!url) return 'Error: url required'
+          console.log('[web_browse] navigate →', url)
           const r = await fetchPage(url)
+          console.log('[web_browse] navigate ← title:', r.title, 'text:', r.text.length, 'chars')
           return `✅ 已导航到 ${r.url}\n标题: ${r.title}\n\n${r.text.slice(0, 3000)}`
         }
         case 'click': {
@@ -130,12 +133,14 @@ toolRegistry.register({
         }
         case 'close': {
           await closeBrowser((p.session_id as string) || undefined)
+          console.log('[web_browse] close done')
           return '✅ 会话已关闭'
         }
         default:
           return `Error: unknown action "${action}"`
       }
     } catch (e: any) {
+      console.error('[web_browse] error:', e)
       return `❌ ${action} 失败: ${e.message ?? e}`
     }
   },
