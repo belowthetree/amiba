@@ -39,7 +39,7 @@ export async function scanSkills(): Promise<Map<string, SkillInfo>> {
     const skills = new Map<string, SkillInfo>()
 
     // 内置技能目录列表（构建时已知）
-    const builtinDirs = ['counter', 'notes', 'todo', 'service-dev']
+    const builtinDirs = ['service-dev', 'web-browsing']
 
     for (const dir of builtinDirs) {
       try {

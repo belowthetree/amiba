@@ -45,7 +45,6 @@ pub fn run() {
       #[cfg(target_os = "android")]
       {
         let vm_ptr = unsafe {
-          // JNI_GetCreatedJavaVMs 在 Android 上不是静态符号，需动态查找
           type GetCreatedJavaVMsFn = unsafe extern "system" fn(
             vm_buf: *mut *mut std::ffi::c_void,
             buf_len: i32,
@@ -70,9 +69,8 @@ pub fn run() {
               let mut vm_ptr: *mut std::ffi::c_void = std::ptr::null_mut();
               let mut n_vms: i32 = 0;
               let ret = unsafe { func(&mut vm_ptr, 1, &mut n_vms) };
-              eprintln!("[rust:lib] JNI_GetCreatedJavaVMs: ret={ret} n_vms={n_vms} vm_ptr={vm_ptr:?}");
               if ret != 0 || n_vms == 0 || vm_ptr.is_null() {
-                eprintln!("[rust:lib] WARNING: JNI_GetCreatedJavaVMs failed, web_browse unavailable");
+                eprintln!("[rust:lib] JVM not available, web_browse disabled");
                 app.manage(AndroidJvm(std::ptr::null_mut()));
                 return Ok(());
               }

@@ -111,10 +111,13 @@ toolRegistry.register({
         case 'click': {
           const sel = String(p.selector ?? '')
           if (!sel) return 'Error: selector required'
-          await clickElement(sel)
+          const clickResult = await clickElement(sel)
           const content = await getContent()
-          console.log('[web_browse] click → get_content:\n', content.result)
-          return `✅ 已点击 "${sel}"\n\n页面结构:\n${content.result.slice(0, 6000)}`
+          console.log('[web_browse] click →', clickResult.result, '\n', content.result)
+          const navNote = clickResult.result.startsWith('navigated:')
+            ? `\n⚠️ 页面已导航到 ${clickResult.result.slice(11)}，以下内容可能仍是旧页面 DOM（需重新 navigate 获取）`
+            : ''
+          return `✅ 已点击 "${sel}"（${clickResult.result}）${navNote}\n\n页面结构:\n${content.result.slice(0, 6000)}`
         }
         case 'input_text': {
           const sel = String(p.selector ?? '')

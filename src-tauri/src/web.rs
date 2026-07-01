@@ -355,9 +355,7 @@ mod mobile {
 
     /// 确保 WebViewHelper 已初始化（幂等）
     fn ensure_init(env: &mut jni::JNIEnv) -> Result<(), String> {
-        eprintln!("[rust:web] ensure_init: looking up WebViewHelper via app ClassLoader...");
         let helper_cls = find_app_class(env, "com.amiba.desktop.WebViewHelper")?;
-        eprintln!("[rust:web] ensure_init: class found, checking isInitialized...");
 
         let initialized = env
             .call_static_method(&helper_cls, "isInitialized", "()Z", &[])
@@ -365,14 +363,12 @@ mod mobile {
             .z()
             .map_err(|e| format!("isInitialized result: {e}"))?;
 
-        eprintln!("[rust:web] ensure_init: isInitialized={initialized}");
         if initialized {
             return Ok(());
         }
 
         // 首次初始化：获取 Application Context
         let ctx_obj = get_app_context(env)?;
-        eprintln!("[rust:web] ensure_init: calling WebViewHelper.init...");
 
         let init_ok = env
             .call_static_method(
@@ -382,37 +378,30 @@ mod mobile {
                 &[JValue::Object(&ctx_obj)],
             )
             .map_err(|e| {
-                eprintln!("[rust:web] ensure_init: FAIL init call: {e}");
+                eprintln!("[rust:web] WebViewHelper.init FAIL: {e}");
                 format!("init: {e}")
             })?
             .z()
             .map_err(|e| format!("init result: {e}"))?;
 
-        eprintln!("[rust:web] ensure_init: init returned {init_ok}");
         if !init_ok {
             return Err("WebViewHelper.init returned false (UI thread timeout?)".into());
         }
 
-        eprintln!("[rust:web] ensure_init: OK");
+        eprintln!("[rust:web] WebViewHelper initialized OK");
         Ok(())
     }
 
     pub fn mobile_fetch_sync(vm: &JavaVM, url: &str) -> Result<FetchResult, String> {
-        eprintln!("[rust:web] mobile_fetch_sync: url={url}");
         let mut env = vm
             .attach_current_thread()
             .map_err(|e| format!("attach: {e}"))?;
-        eprintln!("[rust:web] mobile_fetch_sync: thread attached");
 
         ensure_init(&mut env)?;
         let helper_cls = find_app_class(&mut env, "com.amiba.desktop.WebViewHelper")?;
 
-        // ---- 1. 导航并等待页面加载 ----
-        let jurl = env
-            .new_string(url)
-            .map_err(|e| format!("str: {e}"))?;
-
-        eprintln!("[rust:web] mobile_fetch_sync: calling loadUrlAndWait...");
+        // 1. 导航并等待页面加载
+        let jurl = env.new_string(url).map_err(|e| format!("str: {e}"))?;
         let loaded = env
             .call_static_method(
                 &helper_cls,
@@ -424,17 +413,12 @@ mod mobile {
             .z()
             .map_err(|e| format!("loadUrlAndWait result: {e}"))?;
 
-        eprintln!("[rust:web] mobile_fetch_sync: loaded={loaded}");
         if !loaded {
             return Err("Page load timeout".into());
         }
 
-        // ---- 2. 提取页面内容 ----
-        let js = env
-            .new_string(EXTRACT_JS)
-            .map_err(|e| format!("js str: {e}"))?;
-
-        eprintln!("[rust:web] mobile_fetch_sync: calling evaluateJavascript...");
+        // 2. 提取页面内容
+        let js = env.new_string(EXTRACT_JS).map_err(|e| format!("js str: {e}"))?;
         let result = env
             .call_static_method(
                 &helper_cls,
@@ -450,8 +434,6 @@ mod mobile {
             .get_string(&jstr)
             .map_err(|e| format!("get_string: {e}"))?
             .into();
-
-        eprintln!("[rust:web] mobile_fetch_sync: JS result len={}", rust_str.len());
 
         let (title, text) =
             if let Ok(v) = serde_json::from_str::<serde_json::Value>(&rust_str) {
@@ -469,7 +451,7 @@ mod mobile {
             text
         };
 
-        eprintln!("[rust:web] mobile_fetch_sync: OK title={title} text_len={}", text.len());
+        eprintln!("[rust:web] fetch OK: title={title} text_len={}", text.len());
         Ok(FetchResult {
             url: url.to_string(),
             title,
@@ -479,7 +461,6 @@ mod mobile {
     }
 
     pub fn mobile_eval_sync(vm: &JavaVM, js: &str) -> Result<String, String> {
-        eprintln!("[rust:web] mobile_eval_sync: js_len={}", js.len());
         let mut env = vm
             .attach_current_thread()
             .map_err(|e| format!("attach: {e}"))?;
@@ -505,7 +486,6 @@ mod mobile {
             .map_err(|e| format!("get_string: {e}"))?
             .into();
 
-        eprintln!("[rust:web] mobile_eval_sync: OK result_len={}", rust_str.len());
         Ok(rust_str)
     }
 }
@@ -587,37 +567,29 @@ pub async fn web_fetch(
     url: String,
     use_webview: Option<bool>,
 ) -> Result<FetchResult, String> {
-    eprintln!("[rust:web] web_fetch ENTRY: url={url} use_webview={use_webview:?}");
     let use_wv = use_webview.unwrap_or(true);
     let parsed = is_safe_url(&url)?;
-    eprintln!("[rust:web] web_fetch: url passed safety check");
 
     if use_wv {
         #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
         {
-            eprintln!("[rust:web] web_fetch: taking DESKTOP path");
             let (_id, wv) = pool.get_or_create_desktop(&app, &parsed)?;
             return desktop::webview_fetch_sync(&wv, &url)
-                .or_else(|e| { eprintln!("[WebView] {e}"); Err(e) });
+                .or_else(|e| { eprintln!("[rust:web] Desktop WebView error: {e}"); Err(e) });
         }
         #[cfg(target_os = "android")]
         {
-            eprintln!("[rust:web] web_fetch: taking ANDROID path");
             let jvm_ptr = app.state::<crate::AndroidJvm>();
             let vm = unsafe {
                 jni::JavaVM::from_raw(jvm_ptr.0 as *mut _)
             }.map_err(|e| format!("JVM: {e}"))?;
-            eprintln!("[rust:web] web_fetch: calling mobile_fetch_sync...");
             return mobile::mobile_fetch_sync(&vm, &url);
         }
         #[cfg(target_os = "ios")]
         {
-            eprintln!("[rust:web] web_fetch: taking IOS path");
             return mobile::mobile_fetch_sync(&url);
         }
-        eprintln!("[rust:web] web_fetch: WARNING — no platform matched, falling to http_fetch");
     }
-    eprintln!("[rust:web] web_fetch: using http_fetch fallback");
     http_fetch(&url).await
 }
 
@@ -663,22 +635,45 @@ pub async fn web_click(
     pool: tauri::State<'_, BrowserPool>,
     selector: String,
 ) -> Result<EvalResult, String> {
-    // 点击 + MutationObserver 等待 DOM 稳定（SPA 渲染完成后才返回）
+    // 通用表单提交：requestSubmit (标准) → submit() 兜底 → URL 检测
     let safe_sel = selector.replace('\\', "\\\\").replace('\'', "\\'");
     let js = format!(r#"(function(){{
   var el=document.querySelector('{safe_sel}');
   if(!el) return 'not found: {safe_sel}';
-  el.click();
+  var origUrl=location.href;
+
+  // 派发完整鼠标事件序列
+  ['pointerdown','mousedown','pointerup','mouseup','click'].forEach(function(t){{
+    el.dispatchEvent(new MouseEvent(t,{{bubbles:true,cancelable:true,view:window}}));
+  }});
+
+  // 表单提交：优先用 requestSubmit（W3C 标准，会触发 submit 事件+验证）
+  var f=el.closest('form');
+  var submitted=false;
+  if(f){{
+    try{{
+      if(typeof f.requestSubmit==='function'){{
+        f.requestSubmit(el);  // 以该按钮为 submitter 提交
+        submitted=true;
+      }}
+    }}catch(e){{}}
+    if(!submitted){{ try{{ f.submit(); }}catch(e){{}} }}
+    f.dispatchEvent(new SubmitEvent('submit',{{submitter:el,bubbles:true,cancelable:true}}));
+  }}
+
   return new Promise(function(resolve){{
     var settled=false, timer;
-    var done=function(){{ if(!settled){{ settled=true; observer.disconnect(); resolve('stabilized'); }} }};
+    var done=function(msg){{ if(!settled){{ settled=true; clearInterval(urlCheck); observer.disconnect(); resolve(msg); }} }};
+    var urlCheck=setInterval(function(){{
+      if(location.href!==origUrl) done('navigated: '+location.href);
+    }},200);
     var observer=new MutationObserver(function(){{
       clearTimeout(timer);
-      timer=setTimeout(done,800);
+      timer=setTimeout(function(){{ done('stabilized'); }},1500);
     }});
     observer.observe(document.body,{{childList:true,subtree:true,attributes:true}});
-    timer=setTimeout(done,800);
-    setTimeout(done,5000);
+    timer=setTimeout(function(){{ done('stabilized'); }},1500);
+    setTimeout(function(){{ done('stabilized (timeout)'); }},10000);
   }});
 }})()"#);
     // 用 eval_with_callback 直接拿到 Promise resolve 的值
@@ -716,8 +711,17 @@ pub async fn web_input_text(
   var el=document.querySelector('{safe_sel}');
   if(!el) return 'not found: {safe_sel}';
   el.focus();
-  el.value='{safe_text}';
+  el.dispatchEvent(new FocusEvent('focus',{{bubbles:true}}));
+  // React 兼容：通过原生 setter 设置 value，触发 React 合成事件
+  var nativeSetter=Object.getOwnPropertyDescriptor(
+    Object.getPrototypeOf(el),'value'
+  );
+  if(nativeSetter&&nativeSetter.set){{ nativeSetter.set.call(el,'{safe_text}'); }}
+  else{{ el.value='{safe_text}'; }}
+  // 派发完整输入事件序列
   el.dispatchEvent(new Event('input',{{bubbles:true}}));
+  el.dispatchEvent(new KeyboardEvent('keydown',{{bubbles:true,key:''}}));
+  el.dispatchEvent(new KeyboardEvent('keyup',{{bubbles:true,key:''}}));
   el.dispatchEvent(new Event('change',{{bubbles:true}}));
   return new Promise(function(resolve){{
     var settled=false, timer;
