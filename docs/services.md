@@ -108,7 +108,7 @@ removeServiceData(serviceId, key): void
       "edge": "right",
       "position": 120,
       "showOn": ["chat", "home"],
-      "trigger": "always"
+      "trigger": "page"
     }
   ]
 }
@@ -122,8 +122,15 @@ removeServiceData(serviceId, key): void
 | `page` | string | ✅ | Widget HTML 文件路径 |
 | `edge` | `"left" \| "right"` | ✅ | 吸附边缘 |
 | `position` | number | ✅ | 初始 y 位置（px） |
-| `showOn` | string[] | ✅ | 可见路由名列表，空数组=全局 |
-| `trigger` | `"always" \| "manual"` | ✅ | 出现时机 |
+| `showOn` | string[] | ✅ | 生命周期路由名列表，空数组=全局；`trigger: "page"` 时进入自动显示 |
+| `trigger` | `"manual" \| "page"` | ✅ | `"manual"`=API 控制（默认），`"page"`=进入 showOn 路由自动显示 |
+
+**trigger 模式说明**：
+
+| 模式 | 行为 |
+|------|------|
+| `"manual"` | 注册后初始隐藏，需调用 `__amiba__.widgets.show(id)` 显示。不受路由影响。 |
+| `"page"` | 进入 `showOn` 中的路由时自动显示，离开时自动隐藏并折叠面板。`showOn: []` 表示全局生命周期。 |
 
 **服务需声明 `widgets` 权限** 才能使用悬浮块功能（包括 widget.json 和编程式 API）。
 
@@ -168,8 +175,9 @@ await __amiba__.widgets.register({
   edge: 'right',
   position: 200,
   showOn: [],
-  trigger: 'always'
+  trigger: 'manual'
 })
+// manual 模式需要手动调用 show
 __amiba__.widgets.show('dynamic-widget')
 __amiba__.widgets.hide('dynamic-widget')
 __amiba__.widgets.remove('dynamic-widget')

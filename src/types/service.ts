@@ -173,8 +173,8 @@ export interface FloatingWidgetConfig {
   page: string                  // widget HTML 文件路径，如 "widgets/quick-note.html"
   edge: 'left' | 'right'       // 吸附边缘
   position: number              // 初始 y 位置（px，距顶部）
-  showOn: string[]              // 可见路由名称列表，空数组表示全局可见
-  trigger: 'always' | 'manual' // 出现时机：always=服务加载即显示，manual=代码调用 show
+  showOn: string[]              // 生命周期：在哪些路由名下存在，空数组 = 全局
+  trigger: 'manual' | 'page'   // 触发方式：manual=API 调用 show(), page=进入 showOn 路由时自动显示
 }
 
 export interface FloatingWidgetManifest {

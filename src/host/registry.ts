@@ -157,6 +157,7 @@ export async function getServicePackage(serviceId: string): Promise<ServicePacka
 
   // List all files in the service directory
   const allFiles = await listServiceFiles(serviceId)
+  console.log(`[Registry] getServicePackage: ${serviceId} → ${allFiles.length} files:`, allFiles.join(', '))
 
   // Read each file (skip manifest.json, tasks.json, and data/ directory)
   const files: ServiceFile[] = []

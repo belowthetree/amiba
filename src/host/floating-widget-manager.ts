@@ -8,25 +8,50 @@ import type { FloatingWidgetConfig, FloatingWidgetState } from '../types/service
 
 export const widgetStates = reactive<Record<string, FloatingWidgetState>>({})
 
-// ---- 已注册的路由名称集合（外部设置） ----
+// ---- 当前路由名称（外部设置） ----
 let currentRouteName: string | null = null
 
-/** 由 FloatingWidgetContainer 在挂载后调用，传入当前路由名称 */
+/** 由容器在挂载/路由变化时调用 */
 export function setCurrentRoute(name: string | null) {
+  const prev = currentRouteName
   currentRouteName = name
-  // 重新计算所有 widget 的 visible
+
+  // 路由变化时，重新计算所有 widget 的 visible
   for (const id of Object.keys(widgetStates)) {
-    widgetStates[id].visible = computeVisible(widgetStates[id].config)
+    const state = widgetStates[id]
+    const wasVisible = state.visible
+    state.visible = computeVisible(state.config)
+
+    // 离开生命周期页面 → 自动折叠面板
+    if (wasVisible && !state.visible) {
+      state.expanded = false
+    }
   }
 }
 
 function computeVisible(config: FloatingWidgetConfig): boolean {
-  if (config.trigger === 'manual') return false // manual 由代码控制
-  // showOn 为空 → 全局可见
-  if (!config.showOn || config.showOn.length === 0) return true
-  // 匹配当前路由名称
-  if (currentRouteName && config.showOn.includes(currentRouteName)) return true
-  return false
+  switch (config.trigger) {
+    case 'manual':
+      // manual 模式：初始隐藏，完全由 show()/hide() API 控制
+      // 如果之前被 show() 调用过且路由仍然匹配（或全局），保持状态
+      // 这里返回当前状态不变，由外部 setWidgetVisible 控制
+      // 首次注册时 visible=false
+      return false
+
+    case 'page':
+      // page 模式：当前路由在 showOn 中时自动显示
+      if (!config.showOn || config.showOn.length === 0) {
+        // 空数组 = 全局生命周期，始终可见
+        return true
+      }
+      if (currentRouteName && config.showOn.includes(currentRouteName)) {
+        return true
+      }
+      return false
+
+    default:
+      return false
+  }
 }
 
 // ---- 公开 API ----
@@ -45,7 +70,7 @@ export function registerWidget(config: FloatingWidgetConfig, htmlContent: string
   }
 
   widgetStates[config.id] = state
-  console.log(`[FloatingWidget] 注册: ${config.id} (visible=${state.visible})`)
+  console.log(`[FloatingWidget] 注册: ${config.id} (trigger=${config.trigger}, visible=${state.visible})`)
 }
 
 /** 移除单个 widget */
@@ -69,10 +94,23 @@ export function unregisterServiceWidgets(serviceId: string): void {
   }
 }
 
+/**
+ * 手动设置 visible。
+ * - manual 模式：完全由 show()/hide() 控制
+ * - page 模式：路由匹配时自动为 true，但手动 hide() 可临时隐藏
+ */
 export function setWidgetVisible(id: string, visible: boolean): void {
   const state = widgetStates[id]
-  if (state) {
+  if (!state) return
+
+  if (state.config.trigger === 'manual') {
+    // manual 模式：直接设置
     state.visible = visible
+    if (!visible) state.expanded = false
+  } else {
+    // page 模式：hide() 可以临时隐藏，但路由变化会重新计算
+    state.visible = visible
+    if (!visible) state.expanded = false
   }
 }
 

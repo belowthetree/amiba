@@ -77,7 +77,10 @@ function getWidgetHtmlFromPackage(page: string): string | null {
 /** 从 ServicePackage 加载 widget.json 并注册所有 widget */
 function loadWidgetsFromPackage(pkg: ServicePackage, permissions: string[]) {
   const widgetJsonFile = pkg.files.find((f) => f.path === 'widget.json')
-  if (!widgetJsonFile) return
+  if (!widgetJsonFile) {
+    console.log('[ServiceContainer] 无 widget.json，跳过 widget 加载')
+    return
+  }
 
   let manifest: FloatingWidgetManifest
   try {

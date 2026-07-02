@@ -102,6 +102,7 @@ import {
 } from '../host/registry'
 import type { ServiceEntry, ServicePackage } from '../types/service'
 import { DEMO_PACKAGE } from './demo-package'
+import { readDirRecursive } from '../config/storage'
 
 const router = useRouter()
 
@@ -183,29 +184,23 @@ async function importFromFolder() {
     const dir = await open({ directory: true, multiple: false, title: '选择服务目录' })
     if (!dir || typeof dir !== 'string') return
 
-    const { readDir, readTextFile } = await import('@tauri-apps/plugin-fs')
-    const entries = await readDir(dir)
+    const { readTextFile } = await import('@tauri-apps/plugin-fs')
 
-    const manifestEntry = entries.find((e: any) => e.name === 'manifest.json')
-    if (!manifestEntry) {
+    // Read manifest.json
+    const manifestRaw = await readTextFile(dir + '/manifest.json').catch(() => null)
+    if (!manifestRaw) {
       alert('所选目录中没有 manifest.json')
       return
     }
 
-    const manifestRaw = await readTextFile(dir + '/manifest.json')
     const manifest = JSON.parse(manifestRaw)
     if (!manifest.id || !manifest.name) {
       alert('manifest.json 格式无效：缺少 id 或 name')
       return
     }
 
-    const files: { path: string; content: string }[] = []
-    for (const e of entries) {
-      if (!e.name || e.name === 'manifest.json') continue
-      if ((e as any).isDirectory) continue
-      const content = await readTextFile(dir + '/' + e.name)
-      files.push({ path: e.name, content })
-    }
+    // 递归读取所有文件（含子目录，如 widgets/）
+    const files = await readDirRecursive(dir)
 
     if (!files.some(f => f.path === 'index.html')) {
       alert('服务包必须包含 index.html')

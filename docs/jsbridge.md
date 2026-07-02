@@ -76,8 +76,8 @@ interface FloatingWidgetConfig {
   page: string            // widget HTML 文件路径，如 "widgets/quick-note.html"
   edge: 'left' | 'right' // 吸附边缘
   position: number        // 初始 y 位置（px，距顶部）
-  showOn: string[]        // 可见路由名称，空数组 = 全局可见
-  trigger: 'always' | 'manual'
+  showOn: string[]        // 生命周期路由名，空数组=全局
+  trigger: 'manual' | 'page'  // manual=API控制(默认), page=进入showOn自动显示
 }
 ```
 

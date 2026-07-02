@@ -235,8 +235,12 @@ Canvas 必须显式设置 width/height。示例：`example/chart-demo/`
 | `page` | string | ✅ | Widget HTML 文件路径（如 `\"widgets/quick-notes.html\"`） |
 | `edge` | `\"left\"` \| `\"right\"` | ✅ | 吸附边缘，默认用 `\"right\"` |
 | `position` | number | ✅ | 距顶部 y 像素，建议 100–300 |
-| `showOn` | string[] | ✅ | 可见路由名列表，`[]` 表示全局可见 |
-| `trigger` | `\"always\"` \| `\"manual\"` | ✅ | `\"always\"` 加载即显示 |
+| `showOn` | string[] | ✅ | 生命周期路由列表，`[]` 表示全局；`trigger: "page"` 时进入显示 |
+| `trigger` | `\"manual\"` \| `\"page\"` | ✅ | `\"manual\"`=API 控制（默认），`\"page\"`=进入 showOn 自动显示 |
+
+**trigger 模式**：
+- `\"manual\"`：注册后隐藏，调用 `__amiba__.widgets.show(id)` 显示
+- `\"page\"`：进入 `showOn` 路由自动显示，离开自动隐藏并折叠。`showOn: []` = 全局生命周期
 
 **manifest.permissions 必须包含 `\"widgets\"`**，否则 widget.json 被忽略。
 
@@ -274,7 +278,7 @@ await __amiba__.widgets.register({
   edge: 'right',
   position: 200,
   showOn: [],
-  trigger: 'always'
+  trigger: 'page'
 })
 ```
 

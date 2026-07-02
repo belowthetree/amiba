@@ -186,7 +186,7 @@ widget HTML 规范：
       "edge": "right",
       "position": 200,
       "showOn": [],
-      "trigger": "always"
+      "trigger": "page"
     }
   ]
 }

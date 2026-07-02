@@ -9,6 +9,10 @@
     "core:default",
     "fs:default",
     "fs:allow-appdata-write-recursive",
+    {
+      "identifier": "fs:allow-read-text-file",
+      "allow": [{ "path": "**" }]
+    },
     "dialog:default"
   ]
 }

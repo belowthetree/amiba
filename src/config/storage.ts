@@ -172,9 +172,32 @@ async function svcFileList(serviceId: string, subPath?: string): Promise<string[
   try {
     const { readDir, BaseDirectory } = await import('@tauri-apps/plugin-fs')
     const dirPath = subPath ? svcRelPath(serviceId, safePath(subPath)) : svcRelPath(serviceId)
-    const entries = await readDir(dirPath, { baseDir: BaseDirectory.AppData })
-    return entries.map((e: any) => e.name)
+    const result: string[] = []
+    await collectFiles(dirPath, '', result)
+    return result
   } catch { return [] }
+}
+
+/** 递归收集目录下所有文件路径（相对路径） */
+async function collectFiles(
+  basePath: string,
+  prefix: string,
+  result: string[]
+): Promise<void> {
+  try {
+    const { readDir, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const entries = await readDir(basePath, { baseDir: BaseDirectory.AppData })
+    for (const entry of entries as any[]) {
+      const relPath = prefix ? `${prefix}/${entry.name}` : entry.name
+      if (entry.isDirectory) {
+        // 跳过 data/ 目录（沙箱数据，非服务文件）
+        if (entry.name === 'data' && !prefix) continue
+        await collectFiles(basePath + '/' + entry.name, relPath, result)
+      } else {
+        result.push(relPath)
+      }
+    }
+  } catch (e) { console.warn('[collectFiles] error:', e) }
 }
 
 async function svcDirRemove(serviceId: string): Promise<void> {
@@ -335,4 +358,45 @@ export async function removeSkillDir(skillName: string): Promise<void> {
     await remove(`${SKILLS_ROOT}/${safePath(skillName)}`, { baseDir: BaseDirectory.AppData, recursive: true })
     console.log('[Storage] DEL SKILL DIR', logPath(`${SKILLS_ROOT}/${skillName}`))
   } catch {}
+}
+
+// ============================================================
+// 通用工具：递归读取任意目录下所有文件（返回相对路径 + 内容）
+// ============================================================
+
+export interface DirFile {
+  path: string    // 相对于目录根的文件路径，如 "widgets/quick-notes.html"
+  content: string
+}
+
+/**
+ * 递归读取目录下所有文件（跳过 manifest.json）。
+ * 保留子目录结构，返回带相对路径的文件列表。
+ */
+export async function readDirRecursive(dirPath: string): Promise<DirFile[]> {
+  const { readDir, readTextFile } = await import('@tauri-apps/plugin-fs')
+  const files: DirFile[] = []
+
+  async function walk(currentDir: string, prefix: string) {
+    const entries = await readDir(currentDir)
+    console.log(`[readDirRecursive] walk: "${currentDir}" → ${entries.length} entries`)
+    for (const entry of entries as any[]) {
+      if (!entry.name) continue
+      if (entry.name === 'manifest.json') continue
+      const relPath = prefix ? `${prefix}/${entry.name}` : entry.name
+      if (entry.isDirectory) {
+        console.log(`[readDirRecursive]   DIR: ${relPath}`)
+        await walk(currentDir + '/' + entry.name, relPath)
+      } else {
+        console.log(`[readDirRecursive]   FILE: ${relPath}`)
+        const content = await readTextFile(currentDir + '/' + entry.name)
+        files.push({ path: relPath, content })
+      }
+    }
+  }
+
+  console.log(`[readDirRecursive] start: "${dirPath}"`)
+  await walk(dirPath, '')
+  console.log(`[readDirRecursive] done: ${files.length} files`)
+  return files
 }
