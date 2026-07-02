@@ -89,8 +89,8 @@ Widget 也可以通过服务目录下的 `widget.json` 声明式配置，服务�
 |------|------|------|------|
 | `setVisibility` | `{ visibility: { lan: bool, ble: bool } }` | `void` | network |
 | `getVisibility` | — | `{ lan: bool, ble: bool }` | network |
-| `startDiscovery` | `{ transport: 'lan' \| 'ble' \| 'all' }` | `void` | network |
-| `stopDiscovery` | `{ transport: string }` | `void` | network |
+| `startDiscovery` | `'lan' \| 'ble' \| 'all'` (字符串) | `void` | network |
+| `stopDiscovery` | `'lan' \| 'ble' \| 'all'` | `void` | network |
 | `getVisibleDevices` | — | `DiscoveredPeer[]` | network |
 | `connect` | `{ peerId: string }` | `void` | network |
 | `disconnect` | `{ peerId: string }` | `void` | network |
@@ -101,6 +101,7 @@ Widget 也可以通过服务目录下的 `widget.json` 声明式配置，服务�
 | 事件名 | 触发时机 | data |
 |--------|----------|------|
 | `peer-discovered` | 发现新设备 | `{ id, name, transport, address }` |
+| `peer-lost` | 设备离线（15秒无广播） | `{ id }` |
 | `peer-connected` | 连接建立 | `{ id, transport }` |
 | `peer-disconnected` | 连接断开 | `{ id, transport }` |
 | `message-received` | 收到消息 | `{ peerId, message, timestamp }` |
