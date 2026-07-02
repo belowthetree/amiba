@@ -116,6 +116,7 @@ pub fn run() {
       network::network_connect,
       network::network_send,
       network::network_disconnect,
+      network::network_get_ws_port,
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

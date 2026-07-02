@@ -1,112 +1,100 @@
 // ============================================================
-// 变形虫 (Amiba) — NetworkBridge（网络互联宿主 JS 层）
+// 变形虫 (Amiba) — NetworkBridge v2
 // ============================================================
-// 封装 Tauri invoke 调用，为 JSBridge 提供统一的网络 API。
+// 借鉴 HuLa 架构：
+//   - Web Worker 管理 WebSocket 连接
+//   - 事件总线分发消息
+//   - 响应式 peerList
+//   - Tauri invoke 只用于 UDP 发现 + 获取 WS 端口
 // ============================================================
 
 import { reactive } from 'vue'
 import type { DiscoveredPeer, TransportVisibility } from '../types/service'
+import { networkWorker } from './network-worker-init'
 
 // ---- 状态 ----
 
 export const peerList = reactive<DiscoveredPeer[]>([])
-
-/** 本机可见性设置 */
 export let currentVisibility: TransportVisibility = { lan: true, ble: false }
 
-/** 是否为 Tauri 环境（桌面/Android） */
 let isTauri = false
 
-/** 按 serviceId 分组的消息回调 */
-const messageCallbacks = new Map<string, Set<(peerId: string, message: any) => void>>()
+// ---- 事件总线（按 serviceId 分组） ----
 
-/** 全局 peer 发现回调（按 serviceId） */
-const peerDiscoveredCallbacks = new Map<string, Set<(peer: DiscoveredPeer) => void>>()
+type EventHandler = (...args: any[]) => void
+const eventBus = new Map<string, Set<EventHandler>>()
+
+function emit(event: string, ...args: any[]) {
+  const handlers = eventBus.get(event)
+  if (handlers) for (const h of handlers) h(...args)
+}
+
+export function onEvent(event: string, handler: EventHandler): () => void {
+  if (!eventBus.has(event)) eventBus.set(event, new Set())
+  eventBus.get(event)!.add(handler)
+  return () => eventBus.get(event)?.delete(handler)
+}
 
 // ---- 初始化 ----
 
 export async function initNetworkBridge(): Promise<void> {
-  // 检测 Tauri 环境
   try {
-    const { invoke } = await import('@tauri-apps/api/core')
+    await import('@tauri-apps/api/core')
     isTauri = true
-
-    // 获取当前可见性
-    try {
-      currentVisibility = await invoke<TransportVisibility>('network_get_visibility')
-    } catch { /* 使用默认值 */ }
   } catch {
     isTauri = false
-    console.log('[NetworkBridge] 非 Tauri 环境，网络功能不可用')
+    console.log('[NetworkBridge] 非 Tauri 环境')
+    return
   }
 
-  // 监听 Tauri 事件
-  if (isTauri) {
-    await setupEventListeners()
-  }
-}
+  // 监听 Worker 消息
+  networkWorker.addEventListener('message', (e: MessageEvent) => {
+    const { type, peerId, data, msg } = e.data
+    switch (type) {
+      case 'open':
+        updatePeerConnected(peerId, true)
+        emit('peer-connected', peerId)
+        break
+      case 'message':
+        emit('message-received', peerId, typeof data === 'string' ? data : JSON.stringify(data))
+        break
+      case 'close':
+        updatePeerConnected(peerId, false)
+        emit('peer-disconnected', peerId)
+        break
+      case 'error':
+        console.warn(`[NetworkBridge] ${peerId}: ${msg}`)
+        break
+    }
+  })
 
-async function setupEventListeners() {
+  // 监听 Tauri 发现事件
   try {
     const { listen } = await import('@tauri-apps/api/event')
-
-    await listen<{ id: string; name: string; transport: string; address?: string }>(
+    await listen<{ id: string; name: string; transport: string }>(
       'network:peer-discovered',
       (event) => {
-        const peer: DiscoveredPeer = {
-          id: event.payload.id,
-          name: event.payload.name,
-          transport: event.payload.transport as 'lan' | 'ble',
-          address: event.payload.address || '',
-          lastSeen: new Date().toISOString(),
-        }
-        // 更新响应式列表
-        const existing = peerList.findIndex((p) => p.id === peer.id)
+        const existing = peerList.findIndex((p) => p.id === event.payload.id)
         if (existing >= 0) {
-          peerList[existing] = peer
+          peerList[existing] = { ...peerList[existing], lastSeen: new Date().toISOString() }
         } else {
-          peerList.push(peer)
+          peerList.push({
+            id: event.payload.id,
+            name: event.payload.name,
+            transport: event.payload.transport as 'lan' | 'ble',
+            address: '',
+            lastSeen: new Date().toISOString(),
+          })
         }
-        // 通知所有回调
-        for (const cbs of peerDiscoveredCallbacks.values()) {
-          for (const cb of cbs) cb(peer)
-        }
-      }
-    )
-
-    await listen<{ id: string; transport: string }>(
-      'network:peer-connected',
-      (event) => {
-        const idx = peerList.findIndex((p) => p.id === event.payload.id)
-        if (idx >= 0) {
-          peerList[idx] = { ...peerList[idx], lastSeen: new Date().toISOString() }
-        }
-      }
-    )
-
-    await listen<{ id: string; transport: string }>(
-      'network:peer-disconnected',
-      (_event) => {
-        // peer stays in list but marked disconnected
-      }
-    )
-
-    await listen<{ peerId: string; message: any }>(
-      'network:message-received',
-      (event) => {
-        for (const cbs of messageCallbacks.values()) {
-          for (const cb of cbs) {
-            try { cb(event.payload.peerId, event.payload.message) } catch { /* ignore */ }
-          }
-        }
+        emit('peer-discovered', event.payload)
       }
     )
   } catch (e) {
-    console.warn('[NetworkBridge] 事件监听初始化失败:', e)
+    console.warn('[NetworkBridge] Tauri event 监听失败:', e)
   }
 }
 
-// ---- Public API ----
+// ---- 可见性 ----
 
 export async function setVisibility(vis: TransportVisibility): Promise<void> {
   currentVisibility = vis
@@ -121,14 +109,19 @@ export async function getVisibility(): Promise<TransportVisibility> {
     try {
       const { invoke } = await import('@tauri-apps/api/core')
       currentVisibility = await invoke<TransportVisibility>('network_get_visibility')
-    } catch { /* keep cached */ }
+    } catch { /* cached */ }
   }
   return { ...currentVisibility }
 }
 
+// ---- 发现 ----
+
 export async function startDiscovery(transport: string): Promise<void> {
-  if (!isTauri) throw new Error('网络功能仅在桌面/移动端可用')
+  if (!isTauri) throw new Error('网络功能仅在桌面端可用')
   const { invoke } = await import('@tauri-apps/api/core')
+  // 先获取自己的 WS 端口
+  const wsPort = await invoke<number>('network_get_ws_port').catch(() => 0)
+  // 更新已有 peer 的 address（从 UDP 广播中获取的）
   await invoke('network_start_discovery', { transport })
 }
 
@@ -144,54 +137,34 @@ export function getVisibleDevices(): DiscoveredPeer[] {
   return [...peerList]
 }
 
+// ---- 连接（通过 Worker） ----
+
 export async function connect(peerId: string): Promise<void> {
-  if (!isTauri) throw new Error('网络功能仅在桌面/移动端可用')
-  const { invoke } = await import('@tauri-apps/api/core')
-  await invoke('network_connect', { peerId })
+  const peer = peerList.find((p) => p.id === peerId)
+  if (!peer || !peer.address) throw new Error('设备地址未知')
+  const url = `ws://${peer.address}`
+  networkWorker.postMessage({ type: 'connect', peerId, url })
 }
 
 export async function disconnect(peerId: string): Promise<void> {
-  if (!isTauri) throw new Error('网络功能仅在桌面/移动端可用')
-  const { invoke } = await import('@tauri-apps/api/core')
-  await invoke('network_disconnect', { peerId })
+  networkWorker.postMessage({ type: 'disconnect', peerId })
 }
 
 export async function send(peerId: string, message: any): Promise<void> {
-  if (!isTauri) throw new Error('网络功能仅在桌面/移动端可用')
-  const { invoke } = await import('@tauri-apps/api/core')
-  await invoke('network_send', { peerId, message })
+  networkWorker.postMessage({ type: 'send', peerId, message })
 }
 
-// ---- Callback registration (per serviceId) ----
+// ---- 内部 ----
 
-export function onMessage(
-  serviceId: string,
-  callback: (peerId: string, message: any) => void
-): () => void {
-  if (!messageCallbacks.has(serviceId)) {
-    messageCallbacks.set(serviceId, new Set())
-  }
-  messageCallbacks.get(serviceId)!.add(callback)
-  return () => {
-    messageCallbacks.get(serviceId)?.delete(callback)
+function updatePeerConnected(id: string, connected: boolean) {
+  const idx = peerList.findIndex((p) => p.id === id)
+  if (idx >= 0) {
+    peerList[idx] = { ...peerList[idx], lastSeen: new Date().toISOString() }
   }
 }
 
-export function onPeerDiscovered(
-  serviceId: string,
-  callback: (peer: DiscoveredPeer) => void
-): () => void {
-  if (!peerDiscoveredCallbacks.has(serviceId)) {
-    peerDiscoveredCallbacks.set(serviceId, new Set())
-  }
-  peerDiscoveredCallbacks.get(serviceId)!.add(callback)
-  return () => {
-    peerDiscoveredCallbacks.get(serviceId)?.delete(callback)
-  }
-}
-
-/** 清理某个服务的所有回调 */
-export function clearServiceCallbacks(serviceId: string): void {
-  messageCallbacks.delete(serviceId)
-  peerDiscoveredCallbacks.delete(serviceId)
+/** 清理所有 Worker 连接（服务卸载时调用） */
+export function clearServiceCallbacks(_serviceId: string): void {
+  // Worker 连接是全局的，按 serviceId 清理事件回调
+  // 实际清理由 service-container 的 onUnmounted 处理
 }
