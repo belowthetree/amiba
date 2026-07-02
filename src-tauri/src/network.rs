@@ -43,6 +43,8 @@ pub struct DiscoveredPeer {
 pub struct NetworkState {
     pub device_id: String,
     pub device_name: String,
+    /// 每次启动唯一的会话 ID（多开测试用）
+    pub session_id: String,
     pub visibility: TransportVisibility,
     pub mdns: ServiceDaemon,
     pub discovered_peers: HashMap<String, DiscoveredPeer>,
@@ -56,6 +58,7 @@ impl NetworkState {
         Self {
             device_id: String::new(),
             device_name: String::new(),
+            session_id: Uuid::new_v4().to_string(),
             visibility: TransportVisibility { lan: true, ble: false },
             mdns: ServiceDaemon::new().expect("Failed to create mDNS daemon"),
             discovered_peers: HashMap::new(),
@@ -155,6 +158,7 @@ pub async fn network_start_discovery(
                 .map_err(|e| format!("mDNS browse 失败: {}", e))?;
             ns.browsing = true;
             drop(ns);
+            eprintln!("[network] 开始 mDNS 浏览: {}", MDNS_SERVICE_TYPE);
             spawn_mdns_event_loop(receiver, state.inner().clone(), app.clone());
         }
     }
@@ -292,6 +296,7 @@ async fn ensure_ws_listener(state: &State<'_, Arc<Mutex<NetworkState>>>) -> Resu
         .await
         .map_err(|e| format!("WS 绑定失败: {}", e))?;
     ns.ws_port = listener.local_addr().map_err(|e| e.to_string())?.port();
+    eprintln!("[network] WS 监听已启动，端口: {}", ns.ws_port);
     drop(ns);
 
     tokio::spawn(async move {
@@ -317,7 +322,7 @@ async fn start_mdns_advertise(
     state: &State<'_, Arc<Mutex<NetworkState>>>,
     app: &AppHandle,
 ) -> Result<(), String> {
-    let (device_id, device_name, port) = {
+    let (device_id, device_name, port, session_id) = {
         let mut ns = state.lock().await;
         if ns.device_id.is_empty() {
             ns.device_id = get_device_id(app);
@@ -327,9 +332,9 @@ async fn start_mdns_advertise(
             drop(ns);
             ensure_ws_listener(state).await?;
             let ns2 = state.lock().await;
-            (ns2.device_id.clone(), ns2.device_name.clone(), ns2.ws_port)
+            (ns2.device_id.clone(), ns2.device_name.clone(), ns2.ws_port, ns2.session_id.clone())
         } else {
-            (ns.device_id.clone(), ns.device_name.clone(), ns.ws_port)
+            (ns.device_id.clone(), ns.device_name.clone(), ns.ws_port, ns.session_id.clone())
         }
     };
 
@@ -337,13 +342,14 @@ async fn start_mdns_advertise(
         .map(|a| a.to_string())
         .unwrap_or_else(|_| "127.0.0.1".into());
 
-    let short_id = &device_id[..device_id.len().min(8)];
+    let short_id = &session_id[..session_id.len().min(8)];
     let instance_name = format!("{}.{}", device_name, short_id);
     let hostname = get_hostname_str();
 
     let properties = [
         ("id".to_string(), device_id),
         ("name".to_string(), device_name),
+        ("sid".to_string(), session_id),
     ];
 
     // mdns-sd 0.11: ServiceInfo::new(ty, name, host, ip, port, props)
@@ -358,6 +364,7 @@ async fn start_mdns_advertise(
     .map_err(|e| format!("创建 mDNS 服务失败: {}", e))?;
 
     let ns = state.lock().await;
+    eprintln!("[network] mDNS 已注册: {} @ {}:{}", instance_name, ip, port);
     ns.mdns
         .register(service_info)
         .map_err(|e| format!("注册 mDNS 失败: {}", e))?;
@@ -369,11 +376,14 @@ fn spawn_mdns_event_loop(
     state: Arc<Mutex<NetworkState>>,
     app: AppHandle,
 ) {
+    // 在主线程（Tokio 上下文中）获取 handle，移入 OS 线程
+    let rt_handle = tokio::runtime::Handle::current();
     std::thread::spawn(move || {
         loop {
             match receiver.recv() {
                 Ok(ServiceEvent::ServiceResolved(info)) => {
                     let peer_id = get_prop(&info, "id");
+                    let peer_sid = get_prop(&info, "sid");
                     let peer_name = get_prop(&info, "name");
                     let addr = info
                         .get_addresses()
@@ -388,10 +398,12 @@ fn spawn_mdns_event_loop(
                     let pname = peer_name.clone();
                     let addr_c = addr.clone();
 
-                    let rt = tokio::runtime::Handle::current();
-                    let _ = rt.spawn(async move {
+                    let _ = rt_handle.spawn(async move {
+                        eprintln!("[network] 发现设备: {} ({}) @ {}", pname, pid, &addr);
+
                         let mut ns = state.lock().await;
-                        if pid == ns.device_id {
+                        // 跳过自己（同 session_id，多开测试用）
+                        if peer_sid == ns.session_id {
                             return;
                         }
                         let peer = DiscoveredPeer {

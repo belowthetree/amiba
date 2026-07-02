@@ -136,6 +136,10 @@ import {
 import type { SessionMeta } from '../ai/session'
 import { soulManager } from '../ai/soul'
 import { peerList } from '../host/network-bridge'
+import { 
+  setVisibility as netSetVisibility,
+  startDiscovery as netStartDiscovery,
+} from '../host/network-bridge'
 
 const session = getSession()
 const { messages, turnCount, sending, streaming, streamingContent, errorMessage: errorMsg } = session
@@ -340,6 +344,16 @@ watch(
     saveHistory()
   }
 )
+
+// 打开统计框时自动启动网络可见性和设备发现
+watch(showStats, async (open) => {
+  if (open) {
+    try {
+      await netSetVisibility({ lan: true, ble: false })
+      await netStartDiscovery('lan')
+    } catch { /* 非 Tauri 环境静默跳过 */ }
+  }
+})
 </script>
 
 <style scoped>
