@@ -89,6 +89,15 @@ export async function initNetworkBridge(): Promise<void> {
         emit('peer-discovered', event.payload)
       }
     )
+
+    await listen<{ id: string }>(
+      'network:peer-lost',
+      (event) => {
+        const idx = peerList.findIndex((p) => p.id === event.payload.id)
+        if (idx >= 0) peerList.splice(idx, 1)
+        emit('peer-lost', event.payload.id)
+      }
+    )
   } catch (e) {
     console.warn('[NetworkBridge] Tauri event 监听失败:', e)
   }

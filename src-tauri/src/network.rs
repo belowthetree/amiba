@@ -230,7 +230,25 @@ async fn start_udp_broadcast(state: Arc<Mutex<NetworkState>>) {
         };
         let _ = socket.set_broadcast(true);
 
+        // 构建广播目标：255.255.255.255 + 每网卡子网广播 (.255 结尾)
+        let mut addrs = vec![UDP_BROADCAST_ADDR.to_string()];
+
+        if let Ok(ifaces) = local_ip_address::list_afinet_netifas() {
+            for (name, ip) in &ifaces {
+                if name == "lo" || name.starts_with("lo0") { continue; }
+                if let std::net::IpAddr::V4(ipv4) = ip {
+                    let octets = ipv4.octets();
+                    let bc = format!("{}.{}.{}.255:{}", octets[0], octets[1], octets[2], UDP_BROADCAST_PORT);
+                    if !addrs.contains(&bc) { addrs.push(bc); }
+                }
+            }
+        }
+
+        eprintln!("[network] UDP 广播目标 ({}) : {:?}", addrs.len(), addrs);
+
+        let mut send_count: u64 = 0;
         loop {
+            send_count += 1;
             let port = {
                 let ns = state.lock().await;
                 ns.ws_port
@@ -243,8 +261,15 @@ async fn start_udp_broadcast(state: Arc<Mutex<NetworkState>>) {
                     "ws_port": port,
                 });
                 let payload = msg.to_string();
-                if let Err(e) = socket.send_to(payload.as_bytes(), UDP_BROADCAST_ADDR).await {
-                    eprintln!("[network] UDP 发送失败: {}", e);
+                for addr in &addrs {
+                    if let Err(e) = socket.send_to(payload.as_bytes(), addr.as_str()).await {
+                        if send_count <= 1 {
+                            eprintln!("[network] UDP 发送到 {} 失败: {}", addr, e);
+                        }
+                    }
+                }
+                if send_count % 10 == 1 {
+                    eprintln!("[network] UDP 已发送 {} 次", send_count);
                 }
             }
             tokio::time::sleep(std::time::Duration::from_secs(3)).await;
@@ -300,6 +325,36 @@ fn start_udp_listener(state: Arc<Mutex<NetworkState>>, app: AppHandle) {
         let socket = match UdpSocket::from_std(std_socket) {
             Ok(s) => {
                 eprintln!("[network] UDP 监听已启动，端口: {} (SO_REUSEADDR)", UDP_BROADCAST_PORT);
+
+                // 定期清理过期 peer（15 秒未收到广播即视为离线）
+                let cleanup_state = state.clone();
+                let cleanup_app = app.clone();
+                tokio::spawn(async move {
+                    loop {
+                        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                        let now_ms = SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_millis();
+                        let mut ns = cleanup_state.lock().await;
+                        let stale: Vec<String> = ns
+                            .discovered_peers
+                            .iter()
+                            .filter(|(_, p)| {
+                                let last: u128 = p.last_seen.parse().unwrap_or(0);
+                                now_ms.saturating_sub(last) > 15_000
+                            })
+                            .map(|(id, _)| id.clone())
+                            .collect();
+                        for id in &stale { ns.discovered_peers.remove(id); }
+                        drop(ns);
+                        for id in stale {
+                            eprintln!("[network] 设备离线: {}", id);
+                            let _ = cleanup_app.emit("network:peer-lost", serde_json::json!({ "id": id }));
+                        }
+                    }
+                });
+
                 s
             }
             Err(e) => {
@@ -309,6 +364,7 @@ fn start_udp_listener(state: Arc<Mutex<NetworkState>>, app: AppHandle) {
         };
 
         let mut buf = vec![0u8; 2048];
+        let mut recv_count: u64 = 0;
         loop {
             match socket.recv_from(&mut buf).await {
                 Ok((len, src)) => {
@@ -321,6 +377,11 @@ fn start_udp_listener(state: Arc<Mutex<NetworkState>>, app: AppHandle) {
 
                             let mut ns = state.lock().await;
                             if peer_sid == ns.session_id { continue; }
+
+                            recv_count += 1;
+                            if recv_count % 10 == 1 {
+                                eprintln!("[network] UDP 收到第 {} 个外部包 (来自 {} 设备 {})", recv_count, src, peer_name);
+                            }
 
                             let address = format!("{}:{}", src.ip(), ws_port);
                             let peer = DiscoveredPeer {
