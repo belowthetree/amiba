@@ -79,6 +79,31 @@
           <span class="stat-label">距离建议保存记忆</span>
           <span class="stat-value">还有 {{ nudgeCountdown }} 轮</span>
         </div>
+
+        <div class="stat-divider">🌐 附近设备</div>
+
+        <div class="stat-row">
+          <span class="stat-label">局域网 (LAN)</span>
+          <span class="stat-value">{{ lanPeerCount }} 台</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">蓝牙 (BLE)</span>
+          <span class="stat-value">{{ blePeerCount }} 台</span>
+        </div>
+        <div class="stat-row total">
+          <span class="stat-label">总计</span>
+          <span class="stat-value">{{ totalPeerCount }} 台</span>
+        </div>
+
+        <div v-if="totalPeerCount > 0" class="peer-list">
+          <div v-for="p in peerList" :key="p.id" class="peer-item">
+            <span class="peer-icon">{{ p.transport === 'lan' ? '🖥️' : '📶' }}</span>
+            <span class="peer-name">{{ p.name }}</span>
+            <span class="peer-transport">{{ p.transport.toUpperCase() }}</span>
+          </div>
+        </div>
+        <div v-else class="no-peers">暂无发现的设备</div>
+
         <button class="modal-close" @click="showStats = false">关闭</button>
       </div>
     </div>
@@ -110,6 +135,7 @@ import {
 } from '../ai/session'
 import type { SessionMeta } from '../ai/session'
 import { soulManager } from '../ai/soul'
+import { peerList } from '../host/network-bridge'
 
 const session = getSession()
 const { messages, turnCount, sending, streaming, streamingContent, errorMessage: errorMsg } = session
@@ -132,6 +158,11 @@ const NUDGE_INTERVAL = 10
 const nudgeCountdown = computed(() => {
   return NUDGE_INTERVAL - (turnCount.value % NUDGE_INTERVAL)
 })
+
+// 附近设备统计
+const lanPeerCount = computed(() => peerList.filter(p => p.transport === 'lan').length)
+const blePeerCount = computed(() => peerList.filter(p => p.transport === 'ble').length)
+const totalPeerCount = computed(() => peerList.length)
 
 function fmtDate(iso: string): string {
   if (!iso) return ''
@@ -639,6 +670,68 @@ watch(
   font-size: 14px;
   font-weight: 600;
   color: #1976D2;
+}
+
+.stat-divider {
+  padding: 10px 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #888;
+  border-top: 1px solid #f0f0f0;
+  margin-top: 4px;
+}
+
+.stat-row.total {
+  border-top: 1px solid #e0e0e0;
+  padding-top: 10px;
+}
+
+.stat-row.total .stat-value {
+  color: #333;
+}
+
+.peer-list {
+  max-height: 160px;
+  overflow-y: auto;
+  margin-top: 6px;
+  border-top: 1px solid #f0f0f0;
+  padding-top: 6px;
+}
+
+.peer-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  font-size: 13px;
+}
+
+.peer-icon {
+  font-size: 14px;
+}
+
+.peer-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #333;
+}
+
+.peer-transport {
+  font-size: 10px;
+  color: #999;
+  background: #f0f0f0;
+  padding: 1px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.no-peers {
+  text-align: center;
+  color: #ccc;
+  font-size: 12px;
+  padding: 10px 0;
 }
 
 .modal-close {

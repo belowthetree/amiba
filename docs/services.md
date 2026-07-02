@@ -48,6 +48,8 @@ interface ServiceFile {
 |------|------|
 | `storage` | 允许服务读写其专属的键值存储 |
 | `notification` | 允许服务弹出 Toast 通知 |
+| `widgets` | 允许服务使用悬浮块功能 |
+| `network` | 允许服务使用局域网/蓝牙互联通信 |
 
 ## 服务注册
 

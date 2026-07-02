@@ -35,6 +35,17 @@ import {
   unregisterServiceWidgets,
   setWidgetVisible,
 } from './floating-widget-manager'
+import {
+  setVisibility,
+  getVisibility,
+  startDiscovery,
+  stopDiscovery,
+  getVisibleDevices,
+  connect,
+  disconnect,
+  send,
+  clearServiceCallbacks,
+} from './network-bridge'
 import type { ApiHandler } from './bridge'
 import type { ServicePackage, FloatingWidgetManifest } from '../types/service'
 
@@ -189,6 +200,34 @@ function makeApiHandler(): ApiHandler {
             throw new Error(`Unknown widgets method: ${method}`)
         }
       }
+      case 'network': {
+        switch (method) {
+          case 'setVisibility':
+            await setVisibility(params.visibility || { lan: true, ble: false })
+            return
+          case 'getVisibility':
+            return await getVisibility()
+          case 'startDiscovery':
+            await startDiscovery(params.transport || 'all')
+            return
+          case 'stopDiscovery':
+            await stopDiscovery(params.transport || 'all')
+            return
+          case 'getVisibleDevices':
+            return getVisibleDevices()
+          case 'connect':
+            await connect(params.peerId)
+            return
+          case 'disconnect':
+            await disconnect(params.peerId)
+            return
+          case 'send':
+            await send(params.peerId, params.message)
+            return
+          default:
+            throw new Error(`Unknown network method: ${method}`)
+        }
+      }
       default:
         throw new Error(`Unknown module: ${module}`)
     }
@@ -273,6 +312,8 @@ onUnmounted(() => {
   }
   // 注销该服务的所有 widget
   unregisterServiceWidgets(serviceId.value)
+  // 清理该服务的网络回调
+  clearServiceCallbacks(serviceId.value)
 })
 </script>
 

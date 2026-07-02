@@ -15,6 +15,7 @@ import { soulManager } from './ai/soul'
 import { maybeRunCurator } from './ai/skill-curator'
 import { initProviderStore } from './ai/provider-store'
 import { initCustomAgentStore } from './ai/custom-agent-store'
+import { initNetworkBridge } from './host/network-bridge'
 
 async function bootstrap() {
   await initStorage()
@@ -26,6 +27,8 @@ async function bootstrap() {
     initProviderStore(),
     initCustomAgentStore(),
   ])
+  // 网络互联桥初始化（非 Tauri 环境静默跳过）
+  initNetworkBridge()
 
   // 工具自发现
   discoverTools()

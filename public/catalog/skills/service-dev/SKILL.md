@@ -87,6 +87,14 @@ keywords:
 | `__amiba__.widgets.remove(id)` | 移除悬浮块 | `"widgets"` |
 | `__amiba__.widgets.show(id)` | 显示悬浮块 | `"widgets"` |
 | `__amiba__.widgets.hide(id)` | 隐藏悬浮块 | `"widgets"` |
+| `__amiba__.network.setVisibility(opts)` | 设置可见性 `{lan,ble}` | `"network"` |
+| `__amiba__.network.getVisibility()` | 获取可见性设置 | `"network"` |
+| `__amiba__.network.startDiscovery({transport})` | 开始设备发现 | `"network"` |
+| `__amiba__.network.stopDiscovery(transport)` | 停止发现 | `"network"` |
+| `__amiba__.network.getVisibleDevices()` | 列出已发现设备 | `"network"` |
+| `__amiba__.network.connect(peerId)` | 连接设备 | `"network"` |
+| `__amiba__.network.send(peerId, msg)` | 发送消息 | `"network"` |
+| `__amiba__.network.disconnect(peerId)` | 断开连接 | `"network"` |
 
 - **禁止** `alert()`、`prompt()`（iframe 沙箱不支持）
 - **禁止** `fetch()` 访问外部 API（CORS + 沙箱限制）

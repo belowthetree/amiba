@@ -1,5 +1,6 @@
 mod db;
 mod web;
+mod network;
 
 use tauri::Manager;
 
@@ -40,6 +41,10 @@ pub fn run() {
 
       // 初始化浏览器池
       app.manage(web::BrowserPool::new());
+
+      // 初始化网络互联状态
+      let network_state = network::init_network_state(app.handle());
+      app.manage(std::sync::Arc::new(tokio::sync::Mutex::new(network_state)));
 
       // Android: 缓存 JavaVM 指针
       #[cfg(target_os = "android")]
@@ -103,6 +108,14 @@ pub fn run() {
       web::web_input_text,
       web::web_get_content,
       web::web_close,
+      network::network_set_visibility,
+      network::network_get_visibility,
+      network::network_start_discovery,
+      network::network_stop_discovery,
+      network::network_get_visible_devices,
+      network::network_connect,
+      network::network_send,
+      network::network_disconnect,
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

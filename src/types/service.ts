@@ -11,7 +11,7 @@ export interface ServiceManifest {
   permissions: Permission[]
 }
 
-export type Permission = 'storage' | 'notification' | 'widgets'
+export type Permission = 'storage' | 'notification' | 'widgets' | 'network'
 
 // --- Service Registry Entry ---
 export interface ServiceEntry {
@@ -81,7 +81,7 @@ export interface ServicePackage {
 
 export interface ServiceRequest {
   type: 'api'
-  module: 'storage' | 'notification' | 'ui' | 'task' | 'widgets'
+  module: 'storage' | 'notification' | 'ui' | 'task' | 'widgets' | 'network'
   method: string
   params: Record<string, any>
   requestId: string
@@ -96,7 +96,7 @@ export interface ServiceResponse {
 
 export interface HostEvent {
   type: 'event'
-  name: 'page-show' | 'page-hide' | 'task-trigger'
+  name: 'page-show' | 'page-hide' | 'task-trigger' | 'peer-discovered' | 'peer-lost' | 'peer-connected' | 'peer-disconnected' | 'message-received'
   data?: any
 }
 
@@ -187,4 +187,36 @@ export interface FloatingWidgetState {
   expanded: boolean             // 面板是否展开
   yPosition: number             // 当前 y 位置（可拖动改变）
   htmlContent: string           // 已处理（注入 bridge）的 widget HTML
+}
+
+// --- Network (局域网 / 蓝牙互联通信) ---
+
+export type Transport = 'lan' | 'ble'
+
+export interface TransportVisibility {
+  lan: boolean
+  ble: boolean
+}
+
+export interface DiscoveredPeer {
+  id: string                    // 对等设备唯一标识
+  name: string                  // 设备显示名称
+  transport: Transport          // 发现方式
+  address: string               // 传输地址（IP:port 或 BLE MAC）
+  rssi?: number                 // 信号强度（BLE，dBm）
+  lastSeen: string              // ISO datetime
+}
+
+export interface PeerConnection {
+  id: string
+  name: string
+  transport: Transport
+  connected: boolean
+  address: string
+}
+
+export interface NetworkMessage {
+  peerId: string
+  message: any                  // 消息体（string 或可序列化对象）
+  timestamp: string             // ISO datetime
 }

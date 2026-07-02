@@ -66,6 +66,30 @@ export const BRIDGE_SCRIPT = `
       show: function(id) { return callHost('widgets', 'showWidget', { id: id }); },
       hide: function(id) { return callHost('widgets', 'hideWidget', { id: id }); },
     },
+    network: {
+      setVisibility: function(opts) { return callHost('network', 'setVisibility', { visibility: opts }); },
+      getVisibility: function() { return callHost('network', 'getVisibility', {}); },
+      startDiscovery: function(transport) { return callHost('network', 'startDiscovery', { transport: transport }); },
+      stopDiscovery: function(transport) { return callHost('network', 'stopDiscovery', { transport: transport }); },
+      getVisibleDevices: function() { return callHost('network', 'getVisibleDevices', {}); },
+      connect: function(peerId) { return callHost('network', 'connect', { peerId: peerId }); },
+      disconnect: function(peerId) { return callHost('network', 'disconnect', { peerId: peerId }); },
+      send: function(peerId, message) { return callHost('network', 'send', { peerId: peerId, message: message }); },
+      onPeerDiscovered: function(callback) {
+        window.addEventListener('message', function handler(e) {
+          if (e.data && e.data.type === 'event' && e.data.name === 'peer-discovered') {
+            callback(e.data.data);
+          }
+        });
+      },
+      onMessage: function(callback) {
+        window.addEventListener('message', function handler(e) {
+          if (e.data && e.data.type === 'event' && e.data.name === 'message-received') {
+            callback(e.data.data);
+          }
+        });
+      },
+    },
   };
 })();
 `
@@ -96,6 +120,10 @@ export function createBridge(
     }
     if (req.module === 'widgets' && !allowedPermissions.includes('widgets')) {
       sendResponse(req.requestId, undefined, 'Permission denied: widgets')
+      return
+    }
+    if (req.module === 'network' && !allowedPermissions.includes('network')) {
+      sendResponse(req.requestId, undefined, 'Permission denied: network')
       return
     }
 
