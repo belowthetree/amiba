@@ -151,8 +151,10 @@ pub async fn network_set_visibility(
     let mut ns = state.lock().await;
     ns.visibility = visibility.clone();
 
+    // 无论开关，先取消旧任务
+    if let Some(tx) = ns.cancel_tx.take() { let _ = tx.send(true); }
+
     if visibility.lan {
-        if let Some(tx) = ns.cancel_tx.take() { let _ = tx.send(true); }
         let (cancel_tx, cancel_rx) = watch::channel(false);
         ns.cancel_tx = Some(cancel_tx);
         drop(ns);

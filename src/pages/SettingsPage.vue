@@ -216,9 +216,49 @@
     <div class="settings-section">
       <h3 class="section-label">关于</h3>
       <div class="about-info">
-        <p><strong>变形虫 Amiba</strong> v1.0.0</p>
+        <p><strong>变形虫 Amiba</strong> v{{ appVersion }}</p>
         <p>AI 驱动的跨平台即时应用平台</p>
         <p>Vue 3 + TypeScript + Tauri</p>
+      </div>
+      <div class="update-area">
+        <button
+          class="secondary-btn"
+          :disabled="updateStatus.stage === 'checking' || updateStatus.stage === 'downloading' || updateStatus.stage === 'installing'"
+          @click="doCheckUpdate"
+        >
+          <template v-if="updateStatus.stage === 'checking'">⏳ 检查中…</template>
+          <template v-else>🔍 检查更新</template>
+        </button>
+
+        <!-- 错误 -->
+        <p v-if="updateStatus.stage === 'error'" class="update-msg error">{{ updateStatus.message }}</p>
+
+        <!-- 已最新 -->
+        <p v-else-if="updateStatus.stage === 'upToDate'" class="update-msg ok">✅ 已是最新版本 (v{{ updateStatus.currentVersion }})</p>
+
+        <!-- 发现新版本 -->
+        <div v-else-if="updateStatus.stage === 'available'" class="update-available">
+          <p class="update-msg available">
+            🆕 发现新版本 <strong>v{{ updateStatus.info.latestVersion }}</strong>（当前 v{{ updateStatus.info.currentVersion }}）
+          </p>
+          <p v-if="updateStatus.info.body" class="update-notes">{{ updateStatus.info.body }}</p>
+          <button class="primary-btn" @click="doDownload(updateStatus.info)">📥 直接下载</button>
+        </div>
+
+        <!-- 下载中 -->
+        <div v-else-if="updateStatus.stage === 'downloading'" class="download-progress">
+          <p class="update-msg">📥 正在下载… ({{ formatSize(updateStatus.received) }} / {{ formatSize(updateStatus.total) }})</p>
+          <div class="progress-bar">
+            <div class="progress-fill" :style="{ width: downloadPercent + '%' }"></div>
+          </div>
+          <button class="danger-btn" style="margin-top:8px" @click="doCancelDownload">✕ 取消下载</button>
+        </div>
+
+        <!-- 安装中 -->
+        <p v-else-if="updateStatus.stage === 'installing'" class="update-msg ok">🔧 正在启动安装程序…</p>
+
+        <!-- 已取消 -->
+        <p v-else-if="updateStatus.stage === 'cancelled'" class="update-msg" style="color:#f57c00">⚠️ 下载已取消</p>
       </div>
     </div>
 
@@ -227,7 +267,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { settings, getApiKey, setApiKey } from '../config/config'
 import { storageClear, storageKeys, storageGet, listServiceDirs, readServiceFile } from '../config/storage'
 import { registerService, storeServicePackage, getServicePackage } from '../host/registry'
@@ -237,8 +277,11 @@ import { loadUserSkills, addUserSkill, updateUserSkill, deleteUserSkill, importS
 import { providers, addProvider, updateProvider, deleteProvider, initProviderStore } from '../ai/provider-store'
 import { customAgents, activeAgentId, addCustomAgent, updateCustomAgent, deleteCustomAgent, setActiveAgent, initCustomAgentStore } from '../ai/custom-agent-store'
 import type { AiProvider, CustomAgent } from '../types/service'
+import { getCurrentVersion, checkForUpdate, downloadUpdate, installUpdate, type UpdateStatus, type UpdateInfo } from '../config/updater'
 
 const apiKey = ref('')
+const appVersion = ref('...')
+const updateStatus = ref<UpdateStatus>({ stage: 'idle' })
 const showKey = ref(false)
 const showSaved = ref(false); const pending = ref<any[]>([])
 
@@ -270,14 +313,17 @@ const editingIdx = ref(-1)
 const editForm = ref({ name: '', desc: '', kws: '', tpl: '' })
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null
+let initDone = false
 
 watch(apiKey, (val) => {
+  if (!initDone) return
   void setApiKey(val).then(() => flashSaved())
 })
 
 watch(
   () => ({ ...settings }),
   () => {
+    if (!initDone) return
     flashSaved()
   },
   { deep: true }
@@ -354,7 +400,7 @@ async function removeSkill(idx: number) {
   } catch (e: any) { alert(e.message) }
 }
 refreshSkills()
-getApiKey().then(k => { apiKey.value = k })
+getApiKey().then(k => { apiKey.value = k; initDone = true })
 
 // --- Provider management ---
 const providerList = providers as AiProvider[]
@@ -469,6 +515,86 @@ function getAgentProviderName(a: CustomAgent): string {
   const p = providerList.find(p => p.id === a.providerId)
   return p ? p.name : a.providerId
 }
+
+// ---- 更新检查 ----
+
+let downloadAbort: AbortController | null = null
+
+const downloadPercent = computed(() => {
+  const s = updateStatus.value
+  if (s.stage !== 'downloading' || s.total === 0) return 0
+  return Math.round((s.received / s.total) * 100)
+})
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return bytes + ' B'
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+}
+
+async function doCheckUpdate() {
+  updateStatus.value = { stage: 'checking' }
+  try {
+    const info = await checkForUpdate()
+    if (info.hasUpdate) {
+      updateStatus.value = { stage: 'available', info }
+    } else {
+      updateStatus.value = { stage: 'upToDate', currentVersion: info.currentVersion, latestVersion: info.latestVersion }
+    }
+  } catch (e: any) {
+    updateStatus.value = { stage: 'error', message: e.message || '检查更新失败' }
+  }
+}
+
+async function doDownload(info: UpdateInfo) {
+  if (!info.downloadUrl) {
+    updateStatus.value = { stage: 'error', message: '当前平台没有匹配的安装包' }
+    return
+  }
+
+  downloadAbort = new AbortController()
+
+  updateStatus.value = {
+    stage: 'downloading',
+    received: 0,
+    total: 0,
+    cancel: () => downloadAbort?.abort(),
+  }
+
+  try {
+    const result = await downloadUpdate(
+      info.downloadUrl,
+      (received, total) => {
+        updateStatus.value = {
+          stage: 'downloading',
+          received,
+          total,
+          cancel: () => downloadAbort?.abort(),
+        }
+      },
+      downloadAbort.signal,
+    )
+
+    updateStatus.value = { stage: 'installing' }
+    await installUpdate(result.filePath)
+  } catch (e: any) {
+    if (e.name === 'AbortError') {
+      updateStatus.value = { stage: 'cancelled' }
+    } else {
+      updateStatus.value = { stage: 'error', message: e.message || '下载失败' }
+    }
+  } finally {
+    downloadAbort = null
+  }
+}
+
+function doCancelDownload() {
+  downloadAbort?.abort()
+}
+
+onMounted(async () => {
+  appVersion.value = await getCurrentVersion()
+})
 </script>
 
 <style scoped>
@@ -617,4 +743,18 @@ function getAgentProviderName(a: CustomAgent): string {
 .switch .slider:before{position:absolute;content:"";height:20px;width:20px;left:3px;bottom:3px;background-color:white;border-radius:50%;transition:0.3s}
 .switch input:checked+.slider{background-color:#1976D2}
 .switch input:checked+.slider:before{transform:translateX(22px)}
+
+/* ---- Update check ---- */
+.update-area{margin-top:12px;display:flex;flex-direction:column;gap:8px}
+.update-area .secondary-btn:disabled{opacity:.5;cursor:not-allowed}
+.update-msg{font-size:13px;margin:4px 0;line-height:1.5}
+.update-msg.error{color:#e53935}
+.update-msg.ok{color:#4CAF50}
+.update-msg.available{color:#333}
+.update-notes{font-size:12px;color:#999;margin:4px 0;max-height:80px;overflow-y:auto;white-space:pre-wrap;line-height:1.5;background:#f9f9f9;padding:8px;border-radius:6px}
+.primary-btn{padding:8px 16px;background:#1976D2;color:white;border:none;border-radius:8px;font-size:13px;cursor:pointer}
+.primary-btn:hover{background:#1565C0}
+.progress-bar{width:100%;height:8px;background:#e0e0e0;border-radius:4px;overflow:hidden}
+.progress-fill{height:100%;background:#1976D2;border-radius:4px;transition:width .3s ease}
+.download-progress{display:flex;flex-direction:column;gap:4px}
 </style>

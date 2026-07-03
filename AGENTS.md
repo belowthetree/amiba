@@ -28,6 +28,7 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 | **Tools** | `src/tools/` | ToolRegistry (deferred-queue), auto-discovery, 3 toolsets (core/chat/create), 20+ tool impls: memory, generate, catalog, skill_view/list, skill_manage_*(5 tools), service_file_*(3 tools), soul_save, requirement_*(3 tools), web_fetch, web_browse |
 | **Host Runtime** | `src/host/` | iframe sandbox (`service-container.vue`), postMessage JSBridge (`bridge.ts`), service registry (`registry.ts`) |
 | **Web Bridge** | `src/config/web-bridge.ts` | 封装 Tauri `web_fetch`/`web_click`/`web_input_text`/`web_get_content`/`web_close` 命令，含超时和日志 |
+| **Updater** | `src/config/updater.ts` | 纯前端更新检查：调 GitHub Releases API，semver 比较，全平台统一 |
 | **Pages** | `src/pages/` | 7 routes: Chat, Home, Generate, Memory, MyServices, ServiceBrowse, Settings |
 | **Config** | `src/config/` | Reactive settings persisted via Tauri FS plugin (`config.ts`), storage abstraction (`storage.ts`: auto-mkdir + pretty-print JSON), session-db wrapper (`session-db.ts`: Tauri invoke → Rust SQLite FTS5) |
 | **Router** | `src/router/` | `createWebHistory` with lazy-loaded page components |

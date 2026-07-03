@@ -162,6 +162,23 @@ npm run test:e2e     # 端到端测试（Playwright）
 - **TS 模块**: kebab-case
 - **Git 提交**: 中文，`feat:` `fix:` `docs:` `refactor:`
 
+## 更新机制
+
+应用通过设置页「🔍 检查更新」按钮触发更新检查：
+
+- **实现方式**：纯前端，调 GitHub Releases API (`GET /repos/{owner}/{repo}/releases/latest`)
+- **仓库地址**：硬编码在 `src/config/updater.ts` 的 `GITHUB_API` 常量中（当前：`belowthetree/amiba`）
+- **版本比较**：`tag_name` 去 `v` 前缀后做 semver 三段式比较
+- **版本来源**：Tauri 运行时走 `@tauri-apps/api/app.getVersion()`（读 `tauri.conf.json` version），非 Tauri 环境降级到 Vite 注入的 `__APP_VERSION__`（读 `package.json` version）
+- **全平台统一**：桌面 / Android / Web 同一套逻辑，无需 Rust 改动
+- **行为**：发现新版本 → 显示版本号和发布说明 → 点击「📥 前往下载」→ `window.open` 在系统浏览器打开 GitHub Releases 页
+
+### 版本号维护
+
+- `tauri.conf.json` 的 `version` 字段为 Tauri 构建版本，`getVersion()` 返回此值
+- `package.json` 的 `version` 为前端兜底版本，Vite 构建时注入 `__APP_VERSION__`
+- 发布前应确保两处版本一致（当前不一致：`tauri.conf.json` = `0.1.4`，`package.json` = `0.3.4`）
+
 ## 不做的事情（明确边界）
 
 - ❌ 不做 Flutter 原生 UI 渲染

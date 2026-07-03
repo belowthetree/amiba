@@ -27,6 +27,7 @@ pub fn run() {
       }
       app.handle().plugin(tauri_plugin_fs::init())?;
       app.handle().plugin(tauri_plugin_dialog::init())?;
+      app.handle().plugin(tauri_plugin_opener::init())?;
 
       // 初始化 SQLite session DB
       let db_path = app
