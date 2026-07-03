@@ -15,8 +15,8 @@
 
 ```
 ┌─ 服务 (iframe) ────────────────────────┐
-│  __amibia__.network.send(peerId, msg)  │
-│  __amibia__.network.protocol.send(...) │  ← v3 新增
+│  __amiba__.network.send(peerId, msg)  │
+│  __amiba__.network.protocol.send(...) │  ← v3 新增
 └──────────┬─────────────────────────────┘
            │ postMessage (JSBridge)
 ┌──────────▼─────────────────────────────┐
@@ -153,7 +153,7 @@ UDP 广播目标 (3) : ["255.255.255.255:28880", "192.168.1.255:28880", "172.29.
 
 ```js
 // 注册协议处理器
-const unsub = __amibia__.network.protocol.register('chat', (data, ctx) => {
+const unsub = __amiba__.network.protocol.register('chat', (data, ctx) => {
   console.log('来自', ctx.peerId, ':', data.text)
 
   // 同步返回值 → 自动作为 RPC 响应
@@ -164,18 +164,18 @@ const unsub = __amibia__.network.protocol.register('chat', (data, ctx) => {
 })
 
 // 注销
-__amibia__.network.protocol.unregister('chat')
+__amiba__.network.protocol.unregister('chat')
 
 // 发送（fire-and-forget）
-await __amibia__.network.protocol.send(peerId, 'chat', { text: '你好' })
+await __amiba__.network.protocol.send(peerId, 'chat', { text: '你好' })
 
 // RPC 请求 (Promise-based, 默认 15s 超时)
-const result = await __amibia__.network.protocol.request(
+const result = await __amiba__.network.protocol.request(
   peerId, 'sum', { a: 1, b: 2 }, 5000  // 超时 5s
 )
 
 // 便捷监听
-__amibia__.network.protocol.on('chat', (data, ctx) => { ... })
+__amiba__.network.protocol.on('chat', (data, ctx) => { ... })
 ```
 
 ### ctx 对象
@@ -208,28 +208,28 @@ __amibia__.network.protocol.on('chat', (data, ctx) => { ... })
 
 ```js
 // 可见性
-await __amibia__.network.setVisibility({ lan: true, ble: false })
-const vis = await __amibia__.network.getVisibility()
+await __amiba__.network.setVisibility({ lan: true, ble: false })
+const vis = await __amiba__.network.getVisibility()
 
 // 发现
-await __amibia__.network.startDiscovery('lan')
-await __amibia__.network.stopDiscovery('lan')
-const devices = await __amibia__.network.getVisibleDevices()
+await __amiba__.network.startDiscovery('lan')
+await __amiba__.network.stopDiscovery('lan')
+const devices = await __amiba__.network.getVisibleDevices()
 
 // 连接与原始消息
-await __amibia__.network.connect(peerId)
-await __amibia__.network.send(peerId, { type: 'chat', text: 'hello' })
-await __amibia__.network.disconnect(peerId)
+await __amiba__.network.connect(peerId)
+await __amiba__.network.send(peerId, { type: 'chat', text: 'hello' })
+await __amiba__.network.disconnect(peerId)
 
 // 协议消息 (v3)
-await __amibia__.network.protocol.send(peerId, 'myProtocol', { ... })
-const result = await __amibia__.network.protocol.request(peerId, 'sum', { a:1, b:2 })
-__amibia__.network.protocol.register('myProtocol', (data, ctx) => { ... })
-__amibia__.network.protocol.on('myProtocol', (data, ctx) => { ... })
+await __amiba__.network.protocol.send(peerId, 'myProtocol', { ... })
+const result = await __amiba__.network.protocol.request(peerId, 'sum', { a:1, b:2 })
+__amiba__.network.protocol.register('myProtocol', (data, ctx) => { ... })
+__amiba__.network.protocol.on('myProtocol', (data, ctx) => { ... })
 
 // 事件
-__amibia__.network.onPeerDiscovered((peer) => { ... })
-__amibia__.network.onMessage(({ peerId, message }) => { ... })
+__amiba__.network.onPeerDiscovered((peer) => { ... })
+__amiba__.network.onMessage(({ peerId, message }) => { ... })
 ```
 
 ## 限制与注意

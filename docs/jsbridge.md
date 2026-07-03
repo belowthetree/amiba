@@ -98,7 +98,7 @@ Widget 也可以通过服务目录下的 `widget.json` 声明式配置，服务�
 | `sendProtocol` | `{ peerId: string, protocol: string, data: any, requestId?: string }` | `void` | network |
 | `sendProtocolResponse` | `{ peerId: string, requestId: string, data?: any, error?: string }` | `void` | network |
 
-**子 API — `__amibia__.network.protocol`**：
+**子 API — `__amiba__.network.protocol`**：
 
 | 方法 | 说明 |
 |------|------|

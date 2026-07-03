@@ -189,7 +189,8 @@ export async function stopDiscovery(transport: string): Promise<void> {
 }
 
 export function getVisibleDevices(): DiscoveredPeer[] {
-  return [...peerList]
+  // 深拷贝去掉 Vue reactive proxy，否则 postMessage 序列化失败
+  return JSON.parse(JSON.stringify(peerList))
 }
 
 // ---- 连接（通过 Worker） ----
