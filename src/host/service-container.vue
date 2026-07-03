@@ -331,6 +331,12 @@ onMounted(async () => {
         onEvent('protocol-response', (response: any) => {
           bridgeSendEvent?.('protocol-response', response)
         }),
+        onEvent('peer-connected', (peerId: string) => {
+          bridgeSendEvent?.('peer-connected', { peerId })
+        }),
+        onEvent('peer-disconnected', (peerId: string) => {
+          bridgeSendEvent?.('peer-disconnected', { peerId })
+        }),
       )
     }
   }

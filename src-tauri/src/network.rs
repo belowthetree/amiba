@@ -287,7 +287,13 @@ async fn handle_ws_connection(
     let ws = match accept_async(stream).await {
         Ok(ws) => ws,
         Err(e) => {
-            eprintln!("[network] WebSocket 升级失败 ({}): {}", addr, e);
+            // 可能是网络扫描或非 WS 客户端，降低日志级别
+            let err_msg = e.to_string();
+            if err_msg.contains("No \"Connection: upgrade\" header") {
+                // 静默忽略非 WebSocket 连接（浏览器预连接、网络扫描等）
+            } else {
+                eprintln!("[network] WebSocket 升级失败 ({}): {}", addr, err_msg);
+            }
             return;
         }
     };
@@ -607,7 +613,7 @@ fn start_udp_listener(
                                         id: peer_id.to_string(),
                                         name: peer_name.to_string(),
                                         transport: "lan".into(),
-                                        address,
+                                        address: address.clone(),
                                         rssi: None,
                                         last_seen: now_iso(),
                                     };
@@ -621,6 +627,7 @@ fn start_udp_listener(
                                             "id": peer_id,
                                             "name": peer_name,
                                             "transport": "lan",
+                                            "address": address,
                                         }));
                                     }
                                 }

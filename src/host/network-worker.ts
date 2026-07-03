@@ -55,7 +55,13 @@ function doConnect(peerId: string, url: string, myPeerId: string) {
   const old = peers.get(peerId)
   if (old) { cleanup(old); old.ws.close() }
 
-  const ws = new WebSocket(url)
+  let ws: WebSocket
+  try {
+    ws = new WebSocket(url)
+  } catch (e) {
+    postOut({ type: 'error', peerId, msg: '无效的 WebSocket URL: ' + url })
+    return
+  }
   const conn: ConnState = { ws, peerId, url, myPeerId, _heartTimer: null, _reconTimer: null, _reconCount: 0, _lockRecon: false, _pending: [], _onOpen: null!, _onMsg: null!, _onClose: null!, _onError: null! }
 
   conn._onOpen = () => {

@@ -93,18 +93,22 @@ export async function initNetworkBridge(): Promise<void> {
   try {
     const { listen } = await import('@tauri-apps/api/event')
 
-    await listen<{ id: string; name: string; transport: string }>(
+    await listen<{ id: string; name: string; transport: string; address?: string }>(
       'network:peer-discovered',
       (event) => {
         const existing = peerList.findIndex((p) => p.id === event.payload.id)
         if (existing >= 0) {
-          peerList[existing] = { ...peerList[existing], lastSeen: new Date().toISOString() }
+          peerList[existing] = {
+            ...peerList[existing],
+            lastSeen: new Date().toISOString(),
+            address: event.payload.address || peerList[existing].address,
+          }
         } else {
           peerList.push({
             id: event.payload.id,
             name: event.payload.name,
             transport: event.payload.transport as 'lan' | 'ble',
-            address: '',
+            address: event.payload.address || '',
             lastSeen: new Date().toISOString(),
           })
         }
@@ -198,9 +202,31 @@ export function getVisibleDevices(): DiscoveredPeer[] {
 export async function connect(peerId: string): Promise<void> {
   const peer = peerList.find((p) => p.id === peerId)
   if (!peer || !peer.address) throw new Error('设备地址未知')
-  const url = `ws://${peer.address}`
+  // 去除可能的空白字符，确保 URL 合法
+  const address = peer.address.trim()
+  if (!address.includes(':')) throw new Error('设备地址格式无效: ' + address)
+  const url = `ws://${address}`
+  console.log('[NetworkBridge] 连接:', url)
   const myPeerId = await getMyDeviceId()
-  networkWorker.postMessage({ type: 'connect', peerId, url, myPeerId })
+
+  // 等待 Worker 确认连接（WebSocket open 事件），10s 超时
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      unsub()
+      reject(new Error('连接超时（10s）'))
+    }, 10000)
+
+    const unsub = onEvent('peer-connected', (id: string) => {
+      if (id === peerId) {
+        clearTimeout(timeout)
+        unsub()
+        console.log('[NetworkBridge] 连接已确认:', peerId)
+        resolve()
+      }
+    })
+
+    networkWorker.postMessage({ type: 'connect', peerId, url, myPeerId })
+  })
 }
 
 export async function disconnect(peerId: string): Promise<void> {
