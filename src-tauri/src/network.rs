@@ -52,11 +52,16 @@ pub enum SessionStatus {
     Disconnected,
 }
 
+#[allow(dead_code)]
 pub struct SessionState {
     pub id: String,
+    #[allow(dead_code)]
     pub peer_id: String,
+    #[allow(dead_code)]
     pub peer_name: String,
+    #[allow(dead_code)]
     pub direction: SessionDirection,
+    #[allow(dead_code)]
     pub status: SessionStatus,
     /// 向该 session 发送消息的通道
     pub msg_tx: mpsc::UnboundedSender<String>,

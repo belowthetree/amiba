@@ -64,6 +64,7 @@ const currentTitle = computed(() => {
   --color-text: #333333;
   --color-text-secondary: #999999;
   --topbar-height: 56px;
+  --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
@@ -111,8 +112,8 @@ button {
 .topbar {
   display: flex;
   align-items: center;
-  height: var(--topbar-height);
-  padding: 0 12px;
+  height: calc(var(--topbar-height) + var(--safe-top));
+  padding: var(--safe-top) 12px 0 12px;
   background: var(--color-surface);
   border-bottom: 1px solid #eee;
   flex-shrink: 0;

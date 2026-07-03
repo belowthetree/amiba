@@ -318,7 +318,7 @@ let initDone = false
 watch(apiKey, (val) => {
   if (!initDone) return
   void setApiKey(val).then(() => flashSaved())
-})
+}, { flush: 'sync' })
 
 watch(
   () => ({ ...settings }),
@@ -326,7 +326,7 @@ watch(
     if (!initDone) return
     flashSaved()
   },
-  { deep: true }
+  { deep: true, flush: 'sync' }
 )
 
 function flashSaved() {
