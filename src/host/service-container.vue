@@ -221,7 +221,16 @@ function makeApiHandler(): ApiHandler {
             return getVisibleDevices()
           case 'connect': {
             const session = await connect(params.peerId)
-            sessionIds.add(params.peerId)
+            console.log('[SvcContainer] outbound session connected:', session.id.slice(0,8), 'peer:', session.peerName)
+            sessionIds.add(session.id)
+            // 转发 session 事件到 iframe
+            session.on('message', (msg: string) => {
+              bridgeSendEvent?.('session-event', { sessionId: session.id, event: 'message', data: msg })
+            })
+            session.on('close', () => {
+              bridgeSendEvent?.('session-event', { sessionId: session.id, event: 'close', data: null })
+              sessionIds.delete(session.id)
+            })
             return { sessionId: session.id, peerId: session.peerId, peerName: session.peerName }
           }
           case 'sessionSend': {
@@ -325,8 +334,11 @@ onMounted(async () => {
         onEvent('peer-discovered', (peer: any) => {
           bridgeSendEvent?.('peer-discovered', peer)
         }),
-        // 外来 session：创建 NetworkSession 并通知 iframe
-        onEvent('session-created', (info: { sessionId: string; peerId: string; peerName: string }) => {
+        // 仅外来 (inbound) session：创建 NetworkSession 并通知 iframe
+        // 出站 session 已在 connect case 中处理，不再重复通知
+        onEvent('session-created', (info: { sessionId: string; peerId: string; peerName: string; direction?: string }) => {
+          console.log('[SvcContainer] session-created dir=', info.direction, 'sid=', info.sessionId.slice(0,8))
+          if (info.direction !== 'inbound') return  // 出站 session 走 connect 返回值路径
           const session = createInboundSession(info)
           sessionIds.add(info.sessionId)
           // 转发 session 事件到 iframe
@@ -338,10 +350,6 @@ onMounted(async () => {
             sessionIds.delete(info.sessionId)
           })
           bridgeSendEvent?.('session-created', info)
-        }),
-        // 出站 session 的消息也需转发（connect 时已创建 session，此处补充事件桥接）
-        onEvent('session-message', (payload: { sessionId: string; message: string }) => {
-          bridgeSendEvent?.('session-event', { sessionId: payload.sessionId, event: 'message', data: payload.message })
         }),
       )
     }

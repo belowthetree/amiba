@@ -22,11 +22,13 @@ export class NetworkSession {
     this.id = id
     this.peerId = peerId
     this.peerName = peerName
+    console.log(`[NetworkSession] 创建: ${id.slice(0,8)} peer=${peerId.slice(0,8)} name=${peerName}`)
 
     // 监听来自此 session 的消息
     this._unsubs.push(
       onEvent('session-message', (payload: { sessionId: string; message: string }) => {
         if (payload.sessionId === this.id) {
+          console.log(`[NetworkSession] msg recv sid=${this.id.slice(0,8)} body=${payload.message.slice(0,50)}`)
           this._emit('message', payload.message)
         }
       }),
