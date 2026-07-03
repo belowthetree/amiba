@@ -92,33 +92,29 @@ Widget 也可以通过服务目录下的 `widget.json` 声明式配置，服务�
 | `startDiscovery` | `'lan' \| 'ble' \| 'all'` (字符串) | `void` | network |
 | `stopDiscovery` | `'lan' \| 'ble' \| 'all'` | `void` | network |
 | `getVisibleDevices` | — | `DiscoveredPeer[]` | network |
-| `connect` | `{ peerId: string }` | `void` | network |
-| `disconnect` | `{ peerId: string }` | `void` | network |
-| `send` | `{ peerId: string, message: any }` | `void` | network |
-| `sendProtocol` | `{ peerId: string, protocol: string, data: any, requestId?: string }` | `void` | network |
-| `sendProtocolResponse` | `{ peerId: string, requestId: string, data?: any, error?: string }` | `void` | network |
+| `connect` | `{ peerId: string }` | `{ sessionId, peerId, peerName }` — Promise | network |
+| `sessionSend` | `{ sessionId: string, message: string }` | `void` | network |
+| `sessionClose` | `{ sessionId: string }` | `void` | network |
 
-**子 API — `__amiba__.network.protocol`**：
+**Session 对象**（`connect()` 返回 / `onSession()` 接收）：
 
-| 方法 | 说明 |
-|------|------|
-| `register(name, handler)` | 注册协议处理器。`handler(data, ctx)`，ctx 含 `peerId`, `reply(data)`。返回 unsubscribe 函数 |
-| `unregister(name)` | 注销协议处理器 |
-| `send(peerId, protocol, data)` | 发送协议消息（fire-and-forget） |
-| `request(peerId, protocol, data, timeout?)` | RPC 调用，返回 Promise，默认超时 15s |
-| `on(name, callback)` | 便捷监听，等价于 `register` |
+| 属性/方法 | 说明 |
+|-----------|------|
+| `.id` | session UUID |
+| `.peerId` | 对端设备 ID |
+| `.peerName` | 对端设备名称 |
+| `.send(message)` | 发送字符串消息 |
+| `.close()` | 关闭会话 |
+| `.on('message', cb)` | 监听消息，cb 接收 `(message: string)` |
+| `.on('close', cb)` | 监听关闭，cb 接收 `(reason?: string)` |
 
 **事件**（通过 `HostEvent` 推送到 iframe）：
 
 | 事件名 | 触发时机 | data |
 |--------|----------|------|
 | `peer-discovered` | 发现新设备 | `{ id, name, transport, address }` |
-| `peer-lost` | 设备离线（15秒无广播） | `{ id }` |
-| `peer-connected` | 连接建立 | `{ id, transport }` |
-| `peer-disconnected` | 连接断开 | `{ id, transport }` |
-| `message-received` | 收到消息 | `{ peerId, message, timestamp }` |
-| `protocol-message` | 收到协议消息 | `{ peerId, protocol, data, requestId? }` |
-| `protocol-response` | 收到协议 RPC 响应 | `{ requestId, data, error? }` |
+| `session-created` | 外来连接建立 | `{ sessionId, peerId, peerName }` — iframe 内构造 session 代理 |
+| `session-event` | session 消息/关闭 | `{ sessionId, event, data }` — 内部路由到对应 session 的 on() 回调 |
 
 ## 服务内全局注入
 
@@ -137,15 +133,11 @@ window.__amiba__ = {
   network: {
     setVisibility: (opts) => callHost('network', 'setVisibility', { visibility: opts }),
     getVisibleDevices: () => callHost('network', 'getVisibleDevices', {}),
+    startDiscovery: (t) => callHost('network', 'startDiscovery', { transport: t }),
     connect: (peerId) => callHost('network', 'connect', { peerId }),
-    send: (peerId, msg) => callHost('network', 'send', { peerId, message: msg }),
+      // → { sessionId, peerId, peerName } → 构造 session 代理
     onPeerDiscovered: (cb) => { /* event listener for peer-discovered */ },
-    onMessage: (cb) => { /* event listener for message-received */ },
-    protocol: {
-      send: (peerId, protocol, data) => callHost('network', 'sendProtocol', { peerId, protocol, data }),
-      request: (peerId, protocol, data, timeout) => { /* Promise-based RPC */ },
-      register: (name, handler) => { /* register handler, returns unsubscribe */ },
-    },
+    onSession: (cb) => { /* event listener for session-created → cb(sessionProxy) */ },
   },
 }
 ```

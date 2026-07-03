@@ -253,11 +253,14 @@ async function toggleLan() {
   } catch { /* non-Tauri env */ }
 }
 
-// Init network toggle state
+// Init network toggle state — 若默认可见，必须调用 setVisibility 启动 TCP 监听
 ;(async () => {
   try {
     const vis = await getVisibility()
     lanVisible.value = vis.lan
+    if (vis.lan) {
+      await setVisibility({ lan: true, ble: false })
+    }
   } catch { /* use default */ }
 })()
 

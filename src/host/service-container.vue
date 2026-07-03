@@ -42,12 +42,9 @@ import {
   stopDiscovery,
   getVisibleDevices,
   connect,
-  disconnect,
-  send,
-  sendProtocol,
-  sendProtocolResponse,
+  sessions,
+  createInboundSession,
   onEvent,
-  clearServiceCallbacks,
 } from './network-bridge'
 import type { ApiHandler } from './bridge'
 import type { ServicePackage, FloatingWidgetManifest } from '../types/service'
@@ -64,6 +61,8 @@ const servicePkg = ref<ServicePackage | null>(null)
 let bridgeCleanup: (() => void) | null = null
 let bridgeSendEvent: ((name: string, data?: any) => void) | null = null
 let networkUnsubscribers: (() => void)[] = []
+/** 本服务持有的 session ID 集合，卸载时全部关闭 */
+const sessionIds = new Set<string>()
 
 const serviceId = computed(() => {
   const id = route.params.serviceId as string
@@ -220,21 +219,25 @@ function makeApiHandler(): ApiHandler {
             return
           case 'getVisibleDevices':
             return getVisibleDevices()
-          case 'connect':
-            await connect(params.peerId)
+          case 'connect': {
+            const session = await connect(params.peerId)
+            sessionIds.add(params.peerId)
+            return { sessionId: session.id, peerId: session.peerId, peerName: session.peerName }
+          }
+          case 'sessionSend': {
+            const session = sessions.get(params.sessionId)
+            if (!session) throw new Error('会话不存在')
+            await session.send(params.message)
             return
-          case 'disconnect':
-            await disconnect(params.peerId)
+          }
+          case 'sessionClose': {
+            const session = sessions.get(params.sessionId)
+            if (session) {
+              await session.close()
+              sessionIds.delete(params.sessionId)
+            }
             return
-          case 'send':
-            await send(params.peerId, params.message)
-            return
-          case 'sendProtocol':
-            await sendProtocol(params.peerId, params.protocol, params.data, params.requestId)
-            return
-          case 'sendProtocolResponse':
-            await sendProtocolResponse(params.peerId, params.requestId, params.data, params.error)
-            return
+          }
           default:
             throw new Error(`Unknown network method: ${method}`)
         }
@@ -322,20 +325,23 @@ onMounted(async () => {
         onEvent('peer-discovered', (peer: any) => {
           bridgeSendEvent?.('peer-discovered', peer)
         }),
-        onEvent('message-received', (peerId: string, message: string) => {
-          bridgeSendEvent?.('message-received', { peerId, message })
+        // 外来 session：创建 NetworkSession 并通知 iframe
+        onEvent('session-created', (info: { sessionId: string; peerId: string; peerName: string }) => {
+          const session = createInboundSession(info)
+          sessionIds.add(info.sessionId)
+          // 转发 session 事件到 iframe
+          session.on('message', (msg: string) => {
+            bridgeSendEvent?.('session-event', { sessionId: info.sessionId, event: 'message', data: msg })
+          })
+          session.on('close', () => {
+            bridgeSendEvent?.('session-event', { sessionId: info.sessionId, event: 'close', data: null })
+            sessionIds.delete(info.sessionId)
+          })
+          bridgeSendEvent?.('session-created', info)
         }),
-        onEvent('protocol-message', (envelope: any) => {
-          bridgeSendEvent?.('protocol-message', envelope)
-        }),
-        onEvent('protocol-response', (response: any) => {
-          bridgeSendEvent?.('protocol-response', response)
-        }),
-        onEvent('peer-connected', (peerId: string) => {
-          bridgeSendEvent?.('peer-connected', { peerId })
-        }),
-        onEvent('peer-disconnected', (peerId: string) => {
-          bridgeSendEvent?.('peer-disconnected', { peerId })
+        // 出站 session 的消息也需转发（connect 时已创建 session，此处补充事件桥接）
+        onEvent('session-message', (payload: { sessionId: string; message: string }) => {
+          bridgeSendEvent?.('session-event', { sessionId: payload.sessionId, event: 'message', data: payload.message })
         }),
       )
     }
@@ -352,10 +358,15 @@ onUnmounted(() => {
     bridgeCleanup()
     bridgeCleanup = null
   }
+  // 关闭本服务的所有 session
+  for (const sid of sessionIds) {
+    const s = sessions.get(sid)
+    if (s) s.close().catch(() => {})
+  }
+  sessionIds.clear()
+
   // 注销该服务的所有 widget
   unregisterServiceWidgets(serviceId.value)
-  // 清理该服务的网络回调
-  clearServiceCallbacks(serviceId.value)
 })
 </script>
 

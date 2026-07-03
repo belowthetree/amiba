@@ -37,16 +37,11 @@ export const BRIDGE_SCRIPT = `
     });
   }
 
-  // ---- 协议系统 ----
-  var protocolHandlers = {};
-  var protocolPending = new Map();
-  var protocolReqId = 0;
-
+  // ---- 事件监听 ----
   window.addEventListener('message', function(event) {
     var data = event.data;
     if (!data) return;
 
-    // API 响应
     if (data.type === 'api-response') {
       var p = pending.get(data.requestId);
       if (!p) return;
@@ -58,68 +53,58 @@ export const BRIDGE_SCRIPT = `
       }
       return;
     }
+  });
 
-    // 收到协议消息 → 分发给注册的 handler
-    if (data.type === 'event' && data.name === 'protocol-message') {
-      var env = data.data; // { peerId, protocol, data, requestId? }
-      if (!env || !env.protocol) return;
-      var handler = protocolHandlers[env.protocol];
-      if (!handler) return;
+  // ---- 会话事件分发 ----
+  var sessionCallbacks = {}; // sessionId → { eventName: [handler] }
+  var sessionProxies = {};   // sessionId → proxy object
 
-      // 构建上下文对象
-      var ctx = {
-        peerId: env.peerId,
-        protocol: env.protocol,
-        requestId: env.requestId || null,
-        reply: function(responseData) {
-          if (env.requestId) {
-            callHost('network', 'sendProtocolResponse', {
-              peerId: env.peerId,
-              requestId: env.requestId,
-              data: responseData
-            });
-          }
-        }
-      };
+  function getSessionCallbacks(sid, event) {
+    if (!sessionCallbacks[sid]) sessionCallbacks[sid] = {};
+    if (!sessionCallbacks[sid][event]) sessionCallbacks[sid][event] = [];
+    return sessionCallbacks[sid][event];
+  }
 
-      try {
-        var result = handler(env.data, ctx);
-        // 同步返回值 + 有 requestId → 自动回复
-        if (result !== undefined && env.requestId) {
-          callHost('network', 'sendProtocolResponse', {
-            peerId: env.peerId,
-            requestId: env.requestId,
-            data: result
-          });
-        }
-      } catch (err) {
-        if (env.requestId) {
-          callHost('network', 'sendProtocolResponse', {
-            peerId: env.peerId,
-            requestId: env.requestId,
-            error: err.message
-          });
-        }
+  // 监听 host 推送的 session-event
+  window.addEventListener('message', function(event) {
+    var data = event.data;
+    if (!data || data.type !== 'event' || data.name !== 'session-event') return;
+    var payload = data.data; // { sessionId, event, data }
+    if (!payload || !payload.sessionId) return;
+    var cbs = sessionCallbacks[payload.sessionId];
+    if (!cbs) return;
+    var handlers = cbs[payload.event];
+    if (handlers) {
+      for (var i = 0; i < handlers.length; i++) {
+        try { handlers[i](payload.data); } catch(e) { console.warn('[session-event]', e); }
       }
-      return;
-    }
-
-    // 收到协议响应 → 解决 pending Promise
-    if (data.type === 'event' && data.name === 'protocol-response') {
-      var resp = data.data; // { requestId, data?, error? }
-      if (!resp || !resp.requestId) return;
-      var pp = protocolPending.get(resp.requestId);
-      if (!pp) return;
-      protocolPending.delete(resp.requestId);
-      clearTimeout(pp.timer);
-      if (resp.error) {
-        pp.reject(new Error(resp.error));
-      } else {
-        pp.resolve(resp.data);
-      }
-      return;
     }
   });
+
+  function createSessionProxy(sid, peerId, peerName) {
+    if (sessionProxies[sid]) return sessionProxies[sid];
+    var proxy = {
+      id: sid,
+      peerId: peerId,
+      peerName: peerName,
+      send: function(message) {
+        return callHost('network', 'sessionSend', { sessionId: sid, message: message });
+      },
+      close: function() {
+        return callHost('network', 'sessionClose', { sessionId: sid });
+      },
+      on: function(event, handler) {
+        getSessionCallbacks(sid, event).push(handler);
+        return function() {
+          var arr = getSessionCallbacks(sid, event);
+          var idx = arr.indexOf(handler);
+          if (idx >= 0) arr.splice(idx, 1);
+        };
+      }
+    };
+    sessionProxies[sid] = proxy;
+    return proxy;
+  }
 
   window.__amiba__ = {
     storage: {
@@ -137,14 +122,12 @@ export const BRIDGE_SCRIPT = `
       hide: function(id) { return callHost('widgets', 'hideWidget', { id: id }); },
     },
     network: {
+      // 可见性 & 发现
       setVisibility: function(opts) { return callHost('network', 'setVisibility', { visibility: opts }); },
       getVisibility: function() { return callHost('network', 'getVisibility', {}); },
       startDiscovery: function(transport) { return callHost('network', 'startDiscovery', { transport: transport }); },
       stopDiscovery: function(transport) { return callHost('network', 'stopDiscovery', { transport: transport }); },
       getVisibleDevices: function() { return callHost('network', 'getVisibleDevices', {}); },
-      connect: function(peerId) { return callHost('network', 'connect', { peerId: peerId }); },
-      disconnect: function(peerId) { return callHost('network', 'disconnect', { peerId: peerId }); },
-      send: function(peerId, message) { return callHost('network', 'send', { peerId: peerId, message: message }); },
       onPeerDiscovered: function(callback) {
         window.addEventListener('message', function handler(e) {
           if (e.data && e.data.type === 'event' && e.data.name === 'peer-discovered') {
@@ -152,68 +135,20 @@ export const BRIDGE_SCRIPT = `
           }
         });
       },
-      onMessage: function(callback) {
-        window.addEventListener('message', function handler(e) {
-          if (e.data && e.data.type === 'event' && e.data.name === 'message-received') {
-            callback(e.data.data);
-          }
+
+      // ---- Session API (v4) ----
+      connect: function(peerId) {
+        return callHost('network', 'connect', { peerId: peerId }).then(function(info) {
+          return createSessionProxy(info.sessionId, info.peerId, info.peerName);
         });
       },
-
-      // ---- 协议 API ----
-      protocol: {
-        /** 注册协议处理器 */
-        register: function(name, handler) {
-          if (typeof name !== 'string' || !name) throw new Error('协议名称不能为空');
-          if (typeof handler !== 'function') throw new Error('handler 必须是函数');
-          protocolHandlers[name] = handler;
-          return function() { delete protocolHandlers[name]; };
-        },
-
-        /** 注销协议处理器 */
-        unregister: function(name) {
-          delete protocolHandlers[name];
-        },
-
-        /** 发送协议消息（fire-and-forget） */
-        send: function(peerId, protocol, data) {
-          return callHost('network', 'sendProtocol', {
-            peerId: peerId,
-            protocol: protocol,
-            data: data
-          });
-        },
-
-        /** 发送协议请求并等待响应（RPC） */
-        request: function(peerId, protocol, data, timeout) {
-          return new Promise(function(resolve, reject) {
-            var rid = 'pr_' + (++protocolReqId) + '_' + Math.random().toString(36).slice(2);
-            var timer = setTimeout(function() {
-              protocolPending.delete(rid);
-              reject(new Error('协议请求超时'));
-            }, timeout || 15000);
-
-            protocolPending.set(rid, { resolve: resolve, reject: reject, timer: timer });
-
-            callHost('network', 'sendProtocol', {
-              peerId: peerId,
-              protocol: protocol,
-              data: data,
-              requestId: rid
-            }).catch(function(err) {
-              protocolPending.delete(rid);
-              clearTimeout(timer);
-              reject(err);
-            });
-          });
-        },
-
-        /** 监听指定协议的消息（便捷方法，自动注册 handler） */
-        on: function(name, callback) {
-          return window.__amiba__.network.protocol.register(name, function(data, ctx) {
-            callback(data, ctx);
-          });
-        }
+      onSession: function(callback) {
+        window.addEventListener('message', function handler(e) {
+          if (e.data && e.data.type === 'event' && e.data.name === 'session-created') {
+            var info = e.data.data; // { sessionId, peerId, peerName, direction }
+            callback(createSessionProxy(info.sessionId, info.peerId, info.peerName));
+          }
+        });
       }
     },
   };

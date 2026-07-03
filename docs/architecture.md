@@ -104,9 +104,12 @@ amiba/
 │   │   ├── skill.tool.ts      # 技能查询工具
 │   │   └── service-file.tool.ts  # 服务文件编辑工具
 │   ├── host/                # 服务运行时
-│   │   ├── service-container.vue  # iframe 外壳
-│   │   ├── bridge.ts        # postMessage 通信
-│   │   └── registry.ts      # 服务注册表
+│   │   ├── service-container.vue  # iframe 外壳 + session 生命周期
+│   │   ├── bridge.ts        # postMessage 通信 + BRIDGE_SCRIPT 注入
+│   │   ├── registry.ts      # 服务注册表
+│   │   ├── network-bridge.ts # UDP 发现 + session 管理中枢
+│   │   ├── network-session.ts # NetworkSession 类（send/on/close）
+│   │   └── floating-widget-manager.ts # 悬浮块管理
 │   ├── config/
 │   │   └── config.ts        # 统一配置
 │   └── types/

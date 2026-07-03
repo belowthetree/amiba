@@ -96,8 +96,16 @@ export interface ServiceResponse {
 
 export interface HostEvent {
   type: 'event'
-  name: 'page-show' | 'page-hide' | 'task-trigger' | 'peer-discovered' | 'peer-lost' | 'peer-connected' | 'peer-disconnected' | 'message-received' | 'protocol-message' | 'protocol-response'
+  name: 'page-show' | 'page-hide' | 'task-trigger' | 'peer-discovered' | 'peer-lost' | 'session-created' | 'session-event'
   data?: any
+}
+
+// --- Session (v4 新网络架构) ---
+
+export interface SessionInfo {
+  sessionId: string
+  peerId: string
+  peerName: string
 }
 
 // --- Validation ---
@@ -207,42 +215,3 @@ export interface DiscoveredPeer {
   lastSeen: string              // ISO datetime
 }
 
-export interface PeerConnection {
-  id: string
-  name: string
-  transport: Transport
-  connected: boolean
-  address: string
-}
-
-export interface NetworkMessage {
-  peerId: string
-  message: any                  // 消息体（string 或可序列化对象）
-  timestamp: string             // ISO datetime
-}
-
-// --- Protocol (自定义通信协议) ---
-
-/** 协议消息（通过 WebSocket 传输） */
-export interface ProtocolMessage {
-  type: 'protocol'
-  protocol: string              // 协议名称，如 "chat"、"sync"
-  data: any                     // 协议数据载荷
-  requestId?: string            // 可选：RPC 请求 ID，有则期待响应
-}
-
-/** 协议响应 */
-export interface ProtocolResponse {
-  type: 'protocol-response'
-  requestId: string
-  data?: any
-  error?: string
-}
-
-/** 协议消息的 wire 格式（包含路由元数据） */
-export interface ProtocolEnvelope {
-  peerId: string
-  protocol: string
-  data: any
-  requestId?: string
-}
