@@ -44,6 +44,9 @@ import {
   connect,
   disconnect,
   send,
+  sendProtocol,
+  sendProtocolResponse,
+  onEvent,
   clearServiceCallbacks,
 } from './network-bridge'
 import type { ApiHandler } from './bridge'
@@ -59,6 +62,8 @@ const serviceHtml = ref('')
 const servicePkg = ref<ServicePackage | null>(null)
 
 let bridgeCleanup: (() => void) | null = null
+let bridgeSendEvent: ((name: string, data?: any) => void) | null = null
+let networkUnsubscribers: (() => void)[] = []
 
 const serviceId = computed(() => {
   const id = route.params.serviceId as string
@@ -224,6 +229,12 @@ function makeApiHandler(): ApiHandler {
           case 'send':
             await send(params.peerId, params.message)
             return
+          case 'sendProtocol':
+            await sendProtocol(params.peerId, params.protocol, params.data, params.requestId)
+            return
+          case 'sendProtocolResponse':
+            await sendProtocolResponse(params.peerId, params.requestId, params.data, params.error)
+            return
           default:
             throw new Error(`Unknown network method: ${method}`)
         }
@@ -301,11 +312,36 @@ onMounted(async () => {
   if (iframe) {
     const permissions = svc.manifest.permissions || []
     const apiHandler = makeApiHandler()
-    bridgeCleanup = createBridge(iframe, permissions, apiHandler).destroy
+    const bridge = createBridge(iframe, permissions, apiHandler)
+    bridgeCleanup = bridge.destroy
+    bridgeSendEvent = bridge.sendEvent
+
+    // ---- 订阅网络事件，转发到 iframe ----
+    if (permissions.includes('network')) {
+      networkUnsubscribers.push(
+        onEvent('peer-discovered', (peer: any) => {
+          bridgeSendEvent?.('peer-discovered', peer)
+        }),
+        onEvent('message-received', (peerId: string, message: string) => {
+          bridgeSendEvent?.('message-received', { peerId, message })
+        }),
+        onEvent('protocol-message', (envelope: any) => {
+          bridgeSendEvent?.('protocol-message', envelope)
+        }),
+        onEvent('protocol-response', (response: any) => {
+          bridgeSendEvent?.('protocol-response', response)
+        }),
+      )
+    }
   }
 })
 
 onUnmounted(() => {
+  // 清理网络事件订阅
+  for (const unsub of networkUnsubscribers) unsub()
+  networkUnsubscribers = []
+  bridgeSendEvent = null
+
   if (bridgeCleanup) {
     bridgeCleanup()
     bridgeCleanup = null

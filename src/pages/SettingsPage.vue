@@ -105,6 +105,25 @@
     </div>
 
     <div class="settings-section">
+      <h3 class="section-label">🌐 网络</h3>
+
+      <div class="form-group">
+        <div class="toggle-row">
+          <div>
+            <label style="margin-bottom:0">局域网发现</label>
+            <span class="toggle-desc">允许其他设备通过局域网发现本设备</span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" v-model="lanVisible" @change="toggleLan" />
+            <span class="slider"></span>
+          </label>
+        </div>
+        <p class="toggle-hint" v-if="lanVisible">✅ 本设备在局域网中可见</p>
+        <p class="toggle-hint" v-else>🔒 本设备在局域网中隐藏</p>
+      </div>
+    </div>
+
+    <div class="settings-section">
       <h3 class="section-label">数据管理</h3>
       <div class="action-row" style="margin-bottom:8px"><button class="secondary-btn" @click="scanForServices">🔍 扫描存储目录</button><button class="secondary-btn" @click="addSvcFile">📄 选择文件</button></div>
       <div v-if="pending.length" class="sl" style="margin-bottom:8px"><div class="si" v-for="(svc,i) in pending" :key="i"><span class="sn">{{ svc.name }}</span><span class="sd">{{ svc.desc }}</span><button class="sib" @click="installSvc(i)">安装</button><button class="sx" @click="pending.splice(i,1)">✕</button></div></div><div class="action-row">
@@ -212,6 +231,7 @@ import { ref, computed, watch } from 'vue'
 import { settings, getApiKey, setApiKey } from '../config/config'
 import { storageClear, storageKeys, storageGet, listServiceDirs, readServiceFile } from '../config/storage'
 import { registerService, storeServicePackage, getServicePackage } from '../host/registry'
+import { setVisibility, getVisibility, currentVisibility } from '../host/network-bridge'
 import type { ServicePackage, ServiceManifest } from '../types/service'
 import { loadUserSkills, addUserSkill, updateUserSkill, deleteUserSkill, importSkillFromFolder, type Skill } from '../ai/skills'
 import { providers, addProvider, updateProvider, deleteProvider, initProviderStore } from '../ai/provider-store'
@@ -221,6 +241,25 @@ import type { AiProvider, CustomAgent } from '../types/service'
 const apiKey = ref('')
 const showKey = ref(false)
 const showSaved = ref(false); const pending = ref<any[]>([])
+
+// --- Network visibility ---
+const lanVisible = ref(currentVisibility.lan)
+
+async function toggleLan() {
+  const vis = { lan: lanVisible.value, ble: false }
+  try {
+    await setVisibility(vis)
+    flashSaved()
+  } catch { /* non-Tauri env */ }
+}
+
+// Init network toggle state
+;(async () => {
+  try {
+    const vis = await getVisibility()
+    lanVisible.value = vis.lan
+  } catch { /* use default */ }
+})()
 
 // --- Skill management ---
 const userSkills = ref<Skill[]>([])
@@ -563,4 +602,16 @@ function getAgentProviderName(a: CustomAgent): string {
 .skill-item.active{background:#E3F2FD;border:1px solid #1976D2}
 .skill-checkboxes{display:flex;flex-wrap:wrap;gap:6px}
 .skill-cb-label{font-size:12px;display:flex;align-items:center;gap:3px;cursor:pointer;padding:2px 6px;border-radius:4px;background:#f0f0f0}
-.skill-cb-label:hover{background:#e0e0e0}</style>
+.skill-cb-label:hover{background:#e0e0e0}
+
+/* ---- Network toggle ---- */
+.toggle-row{display:flex;align-items:center;justify-content:space-between}
+.toggle-desc{display:block;font-size:12px;color:#bbb;margin-top:2px}
+.toggle-hint{font-size:12px;color:#999;margin-top:6px}
+.switch{position:relative;display:inline-block;width:48px;height:26px;flex-shrink:0}
+.switch input{opacity:0;width:0;height:0}
+.switch .slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background-color:#ccc;border-radius:26px;transition:0.3s}
+.switch .slider:before{position:absolute;content:"";height:20px;width:20px;left:3px;bottom:3px;background-color:white;border-radius:50%;transition:0.3s}
+.switch input:checked+.slider{background-color:#1976D2}
+.switch input:checked+.slider:before{transform:translateX(22px)}
+</style>

@@ -1,9 +1,15 @@
 // ============================================================
-// 变形虫 (Amiba) — 局域网互联通信 (Rust 原生层 v2)
+// 变形虫 (Amiba) — 局域网互联通信 (Rust 原生层 v3)
 // ============================================================
 // UDP 广播发现 + TCP 监听升级 WebSocket。
 // mDNS 已移除，WebSocket 客户端由前端 Worker 管理。
 // SO_REUSEADDR 允许多实例共享 UDP 端口。
+//
+// v3 变更:
+//   - 握手协议: 连接后首条消息为 {"type":"handshake","peerId":"..."}
+//   - 双向通信: 通过 mpsc channel 支持前端 → Rust → WebSocket 发送
+//   - 消息转发: 收到的消息通过 Tauri event 转发到前端
+//   - 可取消发现: network_stop_discovery 通过 watch channel 取消后台任务
 // ============================================================
 
 use std::collections::HashMap;
@@ -13,7 +19,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::net::{TcpListener, UdpSocket};
-use tokio::sync::Mutex;
+use tokio::sync::{mpsc, watch, Mutex};
 use tokio_tungstenite::accept_async;
 use futures_util::{SinkExt, StreamExt};
 use uuid::Uuid;
@@ -37,6 +43,15 @@ pub struct DiscoveredPeer {
     pub last_seen: String,
 }
 
+/// WebSocket 握手消息（前端 Worker 连接后立即发送）
+#[derive(Debug, Deserialize)]
+struct HandshakeMessage {
+    #[serde(rename = "type")]
+    msg_type: String,
+    #[serde(rename = "peerId")]
+    peer_id: String,
+}
+
 // ---- Network State ----
 
 pub struct NetworkState {
@@ -46,6 +61,10 @@ pub struct NetworkState {
     pub visibility: TransportVisibility,
     pub discovered_peers: HashMap<String, DiscoveredPeer>,
     pub ws_port: u16,
+    /// 已连接 peer 的 WebSocket 发送通道: peer_id → tx
+    pub peer_tx: HashMap<String, mpsc::UnboundedSender<String>>,
+    /// 取消发现任务: 发送 true 时 UDP 广播/监听循环退出
+    pub cancel_tx: Option<watch::Sender<bool>>,
 }
 
 impl NetworkState {
@@ -57,6 +76,8 @@ impl NetworkState {
             visibility: TransportVisibility { lan: true, ble: false },
             discovered_peers: HashMap::new(),
             ws_port: 0,
+            peer_tx: HashMap::new(),
+            cancel_tx: None,
         }
     }
 }
@@ -104,6 +125,14 @@ const UDP_BROADCAST_ADDR: &str = "255.255.255.255:28880";
 // ============================================================
 
 #[tauri::command]
+pub async fn network_get_device_id(
+    state: State<'_, Arc<Mutex<NetworkState>>>,
+) -> Result<String, String> {
+    let ns = state.lock().await;
+    Ok(ns.device_id.clone())
+}
+
+#[tauri::command]
 pub async fn network_set_visibility(
     state: State<'_, Arc<Mutex<NetworkState>>>,
     app: AppHandle,
@@ -113,10 +142,16 @@ pub async fn network_set_visibility(
     ns.visibility = visibility.clone();
 
     if visibility.lan {
+        // 如果已有 cancel_tx，说明之前启动过，先取消旧的
+        if let Some(tx) = ns.cancel_tx.take() {
+            let _ = tx.send(true);
+        }
+        let (cancel_tx, cancel_rx) = watch::channel(false);
+        ns.cancel_tx = Some(cancel_tx);
         drop(ns);
-        ensure_tcp_listener(&state).await?;
-        start_udp_broadcast(state.inner().clone()).await;
-        start_udp_listener(state.inner().clone(), app.clone());
+        ensure_tcp_listener(&state, app.clone()).await?;
+        start_udp_broadcast(state.inner().clone(), cancel_rx.clone()).await;
+        start_udp_listener(state.inner().clone(), app.clone(), cancel_rx);
     }
     Ok(visibility)
 }
@@ -135,8 +170,18 @@ pub async fn network_start_discovery(
     app: AppHandle,
     transport: String,
 ) -> Result<(), String> {
+    let mut ns = state.lock().await;
+    // 取消旧任务
+    if let Some(tx) = ns.cancel_tx.take() {
+        let _ = tx.send(true);
+    }
+    let (cancel_tx, cancel_rx) = watch::channel(false);
+    ns.cancel_tx = Some(cancel_tx);
+    drop(ns);
+
     if transport == "lan" || transport == "all" {
-        start_udp_listener(state.inner().clone(), app.clone());
+        start_udp_listener(state.inner().clone(), app.clone(), cancel_rx.clone());
+        start_udp_broadcast(state.inner().clone(), cancel_rx).await;
     }
     if transport == "ble" || transport == "all" {
         return Err("BLE 当前平台暂不支持".into());
@@ -145,7 +190,15 @@ pub async fn network_start_discovery(
 }
 
 #[tauri::command]
-pub async fn network_stop_discovery() -> Result<(), String> {
+pub async fn network_stop_discovery(
+    state: State<'_, Arc<Mutex<NetworkState>>>,
+    #[allow(unused)] transport: Option<String>,
+) -> Result<(), String> {
+    let mut ns = state.lock().await;
+    if let Some(tx) = ns.cancel_tx.take() {
+        let _ = tx.send(true);
+        eprintln!("[network] 发现已停止");
+    }
     Ok(())
 }
 
@@ -158,17 +211,29 @@ pub async fn network_get_visible_devices(
 }
 
 #[tauri::command]
-pub async fn network_connect() -> Result<(), String> {
-    Ok(())
+pub async fn network_send(
+    state: State<'_, Arc<Mutex<NetworkState>>>,
+    peer_id: String,
+    message: String,
+) -> Result<(), String> {
+    let tx = {
+        let ns = state.lock().await;
+        ns.peer_tx.get(&peer_id).cloned()
+    };
+    match tx {
+        Some(tx) => tx.send(message).map_err(|e| format!("发送失败: {}", e)),
+        None => Err(format!("设备 {} 未连接", peer_id)),
+    }
 }
 
 #[tauri::command]
-pub async fn network_send() -> Result<(), String> {
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn network_disconnect() -> Result<(), String> {
+pub async fn network_disconnect(
+    state: State<'_, Arc<Mutex<NetworkState>>>,
+    peer_id: String,
+) -> Result<(), String> {
+    let mut ns = state.lock().await;
+    ns.peer_tx.remove(&peer_id);
+    eprintln!("[network] 断开 peer: {}", peer_id);
     Ok(())
 }
 
@@ -184,7 +249,10 @@ pub async fn network_get_ws_port(
 // TCP 监听器（升级 WebSocket，接受其他 peer 的前端连接）
 // ============================================================
 
-async fn ensure_tcp_listener(state: &State<'_, Arc<Mutex<NetworkState>>>) -> Result<(), String> {
+async fn ensure_tcp_listener(
+    state: &State<'_, Arc<Mutex<NetworkState>>>,
+    app: AppHandle,
+) -> Result<(), String> {
     let mut ns = state.lock().await;
     if ns.ws_port != 0 {
         return Ok(());
@@ -196,28 +264,147 @@ async fn ensure_tcp_listener(state: &State<'_, Arc<Mutex<NetworkState>>>) -> Res
     eprintln!("[network] TCP 监听已启动，端口: {}", ns.ws_port);
     drop(ns);
 
+    let state_clone = state.inner().clone();
+
     tokio::spawn(async move {
-        while let Ok((stream, _)) = listener.accept().await {
+        while let Ok((stream, addr)) = listener.accept().await {
+            let state = state_clone.clone();
+            let app = app.clone();
             tokio::spawn(async move {
-                if let Ok(ws) = accept_async(stream).await {
-                    let (mut write, mut read) = ws.split();
-                    while let Some(Ok(msg)) = read.next().await {
-                        let _ = write.send(tokio_tungstenite::tungstenite::Message::Text(
-                            format!("echo:{}", msg.into_text().unwrap_or_default()),
-                        )).await;
-                    }
-                }
+                handle_ws_connection(stream, addr, state, app).await;
             });
         }
     });
     Ok(())
 }
 
+async fn handle_ws_connection(
+    stream: tokio::net::TcpStream,
+    addr: std::net::SocketAddr,
+    state: Arc<Mutex<NetworkState>>,
+    app: AppHandle,
+) {
+    let ws = match accept_async(stream).await {
+        Ok(ws) => ws,
+        Err(e) => {
+            eprintln!("[network] WebSocket 升级失败 ({}): {}", addr, e);
+            return;
+        }
+    };
+    let (mut write, mut read) = ws.split();
+
+    // ---- 等待握手消息 ----
+    let peer_id = match read.next().await {
+        Some(Ok(msg)) => {
+            let text = msg.into_text().unwrap_or_default();
+            match serde_json::from_str::<HandshakeMessage>(&text) {
+                Ok(hs) if hs.msg_type == "handshake" => hs.peer_id,
+                _ => {
+                    eprintln!("[network] 无效握手消息 ({}): {}", addr, text);
+                    return;
+                }
+            }
+        }
+        _ => {
+            eprintln!("[network] 握手超时 ({})", addr);
+            return;
+        }
+    };
+
+    eprintln!("[network] peer 已连接: {} (来自 {})", peer_id, addr);
+
+    // ---- 建立双向通道 ----
+    let (tx, mut rx) = mpsc::unbounded_channel::<String>();
+
+    // 注册到 NetworkState
+    {
+        let mut ns = state.lock().await;
+        ns.peer_tx.remove(&peer_id);
+        ns.peer_tx.insert(peer_id.clone(), tx);
+    }
+
+    // 发送连接事件到前端
+    let _ = app.emit("network:peer-connected", serde_json::json!({
+        "peerId": peer_id,
+    }));
+
+    let (close_tx, close_rx) = watch::channel(false);
+
+    // ---- 任务 1: WebSocket → 前端 (read) ----
+    let peer_id1 = peer_id.clone();
+    let app1 = app.clone();
+    let close_tx1 = close_tx.clone();
+    tokio::spawn(async move {
+        while let Some(msg) = read.next().await {
+            match msg {
+                Ok(tungstenite_msg) => {
+                    let text = tungstenite_msg.into_text().unwrap_or_default();
+                    // 跳过心跳消息
+                    if text.contains("\"type\":\"pong\"") || text.contains("\"type\":\"ping\"") {
+                        continue;
+                    }
+                    eprintln!("[network] 收到来自 {} 的消息: {}", peer_id1, &text[..text.len().min(200)]);
+                    let _ = app1.emit("network:message-received", serde_json::json!({
+                        "peerId": peer_id1,
+                        "message": text,
+                    }));
+                }
+                Err(e) => {
+                    eprintln!("[network] WebSocket 读取错误 ({}): {}", peer_id1, e);
+                    break;
+                }
+            }
+        }
+        let _ = close_tx1.send(true);
+    });
+
+    // ---- 任务 2: 前端 → WebSocket (write) + 关闭清理 ----
+    let peer_id2 = peer_id.clone();
+    let app2 = app.clone();
+    let state2 = state.clone();
+    tokio::spawn(async move {
+        // Pin close_rx for select
+        let mut close_rx_stream = close_rx;
+        loop {
+            tokio::select! {
+                msg = rx.recv() => {
+                    match msg {
+                        Some(text) => {
+                            if let Err(e) = write.send(
+                                tokio_tungstenite::tungstenite::Message::Text(text.into())
+                            ).await {
+                                eprintln!("[network] WebSocket 写入错误 ({}): {}", peer_id2, e);
+                                break;
+                            }
+                        }
+                        None => break, // channel closed
+                    }
+                }
+                _ = close_rx_stream.changed() => {
+                    if *close_rx_stream.borrow() {
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 清理
+        {
+            let mut ns = state2.lock().await;
+            ns.peer_tx.remove(&peer_id2);
+        }
+        let _ = app2.emit("network:peer-disconnected", serde_json::json!({
+            "peerId": peer_id2,
+        }));
+        eprintln!("[network] peer 已断开: {}", peer_id2);
+    });
+}
+
 // ============================================================
 // UDP 广播
 // ============================================================
 
-async fn start_udp_broadcast(state: Arc<Mutex<NetworkState>>) {
+async fn start_udp_broadcast(state: Arc<Mutex<NetworkState>>, mut cancel_rx: watch::Receiver<bool>) {
     let (sid, device_name, device_id) = {
         let ns = state.lock().await;
         (ns.session_id.clone(), ns.device_name.clone(), ns.device_id.clone())
@@ -244,10 +431,15 @@ async fn start_udp_broadcast(state: Arc<Mutex<NetworkState>>) {
             }
         }
 
-        eprintln!("[network] UDP 广播目标 ({}) : {:?}", addrs.len(), addrs);
+        eprintln!("[network] UDP 广播目标 ({}): {:?}", addrs.len(), addrs);
 
         let mut send_count: u64 = 0;
         loop {
+            if *cancel_rx.borrow() {
+                eprintln!("[network] UDP 广播已取消");
+                return;
+            }
+
             send_count += 1;
             let port = {
                 let ns = state.lock().await;
@@ -272,14 +464,26 @@ async fn start_udp_broadcast(state: Arc<Mutex<NetworkState>>) {
                     eprintln!("[network] UDP 已发送 {} 次", send_count);
                 }
             }
-            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+
+            tokio::select! {
+                _ = tokio::time::sleep(std::time::Duration::from_secs(3)) => {}
+                _ = cancel_rx.changed() => {
+                    if *cancel_rx.borrow() {
+                        eprintln!("[network] UDP 广播已取消");
+                        return;
+                    }
+                }
+            }
         }
     });
 }
 
-fn start_udp_listener(state: Arc<Mutex<NetworkState>>, app: AppHandle) {
+fn start_udp_listener(
+    state: Arc<Mutex<NetworkState>>,
+    app: AppHandle,
+    mut cancel_rx: watch::Receiver<bool>,
+) {
     tokio::spawn(async move {
-        // socket2: SO_REUSEADDR 允许多实例共享同一 UDP 端口
         use socket2::{Domain, Protocol, Socket, Type};
         let addr = std::net::SocketAddr::new(
             std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED),
@@ -297,7 +501,6 @@ fn start_udp_listener(state: Arc<Mutex<NetworkState>>, app: AppHandle) {
         if let Err(e) = socket.set_reuse_address(true) {
             eprintln!("[network] SO_REUSEADDR 设置失败: {}", e);
         }
-        // macOS/iOS 必须 SO_REUSEPORT 才能多 socket 共享 UDP 端口
         #[cfg(any(target_os = "macos", target_os = "ios"))]
         unsafe {
             use std::os::fd::AsRawFd;
@@ -329,9 +532,18 @@ fn start_udp_listener(state: Arc<Mutex<NetworkState>>, app: AppHandle) {
                 // 定期清理过期 peer（15 秒未收到广播即视为离线）
                 let cleanup_state = state.clone();
                 let cleanup_app = app.clone();
+                let mut cleanup_cancel = cancel_rx.clone();
                 tokio::spawn(async move {
                     loop {
-                        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                        if *cleanup_cancel.borrow() {
+                            return;
+                        }
+                        tokio::select! {
+                            _ = tokio::time::sleep(std::time::Duration::from_secs(5)) => {}
+                            _ = cleanup_cancel.changed() => {
+                                if *cleanup_cancel.borrow() { return; }
+                            }
+                        }
                         let now_ms = SystemTime::now()
                             .duration_since(UNIX_EPOCH)
                             .unwrap_or_default()
@@ -366,48 +578,63 @@ fn start_udp_listener(state: Arc<Mutex<NetworkState>>, app: AppHandle) {
         let mut buf = vec![0u8; 2048];
         let mut recv_count: u64 = 0;
         loop {
-            match socket.recv_from(&mut buf).await {
-                Ok((len, src)) => {
-                    if let Ok(payload) = std::str::from_utf8(&buf[..len]) {
-                        if let Ok(msg) = serde_json::from_str::<serde_json::Value>(payload) {
-                            let peer_sid = msg["sid"].as_str().unwrap_or("");
-                            let peer_id = msg["id"].as_str().unwrap_or("unknown");
-                            let peer_name = msg["name"].as_str().unwrap_or("unknown");
-                            let ws_port = msg["ws_port"].as_u64().unwrap_or(0);
+            if *cancel_rx.borrow() {
+                eprintln!("[network] UDP 监听已取消");
+                return;
+            }
 
-                            let mut ns = state.lock().await;
-                            if peer_sid == ns.session_id { continue; }
+            tokio::select! {
+                result = socket.recv_from(&mut buf) => {
+                    match result {
+                        Ok((len, src)) => {
+                            if let Ok(payload) = std::str::from_utf8(&buf[..len]) {
+                                if let Ok(msg) = serde_json::from_str::<serde_json::Value>(payload) {
+                                    let peer_sid = msg["sid"].as_str().unwrap_or("");
+                                    let peer_id = msg["id"].as_str().unwrap_or("unknown");
+                                    let peer_name = msg["name"].as_str().unwrap_or("unknown");
+                                    let ws_port = msg["ws_port"].as_u64().unwrap_or(0);
 
-                            recv_count += 1;
-                            if recv_count % 10 == 1 {
-                                eprintln!("[network] UDP 收到第 {} 个外部包 (来自 {} 设备 {})", recv_count, src, peer_name);
-                            }
+                                    let mut ns = state.lock().await;
+                                    if peer_sid == ns.session_id { continue; }
 
-                            let address = format!("{}:{}", src.ip(), ws_port);
-                            let peer = DiscoveredPeer {
-                                id: peer_id.to_string(),
-                                name: peer_name.to_string(),
-                                transport: "lan".into(),
-                                address,
-                                rssi: None,
-                                last_seen: now_iso(),
-                            };
-                            let is_new = !ns.discovered_peers.contains_key(peer_id);
-                            ns.discovered_peers.insert(peer_id.to_string(), peer);
-                            drop(ns);
+                                    recv_count += 1;
+                                    if recv_count % 10 == 1 {
+                                        eprintln!("[network] UDP 收到第 {} 个外部包 (来自 {} 设备 {})", recv_count, src, peer_name);
+                                    }
 
-                            if is_new {
-                                eprintln!("[network] 发现设备: {} ({})", peer_name, peer_id);
-                                let _ = app.emit("network:peer-discovered", serde_json::json!({
-                                    "id": peer_id,
-                                    "name": peer_name,
-                                    "transport": "lan",
-                                }));
+                                    let address = format!("{}:{}", src.ip(), ws_port);
+                                    let peer = DiscoveredPeer {
+                                        id: peer_id.to_string(),
+                                        name: peer_name.to_string(),
+                                        transport: "lan".into(),
+                                        address,
+                                        rssi: None,
+                                        last_seen: now_iso(),
+                                    };
+                                    let is_new = !ns.discovered_peers.contains_key(peer_id);
+                                    ns.discovered_peers.insert(peer_id.to_string(), peer);
+                                    drop(ns);
+
+                                    if is_new {
+                                        eprintln!("[network] 发现设备: {} ({})", peer_name, peer_id);
+                                        let _ = app.emit("network:peer-discovered", serde_json::json!({
+                                            "id": peer_id,
+                                            "name": peer_name,
+                                            "transport": "lan",
+                                        }));
+                                    }
+                                }
                             }
                         }
+                        Err(e) => eprintln!("[network] UDP 接收错误: {}", e),
                     }
                 }
-                Err(e) => eprintln!("[network] UDP 接收错误: {}", e),
+                _ = cancel_rx.changed() => {
+                    if *cancel_rx.borrow() {
+                        eprintln!("[network] UDP 监听已取消");
+                        return;
+                    }
+                }
             }
         }
     });

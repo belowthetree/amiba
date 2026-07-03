@@ -28,7 +28,7 @@ export const BRIDGE_SCRIPT = `
         requestId: id
       }, '*');
 
-      setTimeout(() => {
+      setTimeout(function() {
         if (pending.has(id)) {
           pending.delete(id);
           reject(new Error('Timeout'));
@@ -37,17 +37,87 @@ export const BRIDGE_SCRIPT = `
     });
   }
 
-  window.addEventListener('message', function(event) {
-    const data = event.data;
-    if (!data || data.type !== 'api-response') return;
-    const p = pending.get(data.requestId);
-    if (!p) return;
-    pending.delete(data.requestId);
+  // ---- 协议系统 ----
+  var protocolHandlers = {};
+  var protocolPending = new Map();
+  var protocolReqId = 0;
 
-    if (data.error) {
-      p.reject(new Error(data.error));
-    } else {
-      p.resolve(data.result);
+  window.addEventListener('message', function(event) {
+    var data = event.data;
+    if (!data) return;
+
+    // API 响应
+    if (data.type === 'api-response') {
+      var p = pending.get(data.requestId);
+      if (!p) return;
+      pending.delete(data.requestId);
+      if (data.error) {
+        p.reject(new Error(data.error));
+      } else {
+        p.resolve(data.result);
+      }
+      return;
+    }
+
+    // 收到协议消息 → 分发给注册的 handler
+    if (data.type === 'event' && data.name === 'protocol-message') {
+      var env = data.data; // { peerId, protocol, data, requestId? }
+      if (!env || !env.protocol) return;
+      var handler = protocolHandlers[env.protocol];
+      if (!handler) return;
+
+      // 构建上下文对象
+      var ctx = {
+        peerId: env.peerId,
+        protocol: env.protocol,
+        requestId: env.requestId || null,
+        reply: function(responseData) {
+          if (env.requestId) {
+            callHost('network', 'sendProtocolResponse', {
+              peerId: env.peerId,
+              requestId: env.requestId,
+              data: responseData
+            });
+          }
+        }
+      };
+
+      try {
+        var result = handler(env.data, ctx);
+        // 同步返回值 + 有 requestId → 自动回复
+        if (result !== undefined && env.requestId) {
+          callHost('network', 'sendProtocolResponse', {
+            peerId: env.peerId,
+            requestId: env.requestId,
+            data: result
+          });
+        }
+      } catch (err) {
+        if (env.requestId) {
+          callHost('network', 'sendProtocolResponse', {
+            peerId: env.peerId,
+            requestId: env.requestId,
+            error: err.message
+          });
+        }
+      }
+      return;
+    }
+
+    // 收到协议响应 → 解决 pending Promise
+    if (data.type === 'event' && data.name === 'protocol-response') {
+      var resp = data.data; // { requestId, data?, error? }
+      if (!resp || !resp.requestId) return;
+      var pp = protocolPending.get(resp.requestId);
+      if (!pp) return;
+      protocolPending.delete(resp.requestId);
+      clearTimeout(pp.timer);
+      if (resp.error) {
+        pp.reject(new Error(resp.error));
+      } else {
+        pp.resolve(resp.data);
+      }
+      return;
     }
   });
 
@@ -89,6 +159,62 @@ export const BRIDGE_SCRIPT = `
           }
         });
       },
+
+      // ---- 协议 API ----
+      protocol: {
+        /** 注册协议处理器 */
+        register: function(name, handler) {
+          if (typeof name !== 'string' || !name) throw new Error('协议名称不能为空');
+          if (typeof handler !== 'function') throw new Error('handler 必须是函数');
+          protocolHandlers[name] = handler;
+          return function() { delete protocolHandlers[name]; };
+        },
+
+        /** 注销协议处理器 */
+        unregister: function(name) {
+          delete protocolHandlers[name];
+        },
+
+        /** 发送协议消息（fire-and-forget） */
+        send: function(peerId, protocol, data) {
+          return callHost('network', 'sendProtocol', {
+            peerId: peerId,
+            protocol: protocol,
+            data: data
+          });
+        },
+
+        /** 发送协议请求并等待响应（RPC） */
+        request: function(peerId, protocol, data, timeout) {
+          return new Promise(function(resolve, reject) {
+            var rid = 'pr_' + (++protocolReqId) + '_' + Math.random().toString(36).slice(2);
+            var timer = setTimeout(function() {
+              protocolPending.delete(rid);
+              reject(new Error('协议请求超时'));
+            }, timeout || 15000);
+
+            protocolPending.set(rid, { resolve: resolve, reject: reject, timer: timer });
+
+            callHost('network', 'sendProtocol', {
+              peerId: peerId,
+              protocol: protocol,
+              data: data,
+              requestId: rid
+            }).catch(function(err) {
+              protocolPending.delete(rid);
+              clearTimeout(timer);
+              reject(err);
+            });
+          });
+        },
+
+        /** 监听指定协议的消息（便捷方法，自动注册 handler） */
+        on: function(name, callback) {
+          return window.__amiba__.network.protocol.register(name, function(data, ctx) {
+            callback(data, ctx);
+          });
+        }
+      }
     },
   };
 })();

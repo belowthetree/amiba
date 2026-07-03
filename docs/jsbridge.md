@@ -12,7 +12,7 @@ JSBridge 是宿主（Vue SPA）与用户服务（iframe）之间的唯一通信�
 // 服务 → 宿主 请求
 interface ServiceRequest {
   type: 'api'
-  module: string          // storage | notification | ui | task
+  module: string          // storage | notification | ui | task | widgets | network
   method: string          // setStorage | showToast | navigateTo | ...
   params: Record<string, any>
   requestId: string       // UUID，用于匹配响应
@@ -95,6 +95,18 @@ Widget 也可以通过服务目录下的 `widget.json` 声明式配置，服务�
 | `connect` | `{ peerId: string }` | `void` | network |
 | `disconnect` | `{ peerId: string }` | `void` | network |
 | `send` | `{ peerId: string, message: any }` | `void` | network |
+| `sendProtocol` | `{ peerId: string, protocol: string, data: any, requestId?: string }` | `void` | network |
+| `sendProtocolResponse` | `{ peerId: string, requestId: string, data?: any, error?: string }` | `void` | network |
+
+**子 API — `__amibia__.network.protocol`**：
+
+| 方法 | 说明 |
+|------|------|
+| `register(name, handler)` | 注册协议处理器。`handler(data, ctx)`，ctx 含 `peerId`, `reply(data)`。返回 unsubscribe 函数 |
+| `unregister(name)` | 注销协议处理器 |
+| `send(peerId, protocol, data)` | 发送协议消息（fire-and-forget） |
+| `request(peerId, protocol, data, timeout?)` | RPC 调用，返回 Promise，默认超时 15s |
+| `on(name, callback)` | 便捷监听，等价于 `register` |
 
 **事件**（通过 `HostEvent` 推送到 iframe）：
 
@@ -105,6 +117,8 @@ Widget 也可以通过服务目录下的 `widget.json` 声明式配置，服务�
 | `peer-connected` | 连接建立 | `{ id, transport }` |
 | `peer-disconnected` | 连接断开 | `{ id, transport }` |
 | `message-received` | 收到消息 | `{ peerId, message, timestamp }` |
+| `protocol-message` | 收到协议消息 | `{ peerId, protocol, data, requestId? }` |
+| `protocol-response` | 收到协议 RPC 响应 | `{ requestId, data, error? }` |
 
 ## 服务内全局注入
 
@@ -120,6 +134,19 @@ window.__amiba__ = {
   showToast: (title, icon) => callHost('notification', 'showToast', { title, icon }),
   navigateTo: (url) => callHost('ui', 'navigateTo', { url }),
   navigateBack: (delta) => callHost('ui', 'navigateBack', { delta }),
+  network: {
+    setVisibility: (opts) => callHost('network', 'setVisibility', { visibility: opts }),
+    getVisibleDevices: () => callHost('network', 'getVisibleDevices', {}),
+    connect: (peerId) => callHost('network', 'connect', { peerId }),
+    send: (peerId, msg) => callHost('network', 'send', { peerId, message: msg }),
+    onPeerDiscovered: (cb) => { /* event listener for peer-discovered */ },
+    onMessage: (cb) => { /* event listener for message-received */ },
+    protocol: {
+      send: (peerId, protocol, data) => callHost('network', 'sendProtocol', { peerId, protocol, data }),
+      request: (peerId, protocol, data, timeout) => { /* Promise-based RPC */ },
+      register: (name, handler) => { /* register handler, returns unsubscribe */ },
+    },
+  },
 }
 ```
 

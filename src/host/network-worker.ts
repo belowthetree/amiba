@@ -13,6 +13,7 @@ interface ConnState {
   ws: WebSocket
   peerId: string
   url: string
+  myPeerId: string
   _heartTimer: number | null
   _reconTimer: number | null
   _reconCount: number
@@ -49,15 +50,17 @@ function cleanup(conn: ConnState) {
 }
 
 // ---- 连接 ----
-function doConnect(peerId: string, url: string) {
+function doConnect(peerId: string, url: string, myPeerId: string) {
   // 清理旧连接
   const old = peers.get(peerId)
   if (old) { cleanup(old); old.ws.close() }
 
   const ws = new WebSocket(url)
-  const conn: ConnState = { ws, peerId, url, _heartTimer: null, _reconTimer: null, _reconCount: 0, _lockRecon: false, _pending: [], _onOpen: null!, _onMsg: null!, _onClose: null!, _onError: null! }
+  const conn: ConnState = { ws, peerId, url, myPeerId, _heartTimer: null, _reconTimer: null, _reconCount: 0, _lockRecon: false, _pending: [], _onOpen: null!, _onMsg: null!, _onClose: null!, _onError: null! }
 
   conn._onOpen = () => {
+    // 发送握手消息，告知对方我们的身份
+    ws.send(JSON.stringify({ type: 'handshake', peerId: myPeerId }))
     postOut({ type: 'open', peerId })
     // 心跳
     conn._heartTimer = setInterval(() => {
@@ -78,7 +81,7 @@ function doConnect(peerId: string, url: string) {
       postOut({ type: 'error', peerId, msg: '连接失败，已达最大重试次数' })
       cleanup(conn); peers.delete(peerId); return
     }
-    conn._reconTimer = setTimeout(() => { conn._reconCount++; conn._lockRecon = false; doConnect(peerId, url) }, RECONNECT_DELAY) as unknown as number
+    conn._reconTimer = setTimeout(() => { conn._reconCount++; conn._lockRecon = false; doConnect(peerId, url, conn.myPeerId) }, RECONNECT_DELAY) as unknown as number
   }
 
   conn._onError = () => {
@@ -110,10 +113,10 @@ function doDisconnect(peerId: string) {
 }
 
 // ---- 主线程消息 ----
-self.onmessage = (e: MessageEvent<{ type: string; peerId?: string; url?: string; message?: string | object }>) => {
-  const { type, peerId, url, message } = e.data
+self.onmessage = (e: MessageEvent<{ type: string; peerId?: string; url?: string; myPeerId?: string; message?: string | object }>) => {
+  const { type, peerId, url, myPeerId, message } = e.data
   switch (type) {
-    case 'connect': doConnect(peerId!, url!); break
+    case 'connect': doConnect(peerId!, url!, myPeerId!); break
     case 'send': doSend(peerId!, message!); break
     case 'disconnect': doDisconnect(peerId!); break
     case 'disconnectAll': for (const [id] of peers) doDisconnect(id); break

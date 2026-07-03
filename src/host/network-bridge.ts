@@ -1,11 +1,12 @@
 // ============================================================
-// 变形虫 (Amiba) — NetworkBridge v2
+// 变形虫 (Amiba) — NetworkBridge v3
 // ============================================================
 // 借鉴 HuLa 架构：
 //   - Web Worker 管理 WebSocket 连接
 //   - 事件总线分发消息
 //   - 响应式 peerList
-//   - Tauri invoke 只用于 UDP 发现 + 获取 WS 端口
+//   - Tauri invoke 用于 UDP 发现 + 获取 WS 端口
+//   - 接收 Tauri event 转发到 iframe
 // ============================================================
 
 import { reactive } from 'vue'
@@ -18,6 +19,7 @@ export const peerList = reactive<DiscoveredPeer[]>([])
 export let currentVisibility: TransportVisibility = { lan: true, ble: false }
 
 let isTauri = false
+let cachedDeviceId = ''
 
 // ---- 事件总线（按 serviceId 分组） ----
 
@@ -35,6 +37,22 @@ export function onEvent(event: string, handler: EventHandler): () => void {
   return () => eventBus.get(event)?.delete(handler)
 }
 
+/** 获取本机设备 ID（缓存，首次从 Rust 获取） */
+async function getMyDeviceId(): Promise<string> {
+  if (cachedDeviceId) return cachedDeviceId
+  if (isTauri) {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      cachedDeviceId = await invoke<string>('network_get_device_id')
+    } catch {
+      cachedDeviceId = 'web-' + Math.random().toString(36).slice(2, 10)
+    }
+  } else {
+    cachedDeviceId = 'web-' + Math.random().toString(36).slice(2, 10)
+  }
+  return cachedDeviceId
+}
+
 // ---- 初始化 ----
 
 export async function initNetworkBridge(): Promise<void> {
@@ -47,6 +65,9 @@ export async function initNetworkBridge(): Promise<void> {
     return
   }
 
+  // 预加载设备 ID
+  getMyDeviceId()
+
   // 监听 Worker 消息
   networkWorker.addEventListener('message', (e: MessageEvent) => {
     const { type, peerId, data, msg } = e.data
@@ -56,7 +77,7 @@ export async function initNetworkBridge(): Promise<void> {
         emit('peer-connected', peerId)
         break
       case 'message':
-        emit('message-received', peerId, typeof data === 'string' ? data : JSON.stringify(data))
+        dispatchIncomingMessage(peerId, typeof data === 'string' ? data : JSON.stringify(data))
         break
       case 'close':
         updatePeerConnected(peerId, false)
@@ -71,6 +92,7 @@ export async function initNetworkBridge(): Promise<void> {
   // 监听 Tauri 发现事件
   try {
     const { listen } = await import('@tauri-apps/api/event')
+
     await listen<{ id: string; name: string; transport: string }>(
       'network:peer-discovered',
       (event) => {
@@ -96,6 +118,30 @@ export async function initNetworkBridge(): Promise<void> {
         const idx = peerList.findIndex((p) => p.id === event.payload.id)
         if (idx >= 0) peerList.splice(idx, 1)
         emit('peer-lost', event.payload.id)
+      }
+    )
+
+    // 监听 Rust → 前端的消息转发（v3 新增）
+    await listen<{ peerId: string; message: string }>(
+      'network:message-received',
+      (event) => {
+        dispatchIncomingMessage(event.payload.peerId, event.payload.message)
+      }
+    )
+
+    await listen<{ peerId: string }>(
+      'network:peer-connected',
+      (event) => {
+        updatePeerConnected(event.payload.peerId, true)
+        emit('peer-connected', event.payload.peerId)
+      }
+    )
+
+    await listen<{ peerId: string }>(
+      'network:peer-disconnected',
+      (event) => {
+        updatePeerConnected(event.payload.peerId, false)
+        emit('peer-disconnected', event.payload.peerId)
       }
     )
   } catch (e) {
@@ -152,7 +198,8 @@ export async function connect(peerId: string): Promise<void> {
   const peer = peerList.find((p) => p.id === peerId)
   if (!peer || !peer.address) throw new Error('设备地址未知')
   const url = `ws://${peer.address}`
-  networkWorker.postMessage({ type: 'connect', peerId, url })
+  const myPeerId = await getMyDeviceId()
+  networkWorker.postMessage({ type: 'connect', peerId, url, myPeerId })
 }
 
 export async function disconnect(peerId: string): Promise<void> {
@@ -161,6 +208,60 @@ export async function disconnect(peerId: string): Promise<void> {
 
 export async function send(peerId: string, message: any): Promise<void> {
   networkWorker.postMessage({ type: 'send', peerId, message })
+}
+
+// ---- 协议通信 ----
+
+/** 发送协议消息（fire-and-forget 或带 requestId 的 RPC 请求） */
+export async function sendProtocol(
+  peerId: string,
+  protocol: string,
+  data: any,
+  requestId?: string
+): Promise<void> {
+  const msg: any = { type: 'protocol', protocol, data }
+  if (requestId) msg.requestId = requestId
+  networkWorker.postMessage({ type: 'send', peerId, message: msg })
+}
+
+/** 发送协议响应 */
+export async function sendProtocolResponse(
+  peerId: string,
+  requestId: string,
+  data?: any,
+  error?: string
+): Promise<void> {
+  const msg: any = { type: 'protocol-response', requestId }
+  if (data !== undefined) msg.data = data
+  if (error) msg.error = error
+  networkWorker.postMessage({ type: 'send', peerId, message: msg })
+}
+
+/** 解析收到的消息，路由到正确的协议事件 */
+function dispatchIncomingMessage(peerId: string, raw: string) {
+  try {
+    const msg = JSON.parse(raw)
+    if (msg && msg.type === 'protocol') {
+      emit('protocol-message', {
+        peerId,
+        protocol: msg.protocol,
+        data: msg.data,
+        requestId: msg.requestId || undefined,
+      })
+      return
+    }
+    if (msg && msg.type === 'protocol-response') {
+      emit('protocol-response', {
+        requestId: msg.requestId,
+        data: msg.data,
+        error: msg.error,
+      })
+      return
+    }
+  } catch { /* not JSON, fall through to raw message */ }
+
+  // Default: emit as raw message (backward compatible)
+  emit('message-received', peerId, raw)
 }
 
 // ---- 内部 ----
