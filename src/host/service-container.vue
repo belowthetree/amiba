@@ -32,9 +32,9 @@ import { inlinePackage } from '../ai/generator'
 import {
   registerWidget,
   unregisterWidget,
-  unregisterServiceWidgets,
   setWidgetVisible,
 } from './floating-widget-manager'
+import { ServiceContext } from './service-context'
 import {
   setVisibility,
   getVisibility,
@@ -58,11 +58,8 @@ const error = ref('')
 const serviceHtml = ref('')
 const servicePkg = ref<ServicePackage | null>(null)
 
-let bridgeCleanup: (() => void) | null = null
-let bridgeSendEvent: ((name: string, data?: any) => void) | null = null
-let networkUnsubscribers: (() => void)[] = []
-/** 本服务持有的 session ID 集合，卸载时全部关闭 */
-const sessionIds = new Set<string>()
+/** 统一管理本服务的运行时资源 */
+let ctx: ServiceContext | null = null
 
 const serviceId = computed(() => {
   const id = route.params.serviceId as string
@@ -222,14 +219,14 @@ function makeApiHandler(): ApiHandler {
           case 'connect': {
             const session = await connect(params.peerId)
             console.log('[SvcContainer] outbound session connected:', session.id.slice(0,8), 'peer:', session.peerName)
-            sessionIds.add(session.id)
+            ctx!.addSession(session.id)
             // 转发 session 事件到 iframe
             session.on('message', (msg: string) => {
-              bridgeSendEvent?.('session-event', { sessionId: session.id, event: 'message', data: msg })
+              ctx!.sendEvent('session-event', { sessionId: session.id, event: 'message', data: msg })
             })
             session.on('close', () => {
-              bridgeSendEvent?.('session-event', { sessionId: session.id, event: 'close', data: null })
-              sessionIds.delete(session.id)
+              ctx!.sendEvent('session-event', { sessionId: session.id, event: 'close', data: null })
+              ctx!.removeSession(session.id)
             })
             return { sessionId: session.id, peerId: session.peerId, peerName: session.peerName }
           }
@@ -243,7 +240,7 @@ function makeApiHandler(): ApiHandler {
             const session = sessions.get(params.sessionId)
             if (session) {
               await session.close()
-              sessionIds.delete(params.sessionId)
+              ctx!.removeSession(params.sessionId)
             }
             return
           }
@@ -285,6 +282,7 @@ function showToast(title: string, icon: string) {
 
 onMounted(async () => {
   console.log("[Container] loading service:", serviceId.value);
+  ctx = new ServiceContext(serviceId.value)
   const svc = getService(serviceId.value)
   if (!svc) {
     error.value = `服务 "${serviceId.value}" 未找到`
@@ -325,31 +323,33 @@ onMounted(async () => {
     const permissions = svc.manifest.permissions || []
     const apiHandler = makeApiHandler()
     const bridge = createBridge(iframe, permissions, apiHandler)
-    bridgeCleanup = bridge.destroy
-    bridgeSendEvent = bridge.sendEvent
+    ctx!.registerBridge(bridge.destroy, bridge.sendEvent)
 
     // ---- 订阅网络事件，转发到 iframe ----
     if (permissions.includes('network')) {
-      networkUnsubscribers.push(
+      const sendEvent = (name: string, data?: any) => ctx!.sendEvent(name, data)
+      ctx!.addNetworkUnsub(
         onEvent('peer-discovered', (peer: any) => {
-          bridgeSendEvent?.('peer-discovered', peer)
+          sendEvent('peer-discovered', peer)
         }),
-        // 仅外来 (inbound) session：创建 NetworkSession 并通知 iframe
-        // 出站 session 已在 connect case 中处理，不再重复通知
+      )
+      // 仅外来 (inbound) session：创建 NetworkSession 并通知 iframe
+      // 出站 session 已在 connect case 中处理，不再重复通知
+      ctx!.addNetworkUnsub(
         onEvent('session-created', (info: { sessionId: string; peerId: string; peerName: string; direction?: string }) => {
           console.log('[SvcContainer] session-created dir=', info.direction, 'sid=', info.sessionId.slice(0,8))
           if (info.direction !== 'inbound') return  // 出站 session 走 connect 返回值路径
           const session = createInboundSession(info)
-          sessionIds.add(info.sessionId)
+          ctx!.addSession(info.sessionId)
           // 转发 session 事件到 iframe
           session.on('message', (msg: string) => {
-            bridgeSendEvent?.('session-event', { sessionId: info.sessionId, event: 'message', data: msg })
+            sendEvent('session-event', { sessionId: info.sessionId, event: 'message', data: msg })
           })
           session.on('close', () => {
-            bridgeSendEvent?.('session-event', { sessionId: info.sessionId, event: 'close', data: null })
-            sessionIds.delete(info.sessionId)
+            sendEvent('session-event', { sessionId: info.sessionId, event: 'close', data: null })
+            ctx!.removeSession(info.sessionId)
           })
-          bridgeSendEvent?.('session-created', info)
+          sendEvent('session-created', info)
         }),
       )
     }
@@ -357,24 +357,8 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  // 清理网络事件订阅
-  for (const unsub of networkUnsubscribers) unsub()
-  networkUnsubscribers = []
-  bridgeSendEvent = null
-
-  if (bridgeCleanup) {
-    bridgeCleanup()
-    bridgeCleanup = null
-  }
-  // 关闭本服务的所有 session
-  for (const sid of sessionIds) {
-    const s = sessions.get(sid)
-    if (s) s.close().catch(() => {})
-  }
-  sessionIds.clear()
-
-  // 注销该服务的所有 widget
-  unregisterServiceWidgets(serviceId.value)
+  ctx?.destroy()
+  ctx = null
 })
 </script>
 

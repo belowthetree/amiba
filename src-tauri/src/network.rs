@@ -388,9 +388,7 @@ async fn ensure_tcp_listener(
                     });
                 }
 
-                eprintln!("[network] Inbound session: {} (来自 {})", session_id, addr);
-
-                eprintln!("[network] Inbound session 创建: {} <- {} ({})", session_id, peer_id, peer_name);
+                eprintln!("[network] Inbound session 创建: {} <- {} (来自 {})", session_id, peer_id, addr);
 
                 let _ = app.emit("network:session-created", serde_json::json!({
                     "sessionId": session_id,
