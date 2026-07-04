@@ -1,7 +1,7 @@
 // ============================================================
 // 变形虫 (Amiba) — 更新检查 + 下载 + 安装服务
 // 纯前端驱动：调 GitHub Releases API 检查 → 匹配平台资产 →
-// 流式下载（进度条 + 取消）→ openPath 拉起安装
+// Rust reqwest 下载（绕过浏览器 CORS）→ openPath 拉起安装
 // 全平台统一：桌面 / Android / Web 同一套逻辑
 // ============================================================
 
@@ -160,7 +160,7 @@ export async function checkForUpdate(): Promise<UpdateInfo> {
   }
 }
 
-// ---- 流式下载 ----
+// ---- 流式下载（Tauri Rust reqwest，绕过浏览器 CORS） ----
 
 export interface DownloadResult {
   filePath: string
@@ -168,10 +168,13 @@ export interface DownloadResult {
 }
 
 /**
- * 流式下载文件到临时目录（系统可自动清理）。
+ * 通过 Tauri Rust 命令下载文件（绕过浏览器 CORS 限制）。
+ * GitHub 下载链接会 302 重定向到 objects.githubusercontent.com，
+ * 浏览器 fetch 因 CORS 拦截失败，故走 Rust reqwest。
+ *
  * @param url    下载地址
  * @param onProgress  进度回调 (received, total)
- * @param signal AbortSignal 用于取消
+ * @param signal AbortSignal 用于取消（注意：Rust 下载不支持中断，signal 仅用于状态同步）
  * @returns     本地文件路径
  */
 export async function downloadUpdate(
@@ -179,13 +182,7 @@ export async function downloadUpdate(
   onProgress: (received: number, total: number) => void,
   signal?: AbortSignal,
 ): Promise<DownloadResult> {
-  const response = await fetch(url, { signal })
-  if (!response.ok) throw new Error(`下载失败 (${response.status})`)
-
-  const contentLength = Number(response.headers.get('Content-Length') || '0')
-  const fileName = url.split('/').pop() || 'update.bin'
-
-  // 构建保存路径：{tempDir}/amiba-update/{fileName}
+  // 构建保存路径
   let tempDir: string
   try {
     const { tempDir: getTempDir } = await import('@tauri-apps/api/path')
@@ -194,15 +191,15 @@ export async function downloadUpdate(
     throw new Error('无法获取临时目录')
   }
 
+  const fileName = url.split('/').pop()?.split('?')[0] || 'update.bin'
   const dirPath = `${tempDir}amiba-update`
   const filePath = `${dirPath}/${fileName}`
 
-  // 确保目录存在，并清理旧下载文件
+  // 确保目录存在并清理旧文件
   const { mkdir, exists, readDir, remove } = await import('@tauri-apps/plugin-fs')
   try {
     const dirExists = await exists(dirPath)
     if (dirExists) {
-      // 清理上一次的残留文件
       const entries = await readDir(dirPath)
       for (const entry of entries) {
         try { await remove(`${dirPath}/${entry.name}`) } catch { /* 忽略 */ }
@@ -211,43 +208,46 @@ export async function downloadUpdate(
       await mkdir(dirPath, { recursive: true })
     }
   } catch {
-    // 目录可能已存在，忽略
+    // 目录可能已存在
   }
 
-  // 流式读取 → 通过 ReadableStream 写入文件（不占内存）
-  const { writeFile } = await import('@tauri-apps/plugin-fs')
-  const reader = response.body!.getReader()
-  let received = 0
+  // 监听 Rust 下载进度事件
+  const { listen } = await import('@tauri-apps/api/event')
+  const { invoke } = await import('@tauri-apps/api/core')
 
-  const stream = new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      try {
-        const { done, value } = await reader.read()
-        if (done) {
-          controller.close()
-          return
-        }
-        received += value.length
-        onProgress(received, contentLength)
-        controller.enqueue(value)
-      } catch (e: any) {
-        if (e.name === 'AbortError') {
-          // 用户取消 → 清理半截文件
-          try {
-            const { remove } = await import('@tauri-apps/plugin-fs')
-            await remove(filePath)
-          } catch { /* 文件可能未创建 */ }
-          controller.error(e)
-        } else {
-          controller.error(e)
-        }
-      }
-    },
-  })
+  let cancelled = false
+  if (signal) {
+    signal.addEventListener('abort', () => { cancelled = true })
+  }
 
-  await writeFile(filePath, stream)
+  const unlisten = await listen<{ received: number; total: number }>(
+    'download-progress',
+    (event) => {
+      onProgress(event.payload.received, event.payload.total)
+    }
+  )
 
-  return { filePath, fileName }
+  try {
+    const resultPath = await invoke<string>('download_file', {
+      url,
+      dest: filePath,
+    })
+
+    if (cancelled) {
+      try { await remove(filePath) } catch { /* ignore */ }
+      throw new DOMException('Download cancelled', 'AbortError')
+    }
+
+    return { filePath: resultPath, fileName }
+  } catch (e: any) {
+    if (cancelled || e.name === 'AbortError') {
+      try { await remove(filePath) } catch { /* ignore */ }
+      throw new DOMException('Download cancelled', 'AbortError')
+    }
+    throw new Error(typeof e === 'string' ? e : (e.message || '下载失败'))
+  } finally {
+    unlisten()
+  }
 }
 
 // ---- 拉起安装 ----

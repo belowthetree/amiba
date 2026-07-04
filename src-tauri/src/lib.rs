@@ -4,6 +4,7 @@ mod network_visibility;
 mod network_session;
 
 use tauri::Manager;
+use tauri::Emitter;
 
 /// Android: 缓存的 JavaVM 原始指针，在 setup 阶段从 ndk_context 获取
 #[cfg(target_os = "android")]
@@ -14,6 +15,64 @@ pub struct AndroidJvm(pub *mut std::ffi::c_void);
 unsafe impl Send for AndroidJvm {}
 #[cfg(target_os = "android")]
 unsafe impl Sync for AndroidJvm {}
+
+// ============================================================
+// download_file: 用 reqwest 下载文件，绕过浏览器 CORS
+// 发射 download-progress 事件供前端展示进度条
+// ============================================================
+
+#[tauri::command]
+async fn download_file(
+    app: tauri::AppHandle,
+    url: String,
+    dest: String,
+) -> Result<String, String> {
+    use futures_util::StreamExt;
+    use std::io::Write;
+
+    let client = reqwest::Client::builder()
+        .user_agent("amiba-updater")
+        .build()
+        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("下载请求失败: {}", e))?;
+
+    let total = response.content_length().unwrap_or(0);
+    let mut received: u64 = 0;
+
+    // 确保目标目录存在
+    let dest_path = std::path::Path::new(&dest);
+    if let Some(parent) = dest_path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("创建目录失败: {}", e))?;
+    }
+
+    let mut file = std::fs::File::create(&dest)
+        .map_err(|e| format!("创建文件失败: {}", e))?;
+
+    let mut stream = response.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| format!("接收数据失败: {}", e))?;
+        received += chunk.len() as u64;
+        file.write_all(&chunk)
+            .map_err(|e| format!("写入文件失败: {}", e))?;
+
+        // 发射进度事件
+        let _ = app.emit("download-progress", serde_json::json!({
+            "received": received,
+            "total": total,
+        }));
+    }
+
+    file.flush().map_err(|e| format!("刷新文件失败: {}", e))?;
+
+    println!("[download_file] 完成: {} → {} ({} bytes)", url, dest, received);
+    Ok(dest)
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -98,6 +157,7 @@ pub fn run() {
       Ok(())
     })
     .invoke_handler(tauri::generate_handler![
+      download_file,
       db::commands::search_sessions,
       db::commands::index_message,
       db::commands::index_message_batch,
