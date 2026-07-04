@@ -13,6 +13,8 @@
 
 ## 架构 (v4)
 
+> **模块拆分**：Rust 层原 `network.rs` 已拆为 `network_visibility.rs`（UDP 发现 + 可见性编排）与 `network_session.rs`（TCP 监听 + WebSocket 会话）。两者通过 `ws_port` 与 `setVisibility` 编排解耦耦合，命令名不变，前端零改动。
+
 ```
 ┌─ 服务 (iframe) ──────────────────────────────────┐
 │  session = await __amiba__.network.connect(B)    │
@@ -31,23 +33,35 @@
    │ Tauri invoke       │ Tauri event
    ▼                    ▼
 ┌───────────────────────────────────────────────────┐
-│  Rust (network.rs)                                │
+│  Rust                                              │
 │                                                   │
-│  ┌─ UDP 发现 ──────────────────────────────────┐ │
-│  │ 广播 (每3秒) — 255.255.255.255:28880         │ │
-│  │ 监听 :28880 — SO_REUSEADDR                  │ │
-│  │ 多网卡子网广播 / 15s 超时清理 / watch 取消    │ │
-│  └──────────────────────────────────────────────┘ │
-│                                                   │
-│  ┌─ Session 管理 ──────────────────────────────┐ │
-│  │ TCP 监听 (:random) — accept → Inbound       │ │
-│  │ WS 客户端 — connect_async → Outbound        │ │
-│  │ 每 session 双工读写 task (spawn_session_io)  │ │
-│  │ mpsc 通道 — 前端→Rust→WS                     │ │
-│  │ emit: session-created/message/closed         │ │
+│  ┌─ network_visibility.rs ─────────────────────┐ │
+│  │ VisibilityState { device_id, discovered,    │ │
+│  │   visibility, cancel_tx }                   │ │
+│  │ · UDP 广播 (每3秒) — 255.255.255.255:28880   │ │
+│  │ · UDP 监听 :28880 — SO_REUSEADDR            │ │
+│  │ · 多网卡子网广播 / 15s 超时清理 / watch 取消  │ │
+│  │ · setVisibility 编排 session 模块的 listener │ │
+│  └──────────────┬───────────────────────────────┘ │
+│                 │ 调 ensure_listener/stop_listener │
+│  ┌──────────────▼───────────────────────────────┐ │
+│  │ network_session.rs                           │ │
+│  │ SessionStore { sessions, ws_port,            │ │
+│  │   listener_cancel }                          │ │
+│  │ · TCP 监听 (:random) — accept → Inbound      │ │
+│  │ · WS 客户端 — connect_async → Outbound       │ │
+│  │ · 每 session 双工读写 task (spawn_session_io) │ │
+│  │ · mpsc 通道 — 前端→Rust→WS                    │ │
+│  │ · emit: session-created/message/closed        │ │
+│  │ · listener 随可见性开关启停（修复端口常驻）    │ │
 │  └──────────────────────────────────────────────┘ │
 └───────────────────────────────────────────────────┘
 ```
+
+**跨模块依赖**：
+- `network_set_visibility`（visibility）→ `network_session::ensure_listener` / `stop_listener`：开/关可见性时启停 TCP 监听
+- `start_udp_broadcast`（visibility）→ 读 `SessionStore.ws_port`：广播 payload 含端口
+- `network_connect`（session）→ 读 `VisibilityState.discovered_peers`：查 peer 地址
 
 ### 协议栈
 
@@ -198,9 +212,11 @@ __amiba__.network.onSession((session) => { /* 同上 */ })
 - **消息体**为字符串，服务自行决定序列化格式（推荐 JSON）
 - **Session 绑定服务生命周期**：服务卸载时自动 close 所有 session
 - **TCP 监听仅在 `setVisibility({lan:true})` 时启动**，仅调用 `startDiscovery` 不会启动
+- **TCP 监听随可见性关闭而停止**：`setVisibility({lan:false})` 取消 listener 并释放端口（已建 session 不断）
 
 ## 经验教训
 
 - **2025-08-17**: 原始 echo-only TCP listener 无法实现 P2P 消息。添加握手协议 + AppHandle 转发 + mpsc 双向通道。
 - **2025-08-17**: 协议层在 iframe bridge 脚本内实现，与宿主解耦。
 - **2025-08-18 (v4)**: Worker 管理 WebSocket 客户端导致连接状态不可见、双向需两条连接、Rust 和 Worker 各管一半。重构为 Rust 统一管理所有 WebSocket（`connect_async` + `accept_async`），前端通过 `NetworkSession` 抽象与连接交互。协议层移除，序列化由服务自行处理。
+- **2025-08-19 (解耦)**: `network.rs` 拆为 `network_visibility.rs`（UDP 发现 + 可见性编排）与 `network_session.rs`（TCP 监听 + WS 会话）。`NetworkState` 拆为 `VisibilityState` + `SessionStore`。`setVisibility` 编排两模块：先 `ensure_listener` 拿 `ws_port`，再启 UDP 广播。修复 TCP listener 启动后不停止的端口常驻泄漏（`stop_listener` 随可见性关闭调用）。命令名不变，前端零改动。为后续 hello 握手机制铺路。

@@ -110,6 +110,7 @@ button {
 
 /* TopBar */
 .topbar {
+  position: relative;
   display: flex;
   align-items: center;
   height: calc(var(--topbar-height) + var(--safe-top));
@@ -141,7 +142,9 @@ button {
 }
 
 .topbar-title {
-  flex: 1;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
   font-size: 17px;
   font-weight: 600;
   text-align: center;
@@ -149,6 +152,7 @@ button {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: calc(100% - 140px);
 }
 
 /* Main content */
@@ -181,7 +185,7 @@ button {
 /* === 响应式：移动端全局 === */
 @media (max-width: 768px) {
   .topbar {
-    padding: 0 8px;
+    padding: max(var(--safe-top), 5px) 8px 0 8px;
   }
 
   .topbar-title {

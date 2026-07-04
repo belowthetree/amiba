@@ -1,6 +1,7 @@
 mod db;
 mod web;
-mod network;
+mod network_visibility;
+mod network_session;
 
 use tauri::Manager;
 
@@ -43,9 +44,11 @@ pub fn run() {
       // 初始化浏览器池
       app.manage(web::BrowserPool::new());
 
-      // 初始化网络互联状态
-      let network_state = network::init_network_state(app.handle());
-      app.manage(std::sync::Arc::new(tokio::sync::Mutex::new(network_state)));
+      // 初始化网络互联状态（可见性 + 会话两个独立状态）
+      let vis_state = network_visibility::init_visibility_state(app.handle());
+      app.manage(std::sync::Arc::new(tokio::sync::Mutex::new(vis_state)));
+      let sess_state = network_session::init_session_store();
+      app.manage(std::sync::Arc::new(tokio::sync::Mutex::new(sess_state)));
 
       // Android: 缓存 JavaVM 指针
       #[cfg(target_os = "android")]
@@ -109,16 +112,16 @@ pub fn run() {
       web::web_input_text,
       web::web_get_content,
       web::web_close,
-      network::network_set_visibility,
-      network::network_get_visibility,
-      network::network_start_discovery,
-      network::network_stop_discovery,
-      network::network_get_visible_devices,
-      network::network_connect,
-      network::network_send,
-      network::network_disconnect,
-      network::network_get_ws_port,
-      network::network_get_device_id,
+      network_visibility::network_set_visibility,
+      network_visibility::network_get_visibility,
+      network_visibility::network_start_discovery,
+      network_visibility::network_stop_discovery,
+      network_visibility::network_get_visible_devices,
+      network_session::network_connect,
+      network_session::network_send,
+      network_session::network_disconnect,
+      network_session::network_get_ws_port,
+      network_visibility::network_get_device_id,
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
