@@ -1,22 +1,16 @@
 // ============================================================
 // 变形虫 (Amiba) — WebSocket 会话管理 (network_session.rs)
 // ============================================================
-// TCP 监听器 + WebSocket 会话（Inbound/Outbound）+ 握手协议。
+// TCP 监听器 + WebSocket 会话（Inbound/Outbound）+ 服务匹配。
 // 与 network_visibility.rs 解耦：本模块只管 session 生命周期。
-// 跨模块依赖：network_connect 需从 VisibilityState 读取 peer 地址和设备身份。
-// ============================================================
 //
-// 握手协议：
-//   连接方首条消息: {"type":"hello","from":"<peerId>","name":"<hostname>","greeting":"<可选>"}
-//   被动方回复:
-//     接受: {"type":"ack"}
-//     拒绝: {"type":"reject","reason":"<原因>"}
+// 服务匹配协议（传输层，对应用透明）：
+//   连接方首条消息: {"type":"hello","from":"<peerId>","name":"<hostname>","service":"<serviceKey>"}
+//   被动方回复（自动）:
+//     服务匹配 → 自动 ack → 创建 Inbound Session
+//     服务不匹配 → 自动 reject{"reason":"没有服务在监听"}
 //
-// Inbound 流程: accept → 读 hello → 存 PendingSession → emit session-request
-//   → accept_session(发 ack, 升级为正式 session) / reject_session(发 reject, 关闭)
-//   → 30s 超时自动 reject
-//
-// Outbound 流程: connect → 发 hello → 等 ack/reject/30s 超时
+// 服务视角：startListening('p2p-chat') → 自动收到 onSession(session) → 直接收发数据
 // ============================================================
 
 use std::collections::{HashMap, HashSet};
@@ -30,7 +24,6 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::{mpsc, watch, Mutex};
 use tokio_tungstenite::{accept_async, connect_async};
 use tokio_tungstenite::tungstenite::Message;
-use futures_util::stream::{SplitSink, SplitStream};
 use futures_util::{SinkExt, StreamExt};
 use uuid::Uuid;
 
@@ -68,27 +61,6 @@ pub struct SessionState {
     pub cancel_tx: watch::Sender<bool>,
 }
 
-// ---- Pending Session（握手中间态）----
-
-/// 入站 WebSocket 的分片类型（accept_async 产出 TcpStream 后的 WS）
-type InboundWs = tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>;
-type InboundWrite = SplitSink<InboundWs, Message>;
-type InboundRead = SplitStream<InboundWs>;
-
-/// 等待确认的入站连接。持有 WS 分片，等待前端 accept/reject。
-pub struct PendingSession {
-    #[allow(dead_code)]
-    pub pending_id: String,
-    pub peer_id: String,
-    pub peer_name: String,
-    #[allow(dead_code)]
-    pub greeting: String,
-    pub write: InboundWrite,
-    pub read: InboundRead,
-    /// 取消 30s 超时任务
-    pub timeout_cancel: watch::Sender<bool>,
-}
-
 // ---- Session Store ----
 
 pub struct SessionStore {
@@ -96,8 +68,6 @@ pub struct SessionStore {
     pub ws_port: u16,
     /// 取消 TCP listener 任务
     pub listener_cancel: Option<watch::Sender<bool>>,
-    /// 等待确认的入站连接
-    pub pending_sessions: HashMap<String, PendingSession>,
     /// 按服务请求启动监听：引用计数（归零时停 listener）
     pub listener_refcount: u32,
     /// 当前正在监听的服务标识集合
@@ -110,7 +80,6 @@ impl SessionStore {
             sessions: HashMap::new(),
             ws_port: 0,
             listener_cancel: None,
-            pending_sessions: HashMap::new(),
             listener_refcount: 0,
             listening_services: HashSet::new(),
         }
@@ -121,16 +90,15 @@ pub fn init_session_store() -> SessionStore {
     SessionStore::new()
 }
 
-// ---- 握手常量 ----
+// ---- 常量 ----
 
-const HANDSHAKE_TIMEOUT_SECS: u64 = 30;
 const HELLO_READ_TIMEOUT_SECS: u64 = 10;
+const CONNECT_ACK_TIMEOUT_SECS: u64 = 30;
 
 // ============================================================
 // Listener 管理（内部，由 start_listener / stop_listener 命令调用）
 // ============================================================
 
-/// 启动 TCP 监听（若未启动）。
 async fn ensure_listener(
     state: &State<'_, Arc<Mutex<SessionStore>>>,
     app: AppHandle,
@@ -181,7 +149,6 @@ async fn ensure_listener(
     Ok(())
 }
 
-/// 停止 TCP 监听，释放端口。已建立的 session 不受影响。
 async fn stop_listener(state: &State<'_, Arc<Mutex<SessionStore>>>) -> Result<(), String> {
     let mut ns = state.lock().await;
     if let Some(tx) = ns.listener_cancel.take() {
@@ -192,7 +159,12 @@ async fn stop_listener(state: &State<'_, Arc<Mutex<SessionStore>>>) -> Result<()
     Ok(())
 }
 
-/// 接受一条入站 TCP → 升级 WS → 读 hello → 存 PendingSession → emit session-request。
+// ============================================================
+// 入站连接处理 — 自动服务匹配
+// ============================================================
+
+/// 接受入站 TCP → 升级 WS → 读 hello → 服务匹配 → 自动 ack/reject。
+/// 对服务完全透明：匹配则直接建 session，不匹配则自动拒绝。
 async fn accept_inbound(
     state: Arc<Mutex<SessionStore>>,
     app: AppHandle,
@@ -210,29 +182,24 @@ async fn accept_inbound(
         }
     };
 
-    // ---- 分片 WS，读取首条 hello ----
     let (mut write, mut read) = ws.split();
 
+    // 读取首条 hello（10s 超时）
     let hello_result = tokio::time::timeout(
         Duration::from_secs(HELLO_READ_TIMEOUT_SECS),
-        read_hello(&mut read),
+        read_first_text(&mut read),
     ).await;
 
     let hello_text = match hello_result {
         Ok(Ok(text)) => text,
-        Ok(Err(e)) => {
-            eprintln!("[net-session] 读取 hello 失败 ({}): {}", addr, e);
-            let _ = write.close().await;
-            return;
-        }
-        Err(_) => {
-            eprintln!("[net-session] 等待 hello 超时 ({})", addr);
+        _ => {
+            eprintln!("[net-session] 未收到 hello ({}), 关闭", addr);
             let _ = write.close().await;
             return;
         }
     };
 
-    // ---- 解析 hello ----
+    // 解析 hello
     let hello: serde_json::Value = match serde_json::from_str(&hello_text) {
         Ok(v) => v,
         Err(_) => {
@@ -250,86 +217,75 @@ async fn accept_inbound(
 
     let peer_id = hello["from"].as_str().unwrap_or("unknown").to_string();
     let peer_name = hello["name"].as_str().unwrap_or("unknown").to_string();
-    let greeting = hello["greeting"].as_str().unwrap_or("").to_string();
     let service_key = hello["service"].as_str().unwrap_or("").to_string();
 
-    // 验证是否有服务在监听匹配的 service_key
-    if !service_key.is_empty() {
+    eprintln!("[net-session] 收到 hello: service={}, from={}, name={}", service_key, peer_id, peer_name);
+
+    // ---- 服务匹配：自动 accept / reject ----
+    let matched = {
         let ss = state.lock().await;
-        if !ss.listening_services.contains(&service_key) {
-            eprintln!("[net-session] 无服务监听 '{}'，拒绝来自 {} 的连接", service_key, peer_id);
-            drop(ss);
-            let _ = write.send(Message::Text(
-                serde_json::json!({"type":"reject","reason":format!("没有服务在监听 '{}'", service_key)})
-                    .to_string().into()
-            )).await;
+        !service_key.is_empty() && ss.listening_services.contains(&service_key)
+    };
+
+    if matched {
+        // 匹配：发 ack → 建 Inbound Session
+        if let Err(e) = write.send(Message::Text(
+            serde_json::json!({"type":"ack"}).to_string().into()
+        )).await {
+            eprintln!("[net-session] 发送 ack 失败: {}", e);
             let _ = write.close().await;
             return;
         }
-    }
 
-    eprintln!("[net-session] 收到 hello: from={}, name={}, greeting={}", peer_id, peer_name, greeting);
+        let ws = match write.reunite(read) {
+            Ok(w) => w,
+            Err(_) => return,
+        };
 
-    // ---- 存 PendingSession ----
-    let pending_id = Uuid::new_v4().to_string();
-    let (timeout_cancel, timeout_cancel_rx) = watch::channel(false);
+        let session_id = Uuid::new_v4().to_string();
+        let (msg_tx, msg_rx) = mpsc::unbounded_channel::<String>();
+        let (cancel_tx, cancel_rx) = watch::channel(false);
 
-    {
-        let mut ss = state.lock().await;
-        ss.pending_sessions.insert(pending_id.clone(), PendingSession {
-            pending_id: pending_id.clone(),
-            peer_id: peer_id.clone(),
-            peer_name: peer_name.clone(),
-            greeting: greeting.clone(),
-            write,
-            read,
-            timeout_cancel,
-        });
-    }
-
-    // ---- emit session-request ----
-    let _ = app.emit("network:session-request", serde_json::json!({
-        "pendingId": pending_id,
-        "peerId": peer_id,
-        "peerName": peer_name,
-        "greeting": greeting,
-        "service": service_key,
-    }));
-
-    // ---- 启动 30s 超时任务 ----
-    let state_clone = state.clone();
-    let app_clone = app.clone();
-    let pid = pending_id.clone();
-    tokio::spawn(async move {
-        let mut rx = timeout_cancel_rx;
-        tokio::select! {
-            _ = tokio::time::sleep(Duration::from_secs(HANDSHAKE_TIMEOUT_SECS)) => {
-                // 超时：取回 pending，发 reject，关闭
-                let pending = {
-                    let mut ss = state_clone.lock().await;
-                    ss.pending_sessions.remove(&pid)
-                };
-                if let Some(mut p) = pending {
-                    eprintln!("[net-session] 握手超时自动拒绝: {}", pid);
-                    let _ = p.write.send(Message::Text(
-                        serde_json::json!({"type":"reject","reason":"超时未响应"})
-                            .to_string().into()
-                    )).await;
-                    let _ = p.write.close().await;
-                    let _ = app_clone.emit("network:session-timeout", serde_json::json!({
-                        "pendingId": pid,
-                    }));
-                }
-            }
-            _ = rx.changed() => {
-                if *rx.borrow() { return; }
-            }
+        {
+            let mut ss = state.lock().await;
+            ss.sessions.insert(session_id.clone(), SessionState {
+                id: session_id.clone(),
+                peer_id: peer_id.clone(),
+                peer_name: peer_name.clone(),
+                direction: SessionDirection::Inbound,
+                status: SessionStatus::Connected,
+                msg_tx,
+                cancel_tx: cancel_tx.clone(),
+            });
         }
-    });
+
+        eprintln!("[net-session] Inbound session 创建: {} <- {} ({})", session_id, peer_id, peer_name);
+
+        let _ = app.emit("network:session-created", serde_json::json!({
+            "sessionId": &session_id,
+            "peerId": &peer_id,
+            "peerName": &peer_name,
+            "direction": "inbound",
+        }));
+
+        spawn_session_io(ws, msg_rx, cancel_rx, session_id, peer_id, app, state);
+    } else {
+        // 不匹配：发 reject → 关闭
+        let reason = if service_key.is_empty() {
+            "hello 未指定 service".to_string()
+        } else {
+            format!("没有服务在监听 '{}'", service_key)
+        };
+        eprintln!("[net-session] 服务不匹配，拒绝: {}", reason);
+        let _ = write.send(Message::Text(
+            serde_json::json!({"type":"reject","reason":&reason}).to_string().into()
+        )).await;
+        let _ = write.close().await;
+    }
 }
 
 /// 从 WS read 分片读取首条非 ping/pong 文本消息。
-async fn read_hello(read: &mut InboundRead) -> Result<String, String> {
+async fn read_first_text(read: &mut InboundRead) -> Result<String, String> {
     loop {
         match read.next().await {
             Some(Ok(msg)) => {
@@ -355,7 +311,6 @@ pub async fn network_connect(
     vis_state: State<'_, Arc<Mutex<VisibilityState>>>,
     app: AppHandle,
     peer_id: String,
-    greeting: Option<String>,
     service_key: Option<String>,
 ) -> Result<serde_json::Value, String> {
     // 从 VisibilityState 获取 peer 地址 + 本机设备身份
@@ -371,30 +326,29 @@ pub async fn network_connect(
     }
 
     let url = format!("ws://{}", address);
-    eprintln!("[net-session] 主动连接: {} -> {}", peer_id, url);
+    eprintln!("[net-session] 主动连接: {} -> {} (service={})", peer_id, url, service_key.as_deref().unwrap_or(""));
 
     let (ws, _) = connect_async(&url)
         .await
         .map_err(|e| format!("WebSocket 连接失败: {}", e))?;
 
-    // ---- 握手：发送 hello，等待 ack/reject/超时 ----
+    // ---- 发送 hello（仅服务匹配信息，无 greeting）----
     let (mut write, mut read) = ws.split();
 
     let hello = serde_json::json!({
         "type": "hello",
         "from": device_id,
         "name": device_name,
-        "greeting": greeting.unwrap_or_default(),
-        "service": service_key.unwrap_or_default(),
+        "service": service_key.as_deref().unwrap_or(""),
     });
     write.send(Message::Text(hello.to_string().into()))
         .await
         .map_err(|e| format!("发送 hello 失败: {}", e))?;
 
-    eprintln!("[net-session] 已发送 hello -> {}", peer_id);
+    eprintln!("[net-session] 已发送 hello -> {} (service={})", peer_id, service_key.as_deref().unwrap_or(""));
 
     // 等待 ack/reject（30s 超时）
-    let sleep = tokio::time::sleep(Duration::from_secs(HANDSHAKE_TIMEOUT_SECS));
+    let sleep = tokio::time::sleep(Duration::from_secs(CONNECT_ACK_TIMEOUT_SECS));
     tokio::pin!(sleep);
 
     let response_text;
@@ -444,7 +398,7 @@ pub async fn network_connect(
         }
     }
 
-    // ---- 握手成功，创建 Outbound Session ----
+    // ---- 创建 Outbound Session ----
     let session_id = Uuid::new_v4().to_string();
     let (msg_tx, msg_rx) = mpsc::unbounded_channel::<String>();
     let (cancel_tx, cancel_rx) = watch::channel(false);
@@ -481,108 +435,6 @@ pub async fn network_connect(
         "peerId": peer_id,
         "peerName": peer_name,
     }))
-}
-
-#[tauri::command]
-pub async fn network_accept_session(
-    state: State<'_, Arc<Mutex<SessionStore>>>,
-    app: AppHandle,
-    pending_id: String,
-) -> Result<serde_json::Value, String> {
-    // 取回 pending（如果还存在）
-    let pending = {
-        let mut ss = state.lock().await;
-        ss.pending_sessions.remove(&pending_id)
-    };
-    let pending = pending
-        .ok_or_else(|| format!("待定会话 {} 不存在或已处理", pending_id))?;
-
-    // 取消 30s 超时任务
-    let _ = pending.timeout_cancel.send(true);
-
-    // 发送 ack
-    let mut write = pending.write;
-    let read = pending.read;
-    write.send(Message::Text(
-        serde_json::json!({"type":"ack"}).to_string().into()
-    )).await.map_err(|e| format!("发送 ack 失败: {}", e))?;
-
-    eprintln!("[net-session] 已发送 ack -> {}", pending.peer_id);
-
-    // 创建正式 SessionState
-    let session_id = Uuid::new_v4().to_string();
-    let (msg_tx, msg_rx) = mpsc::unbounded_channel::<String>();
-    let (cancel_tx, cancel_rx) = watch::channel(false);
-
-    {
-        let mut ss = state.lock().await;
-        ss.sessions.insert(session_id.clone(), SessionState {
-            id: session_id.clone(),
-            peer_id: pending.peer_id.clone(),
-            peer_name: pending.peer_name.clone(),
-            direction: SessionDirection::Inbound,
-            status: SessionStatus::Connected,
-            msg_tx,
-            cancel_tx: cancel_tx.clone(),
-        });
-    }
-
-    eprintln!("[net-session] Inbound session 创建: {} <- {} ({})", session_id, pending.peer_id, pending.peer_name);
-
-    let _ = app.emit("network:session-created", serde_json::json!({
-        "sessionId": &session_id,
-        "peerId": &pending.peer_id,
-        "peerName": &pending.peer_name,
-        "direction": "inbound",
-    }));
-
-    // Reunite 分片，启动双工 I/O
-    let ws = write.reunite(read)
-        .map_err(|e| format!("reunite 失败: {:?}", e))?;
-    spawn_session_io(ws, msg_rx, cancel_rx, session_id.clone(), pending.peer_id.clone(), app, state.inner().clone());
-
-    Ok(serde_json::json!({
-        "sessionId": session_id,
-        "peerId": pending.peer_id,
-        "peerName": pending.peer_name,
-    }))
-}
-
-#[tauri::command]
-pub async fn network_reject_session(
-    state: State<'_, Arc<Mutex<SessionStore>>>,
-    app: AppHandle,
-    pending_id: String,
-    reason: Option<String>,
-) -> Result<(), String> {
-    // 取回 pending
-    let pending = {
-        let mut ss = state.lock().await;
-        ss.pending_sessions.remove(&pending_id)
-    };
-    let pending = pending
-        .ok_or_else(|| format!("待定会话 {} 不存在或已处理", pending_id))?;
-
-    // 取消 30s 超时任务
-    let _ = pending.timeout_cancel.send(true);
-
-    let reason_str = reason.unwrap_or_else(|| "已拒绝".into());
-    eprintln!("[net-session] 拒绝连接: {} ({})", pending.peer_id, reason_str);
-
-    // 发送 reject，关闭 WS
-    let mut write = pending.write;
-    let _ = write.send(Message::Text(
-        serde_json::json!({"type":"reject","reason":reason_str}).to_string().into()
-    )).await;
-    let _ = write.close().await;
-    // read 随 pending 结构 drop 自动关闭
-
-    let _ = app.emit("network:session-rejected", serde_json::json!({
-        "pendingId": pending_id,
-        "reason": reason_str,
-    }));
-
-    Ok(())
 }
 
 #[tauri::command]
@@ -757,3 +609,7 @@ fn spawn_session_io<S>(
         eprintln!("[net-session] session {} 已关闭", session_id);
     });
 }
+
+// ---- 分片类型别名（内部使用）----
+type InboundWs = tokio_tungstenite::WebSocketStream<tokio::net::TcpStream>;
+type InboundRead = futures_util::stream::SplitStream<InboundWs>;

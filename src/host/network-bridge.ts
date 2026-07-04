@@ -98,20 +98,6 @@ export async function initNetworkBridge(): Promise<void> {
       'network:session-error',
       (event) => emit('session-error', event.payload)
     )
-
-    // --- 握手请求事件 ---
-    await listen<{ pendingId: string; peerId: string; peerName: string; greeting: string; service: string }>(
-      'network:session-request',
-      (event) => emit('session-request', event.payload)
-    )
-    await listen<{ pendingId: string; reason: string }>(
-      'network:session-rejected',
-      (event) => emit('session-rejected', event.payload)
-    )
-    await listen<{ pendingId: string }>(
-      'network:session-timeout',
-      (event) => emit('session-timeout', event.payload)
-    )
   } catch (e) {
     console.warn('[NetworkBridge] Tauri event 监听失败:', e)
   }
@@ -167,9 +153,9 @@ export { NetworkSession }
 export const sessions = new Map<string, NetworkSession>()
 
 /** 发起连接 → 返回 NetworkSession */
-export async function connect(peerId: string, greeting?: string, serviceKey?: string): Promise<NetworkSession> {
+export async function connect(peerId: string, serviceKey?: string): Promise<NetworkSession> {
   if (!isTauri) throw new Error('网络功能仅在桌面端可用')
-  const session = await createOutboundSession(peerId, greeting, serviceKey)
+  const session = await createOutboundSession(peerId, serviceKey)
   return session
 }
 
@@ -178,30 +164,6 @@ export function createInboundSession(info: { sessionId: string; peerId: string; 
   const session = new NetworkSession(info.sessionId, info.peerId, info.peerName)
   sessions.set(session.id, session)
   return session
-}
-
-// ---- 握手确认（hello/ack/reject 协议） ----
-
-/** 接受入站连接请求 → Rust 发 ack → 升级为正式 session */
-export async function acceptSessionRequest(pendingId: string): Promise<{ sessionId: string; peerId: string; peerName: string }> {
-  if (!isTauri) throw new Error('网络功能仅在桌面端可用')
-  const { invoke } = await import('@tauri-apps/api/core')
-  const result = await invoke<{ sessionId: string; peerId: string; peerName: string }>(
-    'network_accept_session',
-    { pendingId }
-  )
-  // 通知全局对话框关闭（service 或宿主通过此函数接受后，对话框应消失）
-  emit('session-accepted', { pendingId })
-  return result
-}
-
-/** 拒绝入站连接请求 → Rust 发 reject → 关闭 WS */
-export async function rejectSessionRequest(pendingId: string, reason?: string): Promise<void> {
-  if (!isTauri) throw new Error('网络功能仅在桌面端可用')
-  const { invoke } = await import('@tauri-apps/api/core')
-  await invoke('network_reject_session', { pendingId, reason })
-  // 通知全局对话框关闭（若宿主或 service 拒绝）
-  emit('session-rejected', { pendingId, reason: reason || '已拒绝' })
 }
 
 // ---- 按需监听（服务主动请求 TCP listener） ----

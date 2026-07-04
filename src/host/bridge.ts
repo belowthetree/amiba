@@ -137,8 +137,8 @@ export const BRIDGE_SCRIPT = `
       },
 
       // ---- Session API (v4) ----
-      connect: function(peerId, greeting, serviceKey) {
-        return callHost('network', 'connect', { peerId: peerId, greeting: greeting, serviceKey: serviceKey }).then(function(info) {
+      connect: function(peerId, serviceKey) {
+        return callHost('network', 'connect', { peerId: peerId, serviceKey: serviceKey }).then(function(info) {
           return createSessionProxy(info.sessionId, info.peerId, info.peerName);
         });
       },
@@ -149,21 +149,6 @@ export const BRIDGE_SCRIPT = `
             callback(createSessionProxy(info.sessionId, info.peerId, info.peerName));
           }
         });
-      },
-
-      // ---- 握手确认 API ----
-      onSessionRequest: function(callback) {
-        window.addEventListener('message', function handler(e) {
-          if (e.data && e.data.type === 'event' && e.data.name === 'session-request') {
-            callback(e.data.data); // { pendingId, peerId, peerName, greeting }
-          }
-        });
-      },
-      acceptSessionRequest: function(pendingId) {
-        return callHost('network', 'acceptSessionRequest', { pendingId: pendingId });
-      },
-      rejectSessionRequest: function(pendingId, reason) {
-        return callHost('network', 'rejectSessionRequest', { pendingId: pendingId, reason: reason });
       },
 
       // ---- 按需监听（服务主动请求 TCP listener） ----

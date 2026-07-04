@@ -105,10 +105,10 @@ await __amiba__.network.stopListening('p2p-chat')
 ### 接受外来连接
 
 ```js
-// 服务必须先 startListening，才能接收外来连接
+// 服务必须先 startListening，匹配的服务才会自动建会话
 await __amiba__.network.startListening('p2p-chat')
 
-// 被动方在 accept 后收到 session（仅本服务 accept 后才触发）
+// 同服务对端连接时，本服务直接收到 session（自动，无需手动确认）
 __amiba__.network.onSession((session) => {
   // session 对象同上，可直接使用
   session.on('message', ...)
@@ -116,27 +116,20 @@ __amiba__.network.onSession((session) => {
 })
 ```
 
-### 握手确认（服务自行处理）
+### 服务匹配（传输层，对应用透明）
 
-**不再由宿主弹出全局对话框。** 服务调用 `startListening` 后，外来连接请求只转发给本服务。服务在 iframe 内自行展示确认 UI 并决定 accept/reject：
+连接建立时底层自动验证 `service` 是否匹配。对服务而言，只是收到了另一台机器相同服务发来的数据，无需关心握手细节：
 
-```js
-// 必须先 startListening，否则不会收到 session-request
-await __amiba__.network.startListening('p2p-chat')
-
-__amiba__.network.onSessionRequest((info) => {
-  // info: { pendingId, peerId, peerName, greeting, service }
-  console.log(`${info.peerName} 想连接至 ${info.service}：${info.greeting}`)
-
-  // 服务自行显示确认 UI 后：
-  __amiba__.network.acceptSessionRequest(info.pendingId)
-
-  // 或拒绝
-  __amiba__.network.rejectSessionRequest(info.pendingId, '不想聊')
-})
+```
+A: connect(peerId, 'p2p-chat')
+   → hello{service:"p2p-chat"}
+                                B: accept → 检查 listening_services
+                                   → 匹配 "p2p-chat" → 自动 ack → onSession
+                                   → 不匹配 → 自动 reject
+   ← ack → session 就绪
 ```
 
-**注意**：hello 消息包含 `service` 字段。Rust 层会验证是否存在匹配的监听服务，不匹配则直接拒绝。30s 无响应自动超时拒绝。
+**注意**：hello 消息包含 `service` 字段，Rust 自动匹配。30s 无 ack 自动超时失败。
 
 ---
 
@@ -149,21 +142,19 @@ __amiba__.network.onSessionRequest((info) => {
 ─────────────────────────────────────────────────────────
 setVisibility({lan:true})      setVisibility({lan:true})  ← ① 变为可见（UDP 发现）
 startDiscovery('lan')          startDiscovery('lan')      ← ② 开始扫描
-startListening('p2p-chat')    startListening('p2p-chat') ← ③ 启动 TCP 监听（按需）
+startListening('p2p-chat')    startListening('p2p-chat') ← ③ 启动 TCP 监听
    │                               │
    │  ← UDP 广播互相发现 →          │
    │                               │
-connect(B_id,"你好","p2p-chat")    │                      ← ④ A 主动连接（指定目标服务）
+connect(B_id, 'p2p-chat')          │                      ← ④ A 主动连接（指定服务）
    │                               │
-   ├─ 发 hello{service:"p2p-chat"}  ├─ 收到 hello           ← ⑤ B 验证 service 匹配
-   │                               ├─ 转发 session-request 到 p2p-chat 服务
-   │                               ├─ 服务自行展示 UI，调 accept → 发 ack
+   ├─ 发 hello{service:"p2p-chat"}  ├─ 收到 hello           ← ⑤ B 自动匹配服务
+   │                               ├─ 匹配？→ auto ack       （匹配则直接建 session）
+   │                               ├─ session 就绪            （不匹配则 auto reject）
+   ├─ 收到 ack → session 就绪       ├─ onSession(session)   ← ⑥ B 自动收到 session
    │                               │
-   ├─ 收到 ack → session 就绪       ├─ onSession(session)   ← ⑥ 握手完成
-   │                               │
-session.send(JSON.stringify(     session.on('message',     ← ⑦ 收发消息
-   {type:'chat',text:'hi'}))        (raw) => {...})
-session.on('message', ...)        session.send(...)
+session.send(...)               session.on('message',...)  ← ⑦ 收发数据
+session.on('message', ...)      session.send(...)
 ```
 
 ### 注意事项
@@ -213,15 +204,15 @@ session.on('message', ...)        session.send(...)
 const SERVICE_KEY = 'p2p-chat'
 let currentSession = null
 
-// 初始化：启动 UDP 发现 + TCP 监听
+// 初始化：UDP 发现 + TCP 监听
 await __amiba__.network.setVisibility({ lan: true })
 await __amiba__.network.startDiscovery('lan')
 await __amiba__.network.startListening(SERVICE_KEY)
 // 服务卸载时 host 自动调 stopListening(SERVICE_KEY)
 
-// 连接（含打招呼 + 目标服务标识）
-async function connectTo(peerId, name) {
-  currentSession = await __amiba__.network.connect(peerId, `你好，我是${name}`, SERVICE_KEY)
+// 连接（指定目标服务，底层自动服务匹配）
+async function connectTo(peerId) {
+  currentSession = await __amiba__.network.connect(peerId, SERVICE_KEY)
   currentSession.on('message', (raw) => {
     const data = JSON.parse(raw)
     addMessage(data.text)
@@ -237,16 +228,7 @@ async function sendMsg(text) {
   await currentSession.send(JSON.stringify({ type: 'chat', text }))
 }
 
-// 接受外来连接（仅本服务的 session-request，需先 startListening）
-__amiba__.network.onSessionRequest((info) => {
-  // 服务自行展示确认 UI
-  showConnectDialog(`${info.peerName} 想与你聊天："${info.greeting}"`, {
-    onAccept: () => __amiba__.network.acceptSessionRequest(info.pendingId),
-    onReject: () => __amiba__.network.rejectSessionRequest(info.pendingId, '不想聊'),
-  })
-})
-
-// 外来 session（仅在 accept 后触发）
+// 同服务对端连接时自动收到 session（无需手动确认）
 __amiba__.network.onSession((session) => {
   currentSession = session
   currentSession.on('message', ...)

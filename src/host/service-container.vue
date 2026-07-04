@@ -44,8 +44,6 @@ import {
   connect,
   sessions,
   createInboundSession,
-  acceptSessionRequest,
-  rejectSessionRequest,
   startListening,
   stopListening,
   onEvent,
@@ -224,7 +222,7 @@ function makeApiHandler(): ApiHandler {
           case 'getVisibleDevices':
             return getVisibleDevices()
           case 'connect': {
-            const session = await connect(params.peerId, params.greeting, params.serviceKey)
+            const session = await connect(params.peerId, params.serviceKey)
             console.log('[SvcContainer] outbound session connected:', session.id.slice(0,8), 'peer:', session.peerName)
             ctx!.addSession(session.id)
             // 转发 session 事件到 iframe
@@ -249,14 +247,6 @@ function makeApiHandler(): ApiHandler {
               await session.close()
               ctx!.removeSession(params.sessionId)
             }
-            return
-          }
-          case 'acceptSessionRequest': {
-            const result = await acceptSessionRequest(params.pendingId)
-            return result
-          }
-          case 'rejectSessionRequest': {
-            await rejectSessionRequest(params.pendingId, params.reason)
             return
           }
           case 'startListening': {
@@ -377,15 +367,6 @@ onMounted(async () => {
             ctx!.removeSession(info.sessionId)
           })
           sendEvent('session-created', info)
-        }),
-      )
-      // ---- 握手请求：按 serviceKey 路由，只转发给匹配的监听服务 ----
-      ctx!.addNetworkUnsub(
-        onEvent('session-request', (info: { pendingId: string; peerId: string; peerName: string; greeting: string; service: string }) => {
-          if (!listeningServiceKey.value || info.service !== listeningServiceKey.value) return
-          console.log('[SvcContainer] session-request for', info.service, 'from', info.peerName)
-          // 转发到 iframe，服务自行决定 accept/reject
-          sendEvent('session-request', info)
         }),
       )
     }
