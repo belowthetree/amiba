@@ -5,273 +5,291 @@
   <div class="settings-page">
     <h2 class="page-title">⚙️ 设置</h2>
 
-    <div class="settings-section">
-      <h3 class="section-label">API 配置</h3>
-
-      <div class="form-group">
-        <label>API Key</label>
-        <input
-          :type="showKey ? 'text' : 'password'"
-          v-model="apiKey"
-          class="form-input"
-          placeholder="sk-..."
-        />
-        <button class="toggle-key" @click="showKey = !showKey">
-          {{ showKey ? '🙈' : '👁' }}
-        </button>
-      </div>
-
-      <div class="form-group">
-        <label>Base URL</label>
-        <input
-          v-model="settings.ai_base_url"
-          class="form-input"
-          placeholder="https://api.deepseek.com/v1"
-        />
-      </div>
-
-      <div class="form-group">
-        <label>对话模型</label>
-        <input
-          v-model="settings.ai_model"
-          class="form-input"
-          placeholder="deepseek-chat"
-        />
-      </div>
-
-      <div class="form-group">
-        <label>生成模型</label>
-        <input
-          v-model="settings.ai_generation_model"
-          class="form-input"
-          placeholder="deepseek-chat"
-        />
-      </div>
-    </div>
-
-    <!-- ========== AI 供应商 ========== -->
-    <div class="settings-section">
-      <h3 class="section-label">🏭 AI 供应商</h3>
-
-      <div v-if="providerList.length" class="skill-list">
-        <div v-for="(p, i) in providerList" :key="p.id" class="skill-item">
-          <template v-if="providerEditingIdx === i">
-            <div class="skill-edit-form">
-              <input v-model="providerForm.name" class="form-input" placeholder="显示名称" style="margin-bottom:4px" />
-              <input v-model="providerForm.id" class="form-input" placeholder="唯一 ID（英文）" style="margin-bottom:4px" />
-              <input v-model="providerForm.baseUrl" class="form-input" placeholder="Base URL" style="margin-bottom:4px" />
-              <input v-model="providerForm.apiKey" class="form-input" placeholder="API Key" style="margin-bottom:4px" />
-              <textarea v-model="providerForm.modelsStr" class="form-input" placeholder="模型列表（每行一个）" rows="2" style="margin-bottom:6px;resize:vertical" />
-              <div class="action-row">
-                <button class="sib save" @click="saveProviderEdit(i)">💾 保存</button>
-                <button class="sx" @click="providerEditingIdx = -1">取消</button>
-              </div>
-            </div>
-          </template>
-          <template v-else>
-            <span class="sn">{{ p.name }}</span>
-            <span class="sd">{{ p.baseUrl }} · {{ p.models.length }} 个模型</span>
-            <button class="sib" @click="startProviderEdit(i)">✏️</button>
-            <button class="sx" @click="removeProvider(i)">✕</button>
-          </template>
-        </div>
-      </div>
-      <p v-else class="skill-empty">暂无自定义供应商（将使用上方 API 配置作为默认）</p>
-
-      <button class="secondary-btn" style="margin-top:4px" @click="addProviderDialog">
-        ➕ 添加供应商
-      </button>
-    </div>
-
-    <div class="settings-section">
-      <h3 class="section-label">外观</h3>
-
-      <div class="form-group">
-        <label>主题模式</label>
-        <select v-model="settings.theme_mode" class="form-input">
-          <option value="system">跟随系统</option>
-          <option value="light">浅色</option>
-          <option value="dark">深色</option>
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label>语言</label>
-        <select v-model="settings.language" class="form-input">
-          <option value="zh-CN">中文</option>
-          <option value="en">English</option>
-        </select>
-      </div>
-    </div>
-
-    <div class="settings-section">
-      <h3 class="section-label">🌐 网络</h3>
-
-      <div class="form-group">
-        <div class="toggle-row">
-          <div>
-            <label style="margin-bottom:0">局域网发现</label>
-            <span class="toggle-desc">允许其他设备通过局域网发现本设备</span>
-          </div>
-          <label class="switch">
-            <input type="checkbox" v-model="lanVisible" @change="toggleLan" />
-            <span class="slider"></span>
-          </label>
-        </div>
-        <p class="toggle-hint" v-if="lanVisible">✅ 本设备在局域网中可见</p>
-        <p class="toggle-hint" v-else>🔒 本设备在局域网中隐藏</p>
-      </div>
-    </div>
-
-    <div class="settings-section">
-      <h3 class="section-label">数据管理</h3>
-      <div class="action-row" style="margin-bottom:8px"><button class="secondary-btn" @click="scanForServices">🔍 扫描存储目录</button><button class="secondary-btn" @click="addSvcFile">📄 选择文件</button></div>
-      <div v-if="pending.length" class="sl" style="margin-bottom:8px"><div class="si" v-for="(svc,i) in pending" :key="i"><span class="sn">{{ svc.name }}</span><span class="sd">{{ svc.desc }}</span><button class="sib" @click="installSvc(i)">安装</button><button class="sx" @click="pending.splice(i,1)">✕</button></div></div><div class="action-row">
-        <button class="danger-btn" @click="clearAllData">
-          🗑 清除所有数据
-        </button>
-        <button class="secondary-btn" @click="exportData">
-          📥 导出配置
-        </button>
-      </div>
-    </div>
-
-    <div class="settings-section">
-      <h3 class="section-label">🧩 技能管理</h3>
-
-      <div v-if="userSkills.length" class="skill-list">
-        <div v-for="(skill, i) in userSkills" :key="i" class="skill-item">
-          <template v-if="editingIdx === i">
-            <div class="skill-edit-form">
-              <input v-model="editForm.name" class="form-input" placeholder="名称" style="margin-bottom:4px" />
-              <input v-model="editForm.desc" class="form-input" placeholder="描述" style="margin-bottom:4px" />
-              <input v-model="editForm.kws" class="form-input" placeholder="关键词（逗号分隔）" style="margin-bottom:4px" />
-              <textarea v-model="editForm.tpl" class="form-input" placeholder="模板（可选）" rows="3" style="margin-bottom:6px;resize:vertical" />
-              <div class="action-row">
-                <button class="sib save" @click="saveEdit(i)">💾 保存</button>
-                <button class="sx" @click="editingIdx = -1">取消</button>
-              </div>
-            </div>
-          </template>
-          <template v-else>
-            <span class="sn">{{ skill.name }}</span>
-            <span class="sd">{{ skill.description }}</span>
-            <button class="sib" @click="startEdit(i)">✏️</button>
-            <button class="sx" @click="removeSkill(i)">✕</button>
-          </template>
-        </div>
-      </div>
-      <p v-else class="skill-empty">暂无自定义 Skill</p>
-
-      <button class="secondary-btn" style="margin-top:4px" @click="importSkillFolder">📁 导入 Skill 文件夹</button>
-    </div>
-
-    <!-- ========== 自定义 Agent ========== -->
-    <div class="settings-section">
-      <h3 class="section-label">🤖 自定义 Agent</h3>
-
-      <div v-if="agentList.length" class="skill-list">
-        <div v-for="(a, i) in agentList" :key="a.id" class="skill-item" :class="{ active: a.id === activeAgentId }">
-          <template v-if="agentEditingIdx === i">
-            <div class="skill-edit-form">
-              <input v-model="agentForm.name" class="form-input" placeholder="显示名称" style="margin-bottom:4px" />
-              <input v-model="agentForm.id" class="form-input" placeholder="唯一 ID（英文）" style="margin-bottom:4px" />
-              <select v-model="agentForm.providerId" class="form-input" style="margin-bottom:4px">
-                <option value="">-- 选择供应商 --</option>
-                <option v-for="p in providerList" :key="p.id" :value="p.id">{{ p.name }}</option>
-              </select>
-              <select v-model="agentForm.model" class="form-input" style="margin-bottom:4px">
-                <option value="">-- 选择模型 --</option>
-                <option v-for="m in availableModels" :key="m" :value="m">{{ m }}</option>
-              </select>
-              <div class="skill-checkboxes" style="margin-bottom:4px">
-                <label class="skill-cb-label" v-for="s in userSkills" :key="s.name">
-                  <input type="checkbox" :value="s.name" v-model="agentForm.selectedSkills" />
-                  {{ s.name }}
-                </label>
-              </div>
-              <textarea v-model="agentForm.systemPrompt" class="form-input" placeholder="自定义 System Prompt（可选）" rows="3" style="margin-bottom:6px;resize:vertical" />
-              <div class="action-row">
-                <button class="sib save" @click="saveAgentEdit(i)">💾 保存</button>
-                <button class="sx" @click="agentEditingIdx = -1">取消</button>
-              </div>
-            </div>
-          </template>
-          <template v-else>
-            <span class="sn">{{ a.name }}</span>
-            <span class="sd">{{ getAgentProviderName(a) }} · {{ a.model }}{{ a.id === activeAgentId ? ' ✅' : '' }}</span>
-            <button v-if="a.id !== activeAgentId" class="sib" @click="activateAgent(a.id)">启用</button>
-            <button class="sib" @click="startAgentEdit(i)">✏️</button>
-            <button class="sx" @click="removeAgent(i)">✕</button>
-          </template>
-        </div>
-      </div>
-      <p v-else class="skill-empty">暂无自定义 Agent（将使用默认 API 配置）</p>
-
-      <button class="secondary-btn" style="margin-top:4px" @click="addAgentDialog">
-        ➕ 添加 Agent
-      </button>
-    </div>
-
-    <div class="settings-section">
-      <h3 class="section-label">关于</h3>
-      <div class="about-info">
-        <p><strong>变形虫 Amiba</strong> v{{ appVersion }}</p>
-        <p>AI 驱动的跨平台即时应用平台</p>
-        <p>Vue 3 + TypeScript + Tauri</p>
-      </div>
-      <div class="update-area">
-        <button
-          class="secondary-btn"
-          :disabled="updateStatus.stage === 'checking' || updateStatus.stage === 'downloading' || updateStatus.stage === 'installing'"
-          @click="doCheckUpdate"
-        >
-          <template v-if="updateStatus.stage === 'checking'">⏳ 检查中…</template>
-          <template v-else>🔍 检查更新</template>
-        </button>
-
-        <!-- 错误 -->
-        <p v-if="updateStatus.stage === 'error'" class="update-msg error">{{ updateStatus.message }}</p>
-
-        <!-- 已最新 -->
-        <p v-else-if="updateStatus.stage === 'upToDate'" class="update-msg ok">✅ 已是最新版本 (v{{ updateStatus.currentVersion }})</p>
-
-        <!-- 发现新版本 -->
-        <div v-else-if="updateStatus.stage === 'available'" class="update-available">
-          <p class="update-msg available">
-            🆕 发现新版本 <strong>v{{ updateStatus.info.latestVersion }}</strong>（当前 v{{ updateStatus.info.currentVersion }}）
-          </p>
-          <p v-if="updateStatus.info.body" class="update-notes">{{ updateStatus.info.body }}</p>
-          <button class="primary-btn" @click="doDownload(updateStatus.info)">📥 直接下载</button>
-        </div>
-
-        <!-- 下载中 -->
-        <div v-else-if="updateStatus.stage === 'downloading'" class="download-progress">
-          <p class="update-msg">📥 正在下载… ({{ formatSize(updateStatus.received) }} / {{ formatSize(updateStatus.total) }})</p>
-          <div class="progress-bar">
-            <div class="progress-fill" :style="{ width: downloadPercent + '%' }"></div>
-          </div>
-          <button class="danger-btn" style="margin-top:8px" @click="doCancelDownload">✕ 取消下载</button>
-        </div>
-
-        <!-- 安装中 -->
-        <p v-else-if="updateStatus.stage === 'installing'" class="update-msg ok">🔧 正在启动安装程序…</p>
-
-        <!-- 已取消 -->
-        <p v-else-if="updateStatus.stage === 'cancelled'" class="update-msg" style="color:#f57c00">⚠️ 下载已取消</p>
-      </div>
-    </div>
-
-    <!-- ========== 数据管理 ========== -->
-    <div class="settings-section">
-      <h3 class="section-label">🗄 数据管理</h3>
+    <!-- === 标签栏 === -->
+    <div class="tab-bar">
       <button
-        class="danger-btn"
-        style="margin-right:10px"
-        :disabled="deletingSessions"
-        @click="deleteAllSessions"
-      >{{ deletingSessions ? '删除中…' : '🗑 删除所有聊天记录' }}</button>
-      <span class="toggle-desc">删除所有会话和历史消息，不影响服务和记忆</span>
+        v-for="tab in tabs"
+        :key="tab.key"
+        :class="['tab-btn', { active: activeTab === tab.key }]"
+        @click="activeTab = tab.key"
+      >{{ tab.label }}</button>
+    </div>
+
+    <!-- ================================================================== -->
+    <!-- 标签: 通用 -->
+    <!-- ================================================================== -->
+    <div v-show="activeTab === 'general'">
+
+      <div class="settings-section">
+        <h3 class="section-label">API 配置</h3>
+
+        <div class="form-group">
+          <label>API Key</label>
+          <input
+            :type="showKey ? 'text' : 'password'"
+            v-model="settings.api_key"
+            class="form-input"
+            placeholder="sk-..."
+          />
+          <button class="toggle-key" @click="showKey = !showKey">
+            {{ showKey ? '🙈' : '👁' }}
+          </button>
+        </div>
+
+        <div class="form-group">
+          <label>Base URL</label>
+          <input
+            v-model="settings.ai_base_url"
+            class="form-input"
+            placeholder="https://api.deepseek.com/v1"
+          />
+        </div>
+
+        <div class="form-group">
+          <label>对话模型</label>
+          <input
+            v-model="settings.ai_model"
+            class="form-input"
+            placeholder="deepseek-chat"
+          />
+        </div>
+
+        <div class="form-group">
+          <label>生成模型</label>
+          <input
+            v-model="settings.ai_model"
+            class="form-input"
+            placeholder="deepseek-chat"
+          />
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3 class="section-label">🏭 AI 供应商</h3>
+
+        <div v-if="providerList.length" class="skill-list">
+          <div v-for="(p, i) in providerList" :key="p.id" class="skill-item">
+            <template v-if="providerEditingIdx === i">
+              <div class="skill-edit-form">
+                <input v-model="providerForm.name" class="form-input" placeholder="显示名称" style="margin-bottom:4px" />
+                <input v-model="providerForm.id" class="form-input" placeholder="唯一 ID（英文）" style="margin-bottom:4px" />
+                <input v-model="providerForm.baseUrl" class="form-input" placeholder="Base URL" style="margin-bottom:4px" />
+                <input v-model="providerForm.apiKey" class="form-input" placeholder="API Key" style="margin-bottom:4px" />
+                <textarea v-model="providerForm.modelsStr" class="form-input" placeholder="模型列表（每行一个）" rows="2" style="margin-bottom:6px;resize:vertical" />
+                <div class="action-row">
+                  <button class="sib save" @click="saveProviderEdit(i)">💾 保存</button>
+                  <button class="sx" @click="providerEditingIdx = -1">取消</button>
+                </div>
+              </div>
+            </template>
+            <template v-else>
+              <span class="sn">{{ p.name }}</span>
+              <span class="sd">{{ p.baseUrl }} · {{ p.models.length }} 个模型</span>
+              <button class="sib" @click="startProviderEdit(i)">✏️</button>
+              <button class="sx" @click="removeProvider(i)">✕</button>
+            </template>
+          </div>
+        </div>
+        <p v-else class="skill-empty">暂无自定义供应商（将使用上方 API 配置作为默认）</p>
+
+        <button class="secondary-btn" style="margin-top:4px" @click="addProviderDialog">
+          ➕ 添加供应商
+        </button>
+      </div>
+
+      <div class="settings-section">
+        <h3 class="section-label">外观</h3>
+
+        <div class="form-group">
+          <label>主题模式</label>
+          <select v-model="settings.theme_mode" class="form-input">
+            <option value="system">跟随系统</option>
+            <option value="light">浅色</option>
+            <option value="dark">深色</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>语言</label>
+          <select v-model="settings.language" class="form-input">
+            <option value="zh-CN">中文</option>
+            <option value="en">English</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3 class="section-label">🌐 网络</h3>
+
+        <div class="form-group">
+          <div class="toggle-row">
+            <div>
+              <label style="margin-bottom:0">局域网发现</label>
+              <span class="toggle-desc">允许其他设备通过局域网发现本设备</span>
+            </div>
+            <label class="switch">
+              <input type="checkbox" v-model="settings.network_lan_visible" @change="toggleLan" />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <p class="toggle-hint" v-if="settings.network_lan_visible">✅ 本设备在局域网中可见</p>
+          <p class="toggle-hint" v-else>🔒 本设备在局域网中隐藏</p>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3 class="section-label">关于</h3>
+        <div class="about-info">
+          <p><strong>变形虫 Amiba</strong> v{{ appVersion }}</p>
+          <p>AI 驱动的跨平台即时应用平台</p>
+          <p>Vue 3 + TypeScript + Tauri</p>
+        </div>
+        <div class="update-area">
+          <button
+            class="secondary-btn"
+            :disabled="updateStatus.stage === 'checking' || updateStatus.stage === 'downloading' || updateStatus.stage === 'installing'"
+            @click="doCheckUpdate"
+          >
+            <template v-if="updateStatus.stage === 'checking'">⏳ 检查中…</template>
+            <template v-else>🔍 检查更新</template>
+          </button>
+
+          <p v-if="updateStatus.stage === 'error'" class="update-msg error">{{ updateStatus.message }}</p>
+          <p v-else-if="updateStatus.stage === 'upToDate'" class="update-msg ok">✅ 已是最新版本 (v{{ updateStatus.currentVersion }})</p>
+          <div v-else-if="updateStatus.stage === 'available'" class="update-available">
+            <p class="update-msg available">🆕 发现新版本 <strong>v{{ updateStatus.info.latestVersion }}</strong>（当前 v{{ updateStatus.info.currentVersion }}）</p>
+            <p v-if="updateStatus.info.body" class="update-notes">{{ updateStatus.info.body }}</p>
+            <button class="primary-btn" @click="doDownload(updateStatus.info)">📥 直接下载</button>
+          </div>
+          <div v-else-if="updateStatus.stage === 'downloading'" class="download-progress">
+            <p class="update-msg">📥 正在下载… ({{ formatSize(updateStatus.received) }} / {{ formatSize(updateStatus.total) }})</p>
+            <div class="progress-bar">
+              <div class="progress-fill" :style="{ width: downloadPercent + '%' }"></div>
+            </div>
+            <button class="danger-btn" style="margin-top:8px" @click="doCancelDownload">✕ 取消下载</button>
+          </div>
+          <p v-else-if="updateStatus.stage === 'installing'" class="update-msg ok">🔧 正在启动安装程序…</p>
+          <p v-else-if="updateStatus.stage === 'cancelled'" class="update-msg" style="color:#f57c00">⚠️ 下载已取消</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================================================================== -->
+    <!-- 标签: 技能 & Agent -->
+    <!-- ================================================================== -->
+    <div v-show="activeTab === 'skills'">
+
+      <div class="settings-section">
+        <h3 class="section-label">🧩 技能管理</h3>
+
+        <div v-if="userSkills.length" class="skill-list">
+          <div v-for="(skill, i) in userSkills" :key="i" class="skill-item">
+            <template v-if="editingIdx === i">
+              <div class="skill-edit-form">
+                <input v-model="editForm.name" class="form-input" placeholder="名称" style="margin-bottom:4px" />
+                <input v-model="editForm.desc" class="form-input" placeholder="描述" style="margin-bottom:4px" />
+                <input v-model="editForm.kws" class="form-input" placeholder="关键词（逗号分隔）" style="margin-bottom:4px" />
+                <textarea v-model="editForm.tpl" class="form-input" placeholder="模板（可选）" rows="3" style="margin-bottom:6px;resize:vertical" />
+                <div class="action-row">
+                  <button class="sib save" @click="saveEdit(i)">💾 保存</button>
+                  <button class="sx" @click="editingIdx = -1">取消</button>
+                </div>
+              </div>
+            </template>
+            <template v-else>
+              <span class="sn">{{ skill.name }}</span>
+              <span class="sd">{{ skill.description }}</span>
+              <button class="sib" @click="startEdit(i)">✏️</button>
+              <button class="sx" @click="removeSkill(i)">✕</button>
+            </template>
+          </div>
+        </div>
+        <p v-else class="skill-empty">暂无自定义 Skill</p>
+
+        <button class="secondary-btn" style="margin-top:4px" @click="importSkillFolder">📁 导入 Skill 文件夹</button>
+      </div>
+
+      <div class="settings-section">
+        <h3 class="section-label">🤖 自定义 Agent</h3>
+
+        <div v-if="agentList.length" class="skill-list">
+          <div v-for="(a, i) in agentList" :key="a.id" class="skill-item" :class="{ active: a.id === settings.active_agent_id }">
+            <template v-if="agentEditingIdx === i">
+              <div class="skill-edit-form">
+                <input v-model="agentForm.name" class="form-input" placeholder="显示名称" style="margin-bottom:4px" />
+                <input v-model="agentForm.id" class="form-input" placeholder="唯一 ID（英文）" style="margin-bottom:4px" />
+                <select v-model="agentForm.providerId" class="form-input" style="margin-bottom:4px">
+                  <option value="">-- 选择供应商 --</option>
+                  <option v-for="p in providerList" :key="p.id" :value="p.id">{{ p.name }}</option>
+                </select>
+                <select v-model="agentForm.model" class="form-input" style="margin-bottom:4px">
+                  <option value="">-- 选择模型 --</option>
+                  <option v-for="m in availableModels" :key="m" :value="m">{{ m }}</option>
+                </select>
+                <div class="skill-checkboxes" style="margin-bottom:4px">
+                  <label class="skill-cb-label" v-for="s in userSkills" :key="s.name">
+                    <input type="checkbox" :value="s.name" v-model="agentForm.selectedSkills" />
+                    {{ s.name }}
+                  </label>
+                </div>
+                <textarea v-model="agentForm.systemPrompt" class="form-input" placeholder="自定义 System Prompt（可选）" rows="3" style="margin-bottom:6px;resize:vertical" />
+                <div class="action-row">
+                  <button class="sib save" @click="saveAgentEdit(i)">💾 保存</button>
+                  <button class="sx" @click="agentEditingIdx = -1">取消</button>
+                </div>
+              </div>
+            </template>
+            <template v-else>
+              <span class="sn">{{ a.name }}</span>
+              <span class="sd">{{ getAgentProviderName(a) }} · {{ a.model }}{{ a.id === settings.active_agent_id ? ' ✅' : '' }}</span>
+              <button v-if="a.id !== settings.active_agent_id" class="sib" @click="activateAgent(a.id)">启用</button>
+              <button class="sib" @click="startAgentEdit(i)">✏️</button>
+              <button class="sx" @click="removeAgent(i)">✕</button>
+            </template>
+          </div>
+        </div>
+        <p v-else class="skill-empty">暂无自定义 Agent（将使用默认 API 配置）</p>
+
+        <button class="secondary-btn" style="margin-top:4px" @click="addAgentDialog">
+          ➕ 添加 Agent
+        </button>
+      </div>
+    </div>
+
+    <!-- ================================================================== -->
+    <!-- 标签: 数据 -->
+    <!-- ================================================================== -->
+    <div v-show="activeTab === 'data'">
+
+      <div class="settings-section">
+        <h3 class="section-label">📦 服务导入</h3>
+        <div class="action-row" style="margin-bottom:8px">
+          <button class="secondary-btn" @click="scanForServices">🔍 扫描存储目录</button>
+          <button class="secondary-btn" @click="addSvcFile">📄 选择文件</button>
+        </div>
+        <div v-if="pending.length" class="sl" style="margin-bottom:8px">
+          <div class="si" v-for="(svc,i) in pending" :key="i">
+            <span class="sn">{{ svc.name }}</span>
+            <span class="sd">{{ svc.desc }}</span>
+            <button class="sib" @click="installSvc(i)">安装</button>
+            <button class="sx" @click="pending.splice(i,1)">✕</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3 class="section-label">💾 存储</h3>
+        <div class="action-row" style="flex-wrap:wrap;gap:8px">
+          <button class="secondary-btn" @click="exportData">📥 导出配置</button>
+          <button
+            class="danger-btn"
+            :disabled="deletingSessions"
+            @click="deleteAllSessions"
+          >{{ deletingSessions ? '删除中…' : '🗑 删除聊天记录' }}</button>
+        </div>
+        <p class="toggle-desc" style="margin-top:8px">删除聊天记录不影响服务和记忆，清除所有数据不可恢复</p>
+        <button class="danger-btn" style="margin-top:12px;width:100%" @click="clearAllData">⚠️ 清除所有数据</button>
+      </div>
     </div>
 
     <div class="saved-hint" v-if="showSaved">✅ 已保存</div>
@@ -280,30 +298,34 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
-import { settings, getApiKey, setApiKey } from '../config/config'
+import { settings } from '../config/config'
 import { storageClear, storageKeys, storageGet, listServiceDirs, readServiceFile } from '../config/storage'
 import { registerService, storeServicePackage, getServicePackage } from '../host/registry'
-import { setVisibility, getVisibility, currentVisibility } from '../host/network-bridge'
+import { setVisibility, getVisibility } from '../host/network-bridge'
 import type { ServicePackage, ServiceManifest } from '../types/service'
 import { loadUserSkills, addUserSkill, updateUserSkill, deleteUserSkill, importSkillFromFolder, type Skill } from '../ai/skills'
 import { providers, addProvider, updateProvider, deleteProvider, initProviderStore } from '../ai/provider-store'
-import { customAgents, activeAgentId, addCustomAgent, updateCustomAgent, deleteCustomAgent, setActiveAgent, initCustomAgentStore } from '../ai/custom-agent-store'
+import { customAgents, addCustomAgent, updateCustomAgent, deleteCustomAgent, setActiveAgent, initCustomAgentStore } from '../ai/custom-agent-store'
 import type { AiProvider, CustomAgent } from '../types/service'
 import { getCurrentVersion, checkForUpdate, downloadUpdate, installUpdate, type UpdateStatus, type UpdateInfo } from '../config/updater'
 import { listSessions, deleteSession } from '../ai/session'
 
-const apiKey = ref('')
 const appVersion = ref('...')
+const activeTab = ref('general')
+const tabs = [
+  { key: 'general', label: '通用' },
+  { key: 'skills', label: '技能 & Agent' },
+  { key: 'data', label: '数据' },
+]
 const updateStatus = ref<UpdateStatus>({ stage: 'idle' })
 const showKey = ref(false)
 const showSaved = ref(false); const pending = ref<any[]>([])
 const deletingSessions = ref(false)
 
 // --- Network visibility ---
-const lanVisible = ref(currentVisibility.lan)
 
 async function toggleLan() {
-  const vis = { lan: lanVisible.value, ble: false }
+  const vis = { lan: settings.network_lan_visible, ble: false }
   try {
     await setVisibility(vis)
     flashSaved()
@@ -314,7 +336,7 @@ async function toggleLan() {
 ;(async () => {
   try {
     const vis = await getVisibility()
-    lanVisible.value = vis.lan
+    settings.network_lan_visible = vis.lan
     if (vis.lan) {
       await setVisibility({ lan: true, ble: false })
     }
@@ -327,17 +349,10 @@ const editingIdx = ref(-1)
 const editForm = ref({ name: '', desc: '', kws: '', tpl: '' })
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null
-let initDone = false
-
-watch(apiKey, (val) => {
-  if (!initDone) return
-  void setApiKey(val).then(() => flashSaved())
-}, { flush: 'sync' })
 
 watch(
   () => ({ ...settings }),
   () => {
-    if (!initDone) return
     flashSaved()
   },
   { deep: true, flush: 'sync' }
@@ -431,7 +446,6 @@ async function removeSkill(idx: number) {
   } catch (e: any) { alert(e.message) }
 }
 refreshSkills()
-getApiKey().then(k => { apiKey.value = k; initDone = true })
 
 // --- Provider management ---
 const providerList = providers as AiProvider[]
@@ -656,6 +670,38 @@ onMounted(async () => {
   margin-bottom: 12px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.tab-bar {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  background: #f0f0f0;
+  border-radius: 10px;
+  padding: 3px;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tab-btn.active {
+  background: white;
+  color: #1976D2;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.tab-btn:hover:not(.active) {
+  color: #333;
 }
 
 .form-group {

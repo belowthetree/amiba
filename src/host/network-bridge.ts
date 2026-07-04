@@ -44,6 +44,20 @@ export async function initNetworkBridge(): Promise<void> {
     return
   }
 
+  // 从持久化存储恢复可见性状态
+  try {
+    const { settings } = await import('../config/config')
+    currentVisibility = { lan: settings.network_lan_visible, ble: false }
+    console.log('[NetworkBridge] 恢复可见性:', currentVisibility)
+    // 同步到 Rust（Rust 启动默认 lan:true，需覆盖）
+    if (!settings.network_lan_visible) {
+      const { invoke } = await import('@tauri-apps/api/core')
+      await invoke('network_set_visibility', { visibility: currentVisibility })
+    }
+  } catch (e) {
+    console.warn('[NetworkBridge] 恢复可见性失败:', e)
+  }
+
   // 监听 Tauri 事件
   try {
     const { listen } = await import('@tauri-apps/api/event')
@@ -110,6 +124,8 @@ export async function initNetworkBridge(): Promise<void> {
 
 export async function setVisibility(vis: TransportVisibility): Promise<void> {
   currentVisibility = vis
+  const { settings } = await import('../config/config')
+  settings.network_lan_visible = vis.lan
   if (isTauri) {
     const { invoke } = await import('@tauri-apps/api/core')
     await invoke('network_set_visibility', { visibility: vis })

@@ -119,9 +119,11 @@ export interface ValidationError {
 export interface AppSettings {
   ai_base_url: string
   ai_model: string
-  ai_generation_model: string
+  api_key: string
   theme_mode: 'light' | 'dark' | 'system'
   language: string
+  network_lan_visible: boolean
+  active_agent_id: string
   /** Curator 技能生命周期管理配置 */
   curator_enabled?: boolean
   curator_interval_hours?: number

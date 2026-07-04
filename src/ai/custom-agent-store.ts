@@ -1,15 +1,14 @@
 // ============================================================
 // 变形虫 (Amiba) — 自定义 Agent 管理 Store
 // ============================================================
-import { reactive, ref, watch } from 'vue'
-import { storageGetJSON, storageSetJSON, storageGet, storageSet } from '../config/storage'
+import { reactive } from 'vue'
+import { storageGetJSON, storageSetJSON } from '../config/storage'
+import { settings } from '../config/config'
 import type { CustomAgent } from '../types/service'
 
 const STORAGE_KEY = 'amiba_custom_agents'
-const ACTIVE_KEY = 'amiba_active_agent'
 
 export const customAgents = reactive<CustomAgent[]>([])
-export const activeAgentId = ref<string | null>(null)
 
 let initialized = false
 let saveTimer: ReturnType<typeof setTimeout> | null = null
@@ -25,10 +24,8 @@ export async function initCustomAgentStore(): Promise<void> {
     customAgents.splice(0, customAgents.length, ...saved)
   }
 
-  const active = await storageGet(ACTIVE_KEY)
-  if (active) activeAgentId.value = active
-
   // 自动持久化 agent 列表（300ms 防抖）
+  const { watch } = await import('vue')
   watch(
     () => customAgents.map(a => ({ ...a })),
     () => {
@@ -39,12 +36,6 @@ export async function initCustomAgentStore(): Promise<void> {
     },
     { deep: true }
   )
-
-  // 自动持久化 activeAgentId
-  watch(activeAgentId, (val) => {
-    if (val) storageSet(ACTIVE_KEY, val)
-    else storageSet(ACTIVE_KEY, '')
-  })
 }
 
 // ---- CRUD ----
@@ -69,8 +60,8 @@ export function deleteCustomAgent(id: string): void {
   const idx = customAgents.findIndex(a => a.id === id)
   if (idx === -1) throw new Error(`Agent "${id}" 不存在`)
   customAgents.splice(idx, 1)
-  if (activeAgentId.value === id) {
-    activeAgentId.value = null
+  if (settings.active_agent_id === id) {
+    settings.active_agent_id = ''
   }
 }
 
@@ -79,5 +70,5 @@ export function getCustomAgent(id: string): CustomAgent | undefined {
 }
 
 export function setActiveAgent(id: string | null): void {
-  activeAgentId.value = id
+  settings.active_agent_id = id || ''
 }
