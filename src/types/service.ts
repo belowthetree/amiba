@@ -122,6 +122,7 @@ export interface AppSettings {
   api_key: string
   theme_mode: 'light' | 'dark' | 'system'
   language: string
+  device_id: string
   network_lan_visible: boolean
   active_agent_id: string
   /** Curator 技能生命周期管理配置 */

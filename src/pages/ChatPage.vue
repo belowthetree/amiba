@@ -138,7 +138,6 @@ import type { SessionMeta } from '../ai/session'
 import { soulManager } from '../ai/soul'
 import { peerList } from '../host/network-bridge'
 import { 
-  setVisibility as netSetVisibility,
   startDiscovery as netStartDiscovery,
 } from '../host/network-bridge'
 
@@ -358,13 +357,12 @@ watch(
   }
 )
 
-// 打开统计框时自动启动网络可见性和设备发现
+// 打开统计框时自动启动设备发现（网络接口处有全局门控）
 watch(showStats, async (open) => {
   if (open) {
     try {
-      await netSetVisibility({ lan: true, ble: false })
       await netStartDiscovery('lan')
-    } catch { /* 非 Tauri 环境静默跳过 */ }
+    } catch { /* 非 Tauri 环境或无权限静默跳过 */ }
   }
 })
 </script>

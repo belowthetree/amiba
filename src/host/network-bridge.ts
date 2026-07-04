@@ -14,7 +14,6 @@ export const peerList = reactive<DiscoveredPeer[]>([])
 export let currentVisibility: TransportVisibility = { lan: true, ble: false }
 
 let isTauri = false
-let cachedDeviceId = ''
 
 // ---- 事件总线 ----
 
@@ -56,6 +55,19 @@ export async function initNetworkBridge(): Promise<void> {
     }
   } catch (e) {
     console.warn('[NetworkBridge] 恢复可见性失败:', e)
+  }
+
+  // 同步 device_id 到 amiba_settings（Rust 已有持久化，首次读取后缓存）
+  try {
+    const { settings } = await import('../config/config')
+    if (!settings.device_id && isTauri) {
+      const { invoke } = await import('@tauri-apps/api/core')
+      const id: string = await invoke('network_get_device_id')
+      settings.device_id = id
+      console.log('[NetworkBridge] device_id 已同步:', id.slice(0, 8))
+    }
+  } catch (e) {
+    console.warn('[NetworkBridge] device_id 同步失败:', e)
   }
 
   // 监听 Tauri 事件
@@ -120,6 +132,16 @@ export async function initNetworkBridge(): Promise<void> {
   }
 }
 
+// ---- 可见性门控 ----
+
+/** 检查网络是否被用户启用，未启用则抛出友好错误 */
+async function requireNetworkEnabled(): Promise<void> {
+  const { settings } = await import('../config/config')
+  if (!settings.network_lan_visible) {
+    throw new Error('网络功能未启用，请在「设置 → 网络」中开启局域网发现')
+  }
+}
+
 // ---- 可见性 ----
 
 export async function setVisibility(vis: TransportVisibility): Promise<void> {
@@ -146,6 +168,7 @@ export async function getVisibility(): Promise<TransportVisibility> {
 
 export async function startDiscovery(transport: string): Promise<void> {
   if (!isTauri) throw new Error('网络功能仅在桌面端可用')
+  await requireNetworkEnabled()
   const { invoke } = await import('@tauri-apps/api/core')
   await invoke('network_start_discovery', { transport })
 }
@@ -174,6 +197,7 @@ export const sessions = new Map<string, NetworkSession>()
 /** 发起连接 → 返回 NetworkSession */
 export async function connect(peerId: string, serviceKey?: string): Promise<NetworkSession> {
   if (!isTauri) throw new Error('网络功能仅在桌面端可用')
+  await requireNetworkEnabled()
   console.log('[NetBridge] connect ->', peerId?.slice(0,8), 'serviceKey=', serviceKey)
   const session = await createOutboundSession(peerId, serviceKey)
   console.log('[NetBridge] connect <- sid=', session.id.slice(0,8))
@@ -192,6 +216,7 @@ export function createInboundSession(info: { sessionId: string; peerId: string; 
 /** 服务请求启动 TCP 监听（引用计数；首个服务触发实际启动） */
 export async function startListening(serviceKey: string): Promise<void> {
   if (!isTauri) throw new Error('网络功能仅在桌面端可用')
+  await requireNetworkEnabled()
   console.log('[NetBridge] startListening:', serviceKey)
   const { invoke } = await import('@tauri-apps/api/core')
   await invoke('network_start_listener', { serviceKey })

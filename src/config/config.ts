@@ -16,6 +16,7 @@ const defaults: AppSettings = {
   api_key: '',
   theme_mode: 'system',
   language: 'zh-CN',
+  device_id: '',
   network_lan_visible: true,
   active_agent_id: '',
 }
