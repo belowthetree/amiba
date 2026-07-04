@@ -97,6 +97,10 @@ jobs:
           key: ${{ runner.os }}-android-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-android-cargo-
 
+      - name: Install cargo-tauri CLI
+        if: steps.check.outputs.skip == 'false'
+        run: cargo install tauri-cli --version "^2"
+
       - name: Install dependencies
         if: steps.check.outputs.skip == 'false'
         run: npm ci
