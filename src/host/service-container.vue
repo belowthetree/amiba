@@ -28,7 +28,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getService, getServicePackage, setServiceData, getServiceData, removeServiceData } from './registry'
 import { createBridge, BRIDGE_SCRIPT } from './bridge'
-import { inlinePackage } from '../ai/generator'
+import { inlinePackage } from '../ai/packager'
 import {
   registerWidget,
   unregisterWidget,

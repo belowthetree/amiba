@@ -43,7 +43,6 @@ const route = useRoute()
 const routeTitles: Record<string, string> = {
   chat: '变形虫',
   home: '主界面',
-  generate: 'AI 生成',
   settings: '设置',
   memory: '记忆管理',
   service: '服务',

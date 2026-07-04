@@ -39,19 +39,17 @@ export const TOOLSETS: Record<string, ToolsetDef> = {
     tools: [
       'service_list',
       'service_view',
+      'service_create',
       'service_file_list',
       'service_file_read',
       'service_file_write',
+      'service_validate',
     ],
-  },
-
-  generate: {
-    tools: ['generate_service', 'catalog_search'],
   },
 
   chat: {
     tools: ['memory'],
-    includes: ['core', 'service', 'generate'],
+    includes: ['core', 'service'],
   },
 
   review: {

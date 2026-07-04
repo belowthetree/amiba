@@ -29,10 +29,6 @@ export const BUILTIN_SERVICES: ServiceEntry[] = [
     enabled: true, installedAt: new Date().toISOString(), source: 'builtin',
   },
   {
-    manifest: { id: 'system.generate', name: 'AI 生成', version: '1.0.0', description: '生成迷你应用', permissions: [], },
-    enabled: true, installedAt: new Date().toISOString(), source: 'builtin',
-  },
-  {
     manifest: { id: 'system.settings', name: '设置', version: '1.0.0', description: '配置管理', permissions: [], },
     enabled: true, installedAt: new Date().toISOString(), source: 'builtin',
   },

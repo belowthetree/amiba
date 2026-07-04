@@ -43,8 +43,8 @@
     <div class="section" v-else>
       <div class="empty-hint">
         <p>还没有用户服务</p>
-        <button class="cta-btn" @click="$router.push('/generate')">
-          🚀 让 AI 生成一个
+        <button class="cta-btn" @click="$router.push('/')">
+          💬 跟 AI 对话生成一个
         </button>
       </div>
     </div>
@@ -56,8 +56,7 @@ import { computed } from 'vue'
 import { getUserServices } from '../host/registry'
 
 const builtinItems = [
-  { id: 'chat', name: 'AI 对话', icon: '💬', desc: '与 AI 助手对话', route: '/' },
-  { id: 'generate', name: 'AI 生成', icon: '✨', desc: '生成即时小程序', route: '/generate' },
+  { id: 'chat', name: 'AI 对话', icon: '💬', desc: '与 AI 助手对话，生成和管理服务', route: '/' },
   { id: 'services', name: '服务管理', icon: '📦', desc: '管理已安装服务', route: '/services' },
   { id: 'settings', name: '设置', icon: '⚙️', desc: 'API Key 与配置', route: '/settings' },
   { id: 'memory', name: '记忆管理', icon: '🧠', desc: 'AI 记忆与画像', route: '/memory' },

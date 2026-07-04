@@ -24,12 +24,12 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 
 | Module | Path | Role |
 |--------|------|------|
-| **AI Core** | `src/ai/` | LLM agent (multi-tool loop), system prompt assembler (system-prompt.ts: stable/volatile split cache + nudge), personality system (soul.ts), session manager v2 (session.ts: multi-session with create/switch/delete), memory store (memory-store.ts: real-time cache + frozen snapshot + threat scanning + context fencing), skill system (skills.ts + skill-parser + skill-commands + skill-usage + skill-curator + skill-consolidation-prompt), requirement store (requirement-store.ts: per-service + global REQUIREMENT.md), service generator, catalog |
-| **Tools** | `src/tools/` | ToolRegistry (deferred-queue), auto-discovery, 3 toolsets (core/chat/create), 20+ tool impls: memory, generate, catalog, skill_view/list, skill_manage_*(5 tools), service_file_*(3 tools), soul_save, requirement_*(3 tools), web_fetch, web_browse |
+| **AI Core** | `src/ai/` | LLM agent (multi-tool loop), system prompt assembler (system-prompt.ts: stable/volatile split cache + nudge), personality system (soul.ts), session manager v2 (session.ts: multi-session with create/switch/delete), memory store (memory-store.ts: real-time cache + frozen snapshot + threat scanning + context fencing), skill system (skills.ts + skill-parser + skill-commands + skill-usage + skill-curator + skill-consolidation-prompt), requirement store (requirement-store.ts: per-service + global REQUIREMENT.md), service validator (service-validator.ts: storage API check, sandbox API check, permission consistency), service packager (packager.ts: inline multi-file package into single HTML), catalog |
+| **Tools** | `src/tools/` | ToolRegistry (deferred-queue), auto-discovery, 3 toolsets (core/service), 22+ tool impls: memory, catalog_search, skill_view/list, skill_manage_*(5 tools), service_list/view/create, service_file_*(3 tools), service_validate, soul_save, requirement_*(3 tools), session_search, web_fetch, web_browse |
 | **Host Runtime** | `src/host/` | iframe sandbox (`service-container.vue`), postMessage JSBridge (`bridge.ts`), service registry (`registry.ts`) |
 | **Web Bridge** | `src/config/web-bridge.ts` | 封装 Tauri `web_fetch`/`web_click`/`web_input_text`/`web_get_content`/`web_close` 命令，含超时和日志 |
 | **Updater** | `src/config/updater.ts` | 纯前端更新检查：调 GitHub Releases API，semver 比较，全平台统一 |
-| **Pages** | `src/pages/` | 7 routes: Chat, Home, Generate, Memory, MyServices, ServiceBrowse, Settings |
+| **Pages** | `src/pages/` | 6 routes: Chat, Home, Memory, MyServices, ServiceBrowse, Settings |
 | **Config** | `src/config/` | Reactive settings persisted via Tauri FS plugin (`config.ts`), storage abstraction (`storage.ts`: auto-mkdir + pretty-print JSON), session-db wrapper (`session-db.ts`: Tauri invoke → Rust SQLite FTS5) |
 | **Router** | `src/router/` | `createWebHistory` with lazy-loaded page components |
 | **Types** | `src/types/` | `ServiceManifest`, `ServicePackage`, `ServiceRequest/Response`, `AppSettings`, `MemoryToolParams`, etc. |
@@ -53,7 +53,8 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 | `commands.ts` | Built-in slash commands (`/new` → multi-session create) |
 | `memory.ts` | Memory tool handler (deprecated, use memory-store) |
 | `catalog.ts` | Component catalog YAML parser |
-| `generator.ts` | Service generation pipeline |
+| `packager.ts` | Inline multi-file ServicePackage into single HTML for iframe rendering |
+| `service-validator.ts` | Service code validation: storage API, sandbox APIs, permission consistency |
 | `provider-store.ts` | Multi-provider AI vendor management: reactive list, CRUD, auto-persist to `amiba_providers` |
 | `custom-agent-store.ts` | Custom agent management: reactive list + activeAgentId, CRUD, auto-persist to `amiba_custom_agents` |
 
@@ -62,8 +63,7 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 | Tool | Toolset | Role |
 |------|---------|------|
 | `memory` | core | Write to MEMORY.md / USER.md |
-| `generate_service` | generate | Generate mini-app from natural language, auto-register & install |
-| `catalog_search` | generate | Search component catalog |
+| `catalog_search` | core | Search component catalog |
 | `skill_view` / `skills_list` | core | Read skill contents / list available skills |
 | `skill_manage_create` | core | Create new SKILL.md |
 | `skill_manage_patch` | core | Targeted find-replace in SKILL.md (preferred edit) |
@@ -72,7 +72,9 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 | `skill_manage_write_file` | core | Add supporting files to skill dir |
 | `service_list` | service | List all installed user services (view category) |
 | `service_view` | service | View full service info: manifest, files, status (view category) |
+| `service_create` | service | Create new service skeleton: register manifest + dir (manage category) |
 | `service_file_list/read/write` | service | File-level editing on generated services (edit category) |
+| `service_validate` | service | Validate service code: localStorage, sandbox APIs, permissions (view category) |
 | `session_search` | core | Search past sessions via SQLite FTS5 (4 modes: discover/scroll/read/browse) |
 | `soul_save` | core | Create/update personality file (`souls/<name>.md`) |
 | `requirement_view` | core | Read per-service REQUIREMENT.md |

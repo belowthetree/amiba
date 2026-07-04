@@ -7,7 +7,7 @@
       <h2>📦 服务</h2>
       <div class="header-btns">
         <button class="import-btn" @click="importFromFolder">📂 导入</button>
-        <button class="new-btn" @click="$router.push('/generate')">+ 新建</button>
+        <button class="new-btn" @click="$router.push('/')">💬 新建</button>
       </div>
     </div>
 
@@ -20,8 +20,8 @@
 
       <div v-if="userServices.length === 0" class="empty">
         <p>还没有安装用户服务</p>
-        <button class="cta-btn" @click="$router.push('/generate')">
-          ✨ AI 生成一个
+        <button class="cta-btn" @click="$router.push('/')">
+          💬 跟 AI 对话生成
         </button>
       </div>
 
@@ -110,7 +110,7 @@ const userServices = computed(() => getUserServices())
 
 const systemServices = computed(() =>
   BUILTIN_SERVICES.filter((s) =>
-    ['system.chat', 'system.generate', 'system.settings', 'system.memory'].includes(s.manifest.id)
+    ['system.chat', 'system.settings', 'system.memory'].includes(s.manifest.id)
   )
 )
 
@@ -120,7 +120,7 @@ const hasDemoService = computed(() =>
 
 function sysIcon(id: string): string {
   const icons: Record<string, string> = {
-    'system.chat': '💬', 'system.generate': '✨',
+    'system.chat': '💬',
     'system.settings': '⚙️', 'system.memory': '🧠',
   }
   return icons[id] || '📄'
@@ -135,7 +135,6 @@ function svcIcon(svc: ServiceEntry): string {
 function navigateTo(svc: ServiceEntry) {
   const routes: Record<string, string> = {
     'system.chat': '/',
-    'system.generate': '/generate',
     'system.settings': '/settings',
     'system.memory': '/memory',
   }
