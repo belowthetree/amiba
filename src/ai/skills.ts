@@ -233,6 +233,8 @@ export async function getSkillContext(
   const template = await getSkillTemplate(skill.name)
   if (!template) return ''
 
+  console.log(`[Skill] 🎯 Generator 关键词匹配: ${skill.name} (slug: ${skill.slug || '?'})`)
+
   return [
     '',
     '=== SKILL CONTEXT ===',

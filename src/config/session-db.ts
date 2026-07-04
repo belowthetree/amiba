@@ -114,7 +114,7 @@ export async function indexMessageBatch(
       role: m.role,
       content: m.content || '',
       tool_calls: (m as any).tool_calls ? JSON.stringify((m as any).tool_calls) : null,
-      tool_name: (m as any).tool_call_id ? `tool:${(m as any).tool_call_id}` : null,
+      tool_name: m.toolName || ((m as any).tool_call_id ? `tool:${(m as any).tool_call_id}` : null),
     }))
     await invoke('index_message_batch', { sessionId, messages: msgs })
   } catch (e) {

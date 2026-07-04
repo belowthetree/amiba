@@ -62,15 +62,17 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 | Tool | Toolset | Role |
 |------|---------|------|
 | `memory` | core | Write to MEMORY.md / USER.md |
-| `generate_service` | core | Generate mini-app from natural language |
-| `catalog_search` | core | Search component catalog |
+| `generate_service` | generate | Generate mini-app from natural language, auto-register & install |
+| `catalog_search` | generate | Search component catalog |
 | `skill_view` / `skills_list` | core | Read skill contents / list available skills |
 | `skill_manage_create` | core | Create new SKILL.md |
 | `skill_manage_patch` | core | Targeted find-replace in SKILL.md (preferred edit) |
 | `skill_manage_edit` | core | Full rewrite SKILL.md (major refactor only) |
 | `skill_manage_delete` | core | Archive skill to `.archive/` |
 | `skill_manage_write_file` | core | Add supporting files to skill dir |
-| `service_file_list/read/write` | core | Direct file editing on generated services |
+| `service_list` | service | List all installed user services (view category) |
+| `service_view` | service | View full service info: manifest, files, status (view category) |
+| `service_file_list/read/write` | service | File-level editing on generated services (edit category) |
 | `session_search` | core | Search past sessions via SQLite FTS5 (4 modes: discover/scroll/read/browse) |
 | `soul_save` | core | Create/update personality file (`souls/<name>.md`) |
 | `requirement_view` | core | Read per-service REQUIREMENT.md |
@@ -114,7 +116,7 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 - **JSON pretty-print:** all `storageSetJSON` writes use 2-space indentation
 - **Real-time save:** chat history saves on every message with 300ms debounce; `/new` flushes before switching
 - **Memory nudge:** at turn 10/20/30... system prompt injects mandatory memory + requirement check directive
-- **Tools:** add `src/tools/xxx.tool.ts` + `registry.register(...)` → auto-discovered via `import.meta.glob`
+- **Tools:** add `src/tools/xxx.tool.ts` + `registry.register(...)` → auto-discovered via `import.meta.glob`. Each tool has a `category` field (`generate`/`view`/`edit`/`manage`) for type-based tool guidance.
 - **Skills:** add `skills/{slug}/SKILL.md` → scanned by `scanSkills()`; agent can create via `skill_manage_create`
 - **Skill evolution:** usage telemetry (`.usage.json`) + curator (auto stale→archive, optional LLM consolidation)
 - **Personality:** edit `souls/{name}.md` via Settings or use `soul_save` tool via AI; `invalidateSystemPrompt()` → next chat applies

@@ -240,6 +240,9 @@ export async function* streamChat(
           toolArgs = {}
         }
 
+        console.log('[Agent] 🔧', toolName, 'args=', (tc.function?.arguments || '').slice(0, 200))
+        yield `\x00TOOL:${toolName}\x00`
+
         const result = await toolRegistry.dispatch(toolName, toolArgs, {
           enabledToolsets: opts.enabledToolsets,
         })

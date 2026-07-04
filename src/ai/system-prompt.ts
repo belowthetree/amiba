@@ -131,7 +131,7 @@ const PLATFORM_CAPABILITIES = `## 平台能力
 
 你运行在变形虫 (Amiba) 桌面应用中。以下是你可以使用的平台能力:
 
-- **生成服务**: 根据用户需求生成完整的迷你 Web 应用（HTML/CSS/JS），运行在 iframe 沙箱中
+  - **生成服务**: 使用 generate_service 工具根据用户需求生成完整的迷你 Web 应用（HTML/CSS/JS），自动注册安装
 - **编辑服务**: 使用 service_file_list/read/write 工具直接编辑已生成服务的文件
 - **持久记忆**: 使用 memory 工具保存信息到 MEMORY.md（AI 笔记）或 USER.md（用户画像）
 - **技能系统**: 用户可通过 /skill-name 触发技能，或通过 skill_view 查看技能内容
@@ -156,14 +156,6 @@ const MEMORY_GUIDANCE = `## 记忆使用指引（重要：请主动使用！）
 - 每次对话达到 10 轮时 → 系统会强制要求你检查记忆
 
 注意: 记忆条目用 § 分隔，字符有限额 (MEMORY: 2200, USER: 1375)。满时自动挤掉旧条目。`
-
-const GENERATE_GUIDANCE = `## 服务生成指引
-当用户要求「开发/创建/写一个 XX」时:
-1. 如果用户指定了具体需求 → 使用 generate_service 工具
-2. 如果用户使用 /skill-name 或提及某个技能 → 按技能内容执行
-3. 生成的 ServicePackage 必须包含 manifest + files（必须有 index.html）
-
-生成后如需修改: 使用 service_file_list/read/write 直接编辑文件，不要重新生成整个服务。`
 
 const SKILL_GUIDANCE = `## 技能使用指引
 用户可通过 /skill-name 触发技能。技能内容会展开到对话中。
@@ -193,13 +185,28 @@ const REQUIREMENT_GUIDANCE = `## 需求追踪指引（重要：主动使用！�
 
 生成新服务前，先用 requirements_summary 检查是否已有类似需求或可通过修改现有服务满足。`
 
+const SERVICE_GUIDANCE = `## 服务工具使用指引
+服务工具按类型分为三组，清晰对应不同场景：
+
+**生成类 (generate)** — 从零创建新服务
+- generate_service: 用自然语言描述需求，生成完整的迷你 Web 应用并自动安装
+- 生成前务必先用 service_list 检查是否已有类似服务
+
+**查看类 (view)** — 浏览和了解服务
+- service_list: 列出所有已安装的用户服务
+- service_view: 查看单个服务的 manifest、文件列表、安装状态
+- 修改服务前必须先用查看类工具了解服务结构和现有代码
+
+**编辑类 (edit)** — 修改已生成服务的文件
+- service_file_list: 列出服务目录中的所有文件
+- service_file_read: 读取某个文件的完整内容
+- service_file_write: 覆盖式写入文件内容
+- 工作流程: service_list → service_view → service_file_list → service_file_read → service_file_write`
+
 function buildBehaviorGuidance(availableTools: string[]): string {
   const parts: string[] = []
   if (availableTools.includes('memory')) {
     parts.push(MEMORY_GUIDANCE)
-  }
-  if (availableTools.includes('generate_service')) {
-    parts.push(GENERATE_GUIDANCE)
   }
   if (availableTools.includes('skill_view')) {
     parts.push(SKILL_GUIDANCE)
@@ -209,6 +216,12 @@ function buildBehaviorGuidance(availableTools: string[]): string {
   }
   if (availableTools.includes('requirement_update')) {
     parts.push(REQUIREMENT_GUIDANCE)
+  }
+  if (
+    availableTools.includes('service_list') ||
+    availableTools.includes('generate_service')
+  ) {
+    parts.push(SERVICE_GUIDANCE)
   }
   return parts.join('\n\n')
 }
@@ -227,6 +240,8 @@ function buildSkillsIndexSync(): string {
 export async function buildSkillsIndex(): Promise<string> {
   const skills = await getSkillCommands()
   if (skills.size === 0) return ''
+
+  console.log(`[Skill] 📋 技能索引注入 system prompt: ${skills.size} 个技能 (${[...skills.keys()].join(', ')})`)
 
   const lines = ['## 可用技能', '']
   for (const [slug, info] of skills) {

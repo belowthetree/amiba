@@ -240,6 +240,8 @@ export async function buildSkillInvocationMessage(
   const content = await getSkillContent(slug)
   if (!content) return null
 
+  console.log(`[Skill] ✓ 技能内容已加载: ${slug} (${skill.name}) — ${content.length} 字符${userInstruction ? ', 附带指令: ' + userInstruction.slice(0, 50) : ''}`)
+
   // 遥测：记录技能被使用
   try {
     const { bumpUse } = await import('./skill-usage')

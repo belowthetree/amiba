@@ -1,7 +1,7 @@
 // ============================================================
-// 变形虫 (Amiba) — Service 文件管理工具
+// 变形虫 (Amiba) — Service 文件编辑工具
 // ============================================================
-// 允许 Agent 对指定的服务目录中文件进行 列出/读取/编辑/删除，
+// 允许 Agent 对指定的服务目录中文件进行 列出/读取/写入，
 // 用于 AI 迭代修改已生成服务，无需重新生成整个包。
 // ============================================================
 import { toolRegistry } from './tool-registry'
@@ -9,8 +9,6 @@ import {
   listServiceFiles,
   readServiceFile,
   writeServiceFile,
-  removeServiceFile,
-  listServiceDirs,
 } from '../config/storage'
 import { getService } from '../host/registry'
 
@@ -36,7 +34,8 @@ function validateServiceId(serviceId: string): string | null {
 
 toolRegistry.register({
   name: 'service_file_list',
-  toolset: 'core',
+  toolset: 'service',
+  category: 'edit',
   emoji: '📂',
   description:
     '列出指定服务目录中的所有文件。返回文件名列表，用于了解服务结构后再读取或编辑。',
@@ -81,7 +80,8 @@ toolRegistry.register({
 
 toolRegistry.register({
   name: 'service_file_read',
-  toolset: 'core',
+  toolset: 'service',
+  category: 'edit',
   emoji: '📖',
   description:
     '读取指定服务目录中的某个文件内容。用于查看 HTML/CSS/JS 代码后决定如何修改。',
@@ -139,7 +139,8 @@ toolRegistry.register({
 
 toolRegistry.register({
   name: 'service_file_write',
-  toolset: 'core',
+  toolset: 'service',
+  category: 'edit',
   emoji: '✏️',
   description:
     '写入/编辑指定服务目录中的某个文件。覆盖式写入，用于 AI 修改服务的 HTML/CSS/JS 代码。',
@@ -194,39 +195,3 @@ toolRegistry.register({
   },
 })
 
-// ---- service_list (列出所有服务) ----
-
-toolRegistry.register({
-  name: 'service_list',
-  toolset: 'core',
-  emoji: '📋',
-  description:
-    '列出所有已安装的服务及其 ID。Agent 在编辑服务文件前先用此工具获取服务列表。',
-  maxResultSizeChars: 3000,
-  schema: {
-    type: 'function',
-    function: {
-      name: 'service_list',
-      description:
-        '列出所有已安装的服务（名称和 ID），供 Agent 选择要操作的服务。',
-      parameters: {
-        type: 'object',
-        properties: {},
-      },
-    },
-  },
-  handler: async () => {
-    const { getAllServices } = await import('../host/registry')
-    const all = getAllServices()
-    // 仅列出可编辑的用户服务（排除系统内置）
-    const userServices = all.filter((s) => !s.manifest.id.startsWith('system.'))
-    const list = userServices.map((s) => ({
-      id: s.manifest.id,
-      name: s.manifest.name,
-      description: s.manifest.description,
-      enabled: s.enabled,
-      source: s.source,
-    }))
-    return JSON.stringify({ count: list.length, services: list })
-  },
-})

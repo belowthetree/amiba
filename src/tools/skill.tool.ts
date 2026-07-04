@@ -38,6 +38,8 @@ toolRegistry.register({
     const { bumpView } = await import('../ai/skill-usage')
     await bumpView(name)
 
+    console.log(`[Skill] 🔍 Agent 工具触发 skill_view: ${name}`)
+
     // 动态导入避免循环依赖
     const { getSkillContent } = await import('../ai/skill-commands')
     const content = await getSkillContent(name)
@@ -83,6 +85,8 @@ toolRegistry.register({
 
     const { getSkillCommands } = await import('../ai/skill-commands')
     const skills = await getSkillCommands()
+
+    console.log(`[Skill] 📚 Agent 工具触发 skills_list — ${skills.size} 个技能`)
 
     const list: {
       name: string

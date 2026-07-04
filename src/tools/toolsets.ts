@@ -8,14 +8,9 @@ import type { ToolSchema } from './tool-registry'
 
 const CORE_TOOLS = [
   'memory',
-  'generate_service',
   'catalog_search',
   'skill_view',
   'skills_list',
-  'service_list',
-  'service_file_list',
-  'service_file_read',
-  'service_file_write',
   'skill_manage_create',
   'skill_manage_patch',
   'skill_manage_edit',
@@ -40,11 +35,23 @@ export interface ToolsetDef {
 export const TOOLSETS: Record<string, ToolsetDef> = {
   core: { tools: CORE_TOOLS },
 
-  chat: { tools: ['memory'], includes: ['core'] },
+  service: {
+    tools: [
+      'service_list',
+      'service_view',
+      'service_file_list',
+      'service_file_read',
+      'service_file_write',
+    ],
+  },
 
-  create: {
+  generate: {
     tools: ['generate_service', 'catalog_search'],
-    includes: ['core'],
+  },
+
+  chat: {
+    tools: ['memory'],
+    includes: ['core', 'service', 'generate'],
   },
 
   review: {

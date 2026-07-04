@@ -20,9 +20,14 @@ export interface ToolContext {
   enabledToolsets: string[]
 }
 
+/** 工具类型分类 */
+export type ToolCategory = 'generate' | 'view' | 'edit' | 'manage'
+
 export interface ToolEntry {
   name: string
   toolset: string
+  /** 工具类型分类，用于 system prompt 中按类型引导 AI 选择工具 */
+  category?: ToolCategory
   schema: ToolSchema
   handler: (args: Record<string, any>, ctx?: ToolContext) => Promise<string>
   checkFn?: () => boolean // 运行时可用性检查

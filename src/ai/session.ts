@@ -17,9 +17,10 @@ const HISTORY_KEY_PREFIX = `${SESSIONS_DIR}/`
 // ---- 类型 ----
 
 export interface Message {
-  role: 'user' | 'assistant' | 'system'
+  role: 'user' | 'assistant' | 'system' | 'tool'
   content: string
   hidden?: boolean
+  toolName?: string
 }
 
 export interface SessionMeta {
@@ -414,6 +415,10 @@ export function addAssistantMessage(content: string): void {
 
 export function addSystemMessage(content: string): void {
   getSession().messages.value.push({ role: 'system', content, hidden: true })
+}
+
+export function addToolMessage(toolName: string): void {
+  getSession().messages.value.push({ role: 'tool', content: toolName, toolName })
 }
 
 export function flashError(msg: string): void {

@@ -40,7 +40,7 @@
         :key="idx"
         :class="['message', msg.role]"
       >
-        <div class="message-content" v-text="msg.content"></div>
+        <div class="message-content" v-text="msg.role === 'tool' ? '🔧 ' + msg.content : msg.content"></div>
       </div>
 
       <div v-if="streaming" class="message assistant">
@@ -122,6 +122,7 @@ import {
   saveHistory,
   addUserMessage,
   addAssistantMessage,
+  addToolMessage,
   addSystemMessage,
   flashError,
   getVisibleMessages,
@@ -249,6 +250,7 @@ async function send() {
   if (text.startsWith('/')) {
     const detected = await detectSlashCommand(text)
     if (detected) {
+      console.log(`[Skill] === 用户斜杠命令触发: /${detected.skill.slug} (${detected.skill.name}) ===`)
       const expanded = await buildSkillInvocationMessage(
         detected.skill.slug,
         detected.userInstruction
@@ -268,7 +270,7 @@ async function send() {
   try {
     // 过滤掉隐藏的系统消息，只传 user/assistant 给 API
     const history = messages.value
-      .filter((m) => !m.hidden)
+      .filter((m) => !m.hidden && m.role !== 'tool')
       .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
     const chatMsgs = buildMessages(history.slice(0, -1))
     chatMsgs.push({ role: 'user', content: injectedUserMsg })
@@ -276,7 +278,18 @@ async function send() {
     const gen = streamChat(chatMsgs, { turnCount: turnCount.value })
 
     for await (const chunk of gen) {
-      streamingContent.value += chunk
+      if (chunk.startsWith('\x00TOOL:') && chunk.endsWith('\x00')) {
+        const toolName = chunk.slice(6, -1)
+        console.log('[ChatPage] 🔧', toolName)
+        if (streamingContent.value) {
+          addAssistantMessage(streamingContent.value)
+          streamingContent.value = ''
+        }
+        addToolMessage(toolName)
+        saveHistory()
+      } else {
+        streamingContent.value += chunk
+      }
       scrollToBottom()
     }
 
@@ -566,6 +579,18 @@ watch(showStats, async (open) => {
   color: #333;
   border-radius: 16px 16px 16px 4px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.message.tool {
+  align-self: center;
+}
+
+.message.tool .message-content {
+  background: #F3F4F6;
+  color: #6B7280;
+  border-radius: 12px;
+  font-size: 12px;
+  padding: 6px 14px;
 }
 
 .message.error .message-content {

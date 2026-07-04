@@ -266,7 +266,7 @@ export interface ValidationError {
   message: string
 }
 
-const KNOWN_PERMISSIONS = ['storage', 'notification']
+const KNOWN_PERMISSIONS = ['storage', 'notification', 'widgets', 'network']
 
 export function validatePermissions(permissions: string[]): ValidationError[] {
   const errors: ValidationError[] = []
@@ -330,5 +330,19 @@ export function getCatalogYamlText(): string {
   - __amiba__.showToast(title, icon)   // icon: 'success'|'error'|'loading'|'none'
   - __amiba__.navigateTo(url)
   - __amiba__.navigateBack(delta)
+
+网络 P2P 通信 API（需要 manifest.permissions 包含 "network"）:
+  - __amiba__.network.startListening(serviceKey)  // ★ 必须调用，启动 TCP 监听并注册服务标识
+  - __amiba__.network.stopListening(serviceKey)    // 停止监听（服务卸载时自动调用）
+  - __amiba__.network.setVisibility({lan:true})    // 使设备可见（UDP 发现，不启动 TCP）
+  - __amiba__.network.startDiscovery('lan')        // 开始扫描局域网设备
+  - __amiba__.network.getVisibleDevices()          // 获取已发现设备列表 → [{id,name,address}]
+  - __amiba__.network.onPeerDiscovered(cb)         // 监听新设备发现
+  - const session = await __amiba__.network.connect(peerId, serviceKey)  // ★ serviceKey 必须传
+  - __amiba__.network.onSession((session) => {...}) // 监听外来会话（同服务匹配成功后自动触发）
+  - session.send(JSON.stringify({type,payload}))    // 发送消息（字符串）
+  - session.on('message', raw => {...})             // 接收消息
+  - session.on('close', () => {...})                // 对方断开
+  - session.close()                                 // 主动断开
 `
 }

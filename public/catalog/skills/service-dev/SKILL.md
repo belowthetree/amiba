@@ -16,13 +16,24 @@ keywords:
 
 # Amiba 服务开发完整指南 (service-dev)
 
-当用户要求「开发服务 / 创建应用 / 写一个 XX」时，严格遵循以下规范。
+当用户要求「开发服务 / 创建应用 / 写一个 XX」时，使用 **generate_service** 工具生成服务，严格遵循以下规范。
 
 ---
 
-## 1. 输出格式
+## 1. 生成服务
 
-**必须输出纯 JSON**（无 markdown 代码块包裹，无解释文字）：
+使用 `generate_service` 工具（generate 类），传入用户需求描述，系统自动完成 LLM 生成 → 校验 → 注册 → 安装。
+
+**调用格式：**
+```
+generate_service({ prompt: "用户的需求描述" })
+```
+
+**生成前务必先检查：**
+- 用 `service_list` 确认是否已有类似服务可复用或修改
+- 用 `requirements_summary` 确认是否可通过修改现有服务满足需求
+
+返回格式（自动生成的 JSON）：
 
 ```json
 {
@@ -263,16 +274,22 @@ Canvas 必须显式设置 width/height。示例：`example/chart-demo/`
 
 ## 11. 迭代修改已安装服务
 
-生成服务后如需修改，**不要重新生成整个服务**，使用 Agent Tools：
+生成服务后如需修改，**不要重新生成整个服务**。使用服务工具按类型分步操作：
 
-| 工具 | 用途 |
-|------|------|
-| `service_list` | 列出已安装服务 |
-| `service_file_list` | 列出某服务的文件 |
-| `service_file_read` | 读取文件内容 |
-| `service_file_write` | 覆写文件（需传完整内容） |
+| 类型 | 工具 | 用途 |
+|------|------|------|
+| **查看** | `service_list` | 列出所有已安装用户服务 |
+| **查看** | `service_view` | 查看单个服务的 manifest、文件列表、安装状态 |
+| **编辑** | `service_file_list` | 列出某服务的所有文件 |
+| **编辑** | `service_file_read` | 读取某个文件的完整内容 |
+| **编辑** | `service_file_write` | 覆盖式写入文件（需传完整内容） |
 
-流程：`service_list` → `service_file_read` → 修改代码 → `service_file_write`
+**推荐工作流：**
+1. `service_list` → 确定要修改哪个服务
+2. `service_view` → 了解服务整体结构
+3. `service_file_list` → 查看有哪些文件可编辑
+4. `service_file_read` → 阅读现有代码
+5. `service_file_write` → 写入修改后的代码
 
 ---
 
