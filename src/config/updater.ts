@@ -259,11 +259,8 @@ export async function downloadUpdate(
 
 // ---- 拉起安装 ----
 
-/** 用系统默认程序打开下载好的文件（安装包）。Android 上跳过，需手动安装。 */
+/** 用系统默认程序打开下载好的文件（安装包） */
 export async function installUpdate(filePath: string): Promise<void> {
-  if (detectPlatform() === 'android') {
-    throw new Error(`APK 已下载到 ${filePath}，请前往文件管理器手动安装`)
-  }
   const { openPath } = await import('@tauri-apps/plugin-opener')
   await openPath(filePath)
 }
