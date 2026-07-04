@@ -66,11 +66,36 @@ jobs:
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION" >> $GITHUB_ENV
           echo "$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION/toolchains/llvm/prebuilt/linux-x86_64/bin" >> $GITHUB_PATH
 
-      - name: Install Rust targets & cargo-tauri
+      - name: Setup Rust with Android targets
         if: steps.check.outputs.skip == 'false'
         run: |
-          rustup target add aarch64-linux-android armv7-linux-androideabi
-          cargo install tauri-cli --version "^2"
+          rustup target add aarch64-linux-android x86_64-linux-android
+          rustup component add rust-std --target aarch64-linux-android
+          rustup component add rust-std --target x86_64-linux-android
+
+      - name: Install sccache
+        if: steps.check.outputs.skip == 'false'
+        uses: mozilla-actions/sccache-action@v0.0.4
+
+      - name: Configure sccache
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          mkdir -p src-tauri/.cargo
+          echo "[env]" > src-tauri/.cargo/config.toml
+          echo 'RUSTC_WRAPPER = "sccache"' >> src-tauri/.cargo/config.toml
+          echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
+
+      - name: Cache Rust
+        if: steps.check.outputs.skip == 'false'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            src-tauri/target
+          key: ${{ runner.os }}-android-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-android-cargo-
 
       - name: Install dependencies
         if: steps.check.outputs.skip == 'false'
@@ -99,7 +124,7 @@ jobs:
 
       - name: Build APK
         if: steps.check.outputs.skip == 'false'
-        run: cargo tauri android build
+        run: npx tauri android build
 
       - name: Create GitHub Release
         if: steps.check.outputs.skip == 'false'

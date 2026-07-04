@@ -45,6 +45,30 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
+      - name: Install sccache
+        if: steps.check.outputs.skip == 'false'
+        uses: mozilla-actions/sccache-action@v0.0.4
+
+      - name: Configure sccache
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          mkdir -p src-tauri/.cargo
+          echo "[env]" > src-tauri/.cargo/config.toml
+          echo 'RUSTC_WRAPPER = "sccache"' >> src-tauri/.cargo/config.toml
+          echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
+
+      - name: Cache Rust
+        if: steps.check.outputs.skip == 'false'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            src-tauri/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
       - name: Install dependencies
         if: steps.check.outputs.skip == 'false'
         run: npm ci
