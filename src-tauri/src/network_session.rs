@@ -554,6 +554,7 @@ fn spawn_session_io<S>(
     // 任务 1: WS → 前端
     let sid1 = session_id.clone();
     let app1 = app.clone();
+    let state1 = state.clone();
     let mut cancel1 = cancel_rx.clone();
     tokio::spawn(async move {
         loop {
@@ -582,6 +583,16 @@ fn spawn_session_io<S>(
                 }
             }
         }
+        // WS 读取端断开：通知前端关闭 session
+        let mut ns = state1.lock().await;
+        if let Some(s) = ns.sessions.remove(&sid1) {
+            let _ = s.cancel_tx.send(true);
+            let _ = app1.emit("network:session-closed", serde_json::json!({
+                "sessionId": sid1,
+                "reason": "connection-lost",
+            }));
+        }
+        eprintln!("[net-session] session {} 读取端已关闭", sid1);
     });
 
     // 任务 2: 前端 → WS
