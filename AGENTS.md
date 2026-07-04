@@ -24,8 +24,8 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 
 | Module | Path | Role |
 |--------|------|------|
-| **AI Core** | `src/ai/` | LLM agent (multi-tool loop), system prompt assembler (system-prompt.ts: stable/volatile split cache + nudge), personality system (soul.ts), session manager v2 (session.ts: multi-session with create/switch/delete), memory store (memory-store.ts: real-time cache + frozen snapshot + threat scanning + context fencing), skill system (skills.ts + skill-parser + skill-commands + skill-usage + skill-curator + skill-consolidation-prompt), requirement store (requirement-store.ts: per-service + global REQUIREMENT.md), service validator (service-validator.ts: storage API check, sandbox API check, permission consistency), service packager (packager.ts: inline multi-file package into single HTML), catalog |
-| **Tools** | `src/tools/` | ToolRegistry (deferred-queue), auto-discovery, 3 toolsets (core/service), 22+ tool impls: memory, catalog_search, skill_view/list, skill_manage_*(5 tools), service_list/view/create, service_file_*(3 tools), service_validate, soul_save, requirement_*(3 tools), session_search, web_fetch, web_browse |
+| **AI Core** | `src/ai/` | LLM agent (multi-tool loop), system prompt assembler (system-prompt.ts: stable/volatile split cache + nudge), personality system (soul.ts), session manager v2 (session.ts: multi-session with create/switch/delete), memory store (memory-store.ts: real-time cache + frozen snapshot + threat scanning + context fencing), skill system (skills.ts + skill-parser + skill-commands + skill-usage + skill-curator + skill-consolidation-prompt), requirement store (requirement-store.ts: per-service + global REQUIREMENT.md), service validator (service-validator.ts: storage API check, sandbox API check, permission consistency), document index (doc-index.ts: builtin + user doc search/read), service packager (packager.ts: inline multi-file package into single HTML), catalog |
+| **Tools** | `src/tools/` | ToolRegistry (deferred-queue), auto-discovery, 4 toolsets (core/service/docs), 25+ tool impls: memory, catalog_search, skill_view/list, skill_manage_*(5 tools), service_list/view/create, service_file_*(4 tools), service_validate, doc_list/read/search, soul_save, requirement_*(3 tools), session_search, web_fetch, web_browse |
 | **Host Runtime** | `src/host/` | iframe sandbox (`service-container.vue`), postMessage JSBridge (`bridge.ts`), service registry (`registry.ts`) |
 | **Web Bridge** | `src/config/web-bridge.ts` | 封装 Tauri `web_fetch`/`web_click`/`web_input_text`/`web_get_content`/`web_close` 命令，含超时和日志 |
 | **Updater** | `src/config/updater.ts` | 纯前端更新检查：调 GitHub Releases API，semver 比较，全平台统一 |
@@ -74,8 +74,12 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 | `service_view` | service | View full service info: manifest, files, status (view category) |
 | `service_create` | service | Create new service skeleton: register manifest + dir (manage category) |
 | `service_file_list/read/write` | service | File-level editing on generated services (edit category) |
+| `service_file_edit` | service | Targeted find-replace in service files (edit category, preferred) |
 | `service_validate` | service | Validate service code: localStorage, sandbox APIs, permissions (view category) |
 | `session_search` | core | Search past sessions via SQLite FTS5 (4 modes: discover/scroll/read/browse) |
+| `doc_list` | docs | List all available documentation (view category) |
+| `doc_read` | docs | Read full content of a documentation file (view category) |
+| `doc_search` | docs | Search documentation by keyword, returns snippets (view category) |
 | `soul_save` | core | Create/update personality file (`souls/<name>.md`) |
 | `requirement_view` | core | Read per-service REQUIREMENT.md |
 | `requirement_update` | core | Add requirement/optimization/feedback/done entries |

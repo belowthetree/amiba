@@ -1,7 +1,7 @@
 // ============================================================
 // 变形虫 (Amiba) — Service 文件编辑工具
 // ============================================================
-// 允许 Agent 对指定的服务目录中文件进行 列出/读取/写入，
+// 允许 Agent 对指定的服务目录中文件进行 列出/读取/编辑/写入，
 // 用于 AI 迭代修改已生成服务，无需重新生成整个包。
 // ============================================================
 import { toolRegistry } from './tool-registry'
@@ -194,4 +194,101 @@ toolRegistry.register({
     }
   },
 })
+
+// ---- service_file_edit ----
+
+toolRegistry.register({
+  name: 'service_file_edit',
+  toolset: 'service',
+  category: 'edit',
+  emoji: '✂️',
+  description:
+    '精确修改服务文件的某一段落（查找替换）。只替换目标行，不影响文件其余部分。优先使用此工具而非 service_file_write 完整重写。',
+  maxResultSizeChars: 2000,
+  schema: {
+    type: 'function',
+    function: {
+      name: 'service_file_edit',
+      description:
+        '在服务文件中进行精确的查找替换。先用 service_file_read 确认当前代码，再提供足够的上下文确保 find 唯一匹配。仅修改少量行时用此工具，大范围改动才用 service_file_write。',
+      parameters: {
+        type: 'object',
+        properties: {
+          service_id: {
+            type: 'string',
+            description: '服务 ID，如 "user.todo"',
+          },
+          file_path: {
+            type: 'string',
+            description: '文件路径，如 "app.js"、"style.css"',
+          },
+          find: {
+            type: 'string',
+            description: '要替换的原文字。必须精确匹配（含空格、缩进、换行），并提供足够上下文确保唯一匹配。',
+          },
+          replace: {
+            type: 'string',
+            description: '替换后的新文字',
+          },
+        },
+        required: ['service_id', 'file_path', 'find', 'replace'],
+      },
+    },
+  },
+  handler: async (args) => {
+    const serviceId = String(args.service_id || '').trim()
+    const filePath = String(args.file_path || '').trim()
+    const find = String(args.find || '')
+    const replace = String(args.replace ?? '')
+
+    const err = validateServiceId(serviceId)
+    if (err) return JSON.stringify({ error: err })
+
+    if (!filePath) return JSON.stringify({ error: 'file_path 不能为空' })
+    if (!find) return JSON.stringify({ error: 'find 不能为空' })
+
+    try {
+      const content = await readServiceFile(serviceId, filePath)
+      if (content === null) {
+        return JSON.stringify({
+          error: `文件 "${filePath}" 不存在于服务 ${serviceId}`,
+          hint: '使用 service_file_list 查看可用文件',
+        })
+      }
+
+      const count = (content.match(escapeForRegex(find)) || []).length
+      if (count === 0) {
+        return JSON.stringify({
+          error: `未找到匹配的文字。请用 service_file_read 查看当前内容，确认 find 精确匹配（含空格、缩进和换行）。`,
+          hint: 'find 必须与文件中的文字完全一致。',
+        })
+      }
+      if (count > 1) {
+        return JSON.stringify({
+          error: `找到 ${count} 处匹配，不够精确。请增加更多上下文使 find 唯一。`,
+          hint: '多选几行代码作为 find，确保整段文字只在文件中出现一次。',
+        })
+      }
+
+      const updated = content.replace(find, replace)
+      await writeServiceFile(serviceId, filePath, updated)
+
+      return JSON.stringify({
+        success: true,
+        service_id: serviceId,
+        file_path: filePath,
+        old_size: content.length,
+        new_size: updated.length,
+        message: `已修改 ${filePath}（${content.length} → ${updated.length} 字符）`,
+      })
+    } catch (e: any) {
+      return JSON.stringify({ error: e.message })
+    }
+  },
+})
+
+function escapeForRegex(str: string): RegExp {
+  const escaped = str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(escaped, 'g')
+}
 

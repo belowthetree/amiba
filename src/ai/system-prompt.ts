@@ -178,6 +178,23 @@ const SKILL_MANAGE_GUIDANCE = `## 技能创建与改进指引
 
 ⚠️ 内置技能（counter / todo / notes / service-dev）不可修改或删除。`
 
+const DOCS_GUIDANCE = `## 文档系统使用指引
+你拥有平台文档库查询能力。遇到以下情况时查询文档：
+
+**常用查询：**
+- 沙箱限制 → doc_read("sandbox.md")
+- JSBridge API → doc_read("jbridge.md") 或 doc_search("storage")
+- 局域网 P2P 开发 → doc_read("network.md")
+- 存储 API → doc_read("storage.md")
+- Widget 开发 → doc_read("widgets.md")
+
+**工具：**
+- doc_list — 浏览所有可用文档
+- doc_search({ keyword }) — 按关键词搜索
+- doc_read({ path }) — 读取完整文档
+
+生成或修改服务代码前，优先查阅相关文档确保合规。`
+
 const REQUIREMENT_GUIDANCE = `## 需求追踪指引（重要：主动使用！）
 你拥有需求追踪能力。当对话涉及已生成的服务时，**主动使用 requirement_update 工具**记录：
 - 用户提出新功能需求 → type="requirement"，追加到对应服务
@@ -203,15 +220,18 @@ const SERVICE_GUIDANCE = `## 服务工具使用指引 ⚠️ 生成前必须先�
 1. skill_view("service-dev") — 必读：了解最新规范
 2. service_list → service_view → 了解现状
 3. service_file_list → service_file_read → 阅读代码
-4. service_file_write → 写入修改
-5. service_validate → 校验修改后的代码
+4. service_file_edit → 精确修改目标行（优先！避免传整个文件）
+5. service_file_write → 仅大范围重构时才用全量覆盖
+6. service_validate → 校验修改后的代码
 
 **工具清单：**
 - **manage 类** — service_create: 创建新服务骨架
 - **view 类** — service_list: 列出所有用户服务
 - **view 类** — service_view: 查看服务详情（manifest + 文件列表）
 - **view 类** — service_validate: 校验代码合法性（检查 localStorage、BroadcastChannel、权限一致性等）
-- **edit 类** — service_file_list/read/write: 文件级编辑
+- **edit 类** — service_file_list/read: 了解文件结构
+- **edit 类** — service_file_edit: 精确查找替换（修改少量行时优先用！）
+- **edit 类** — service_file_write: 完整覆盖文件（仅大范围改动时用）
 
 **关键约束（摘要，详见 skill_view("service-dev")）：**
 - 服务运行在 iframe sandbox 中，禁止使用 localStorage、sessionStorage、BroadcastChannel、alert/confirm/prompt
@@ -235,9 +255,15 @@ function buildBehaviorGuidance(availableTools: string[]): string {
   }
   if (
     availableTools.includes('service_list') ||
-    availableTools.includes('generate_service')
+    availableTools.includes('service_create')
   ) {
     parts.push(SERVICE_GUIDANCE)
+  }
+  if (
+    availableTools.includes('doc_list') ||
+    availableTools.includes('doc_read')
+  ) {
+    parts.push(DOCS_GUIDANCE)
   }
   return parts.join('\n\n')
 }

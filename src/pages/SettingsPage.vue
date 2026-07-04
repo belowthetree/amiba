@@ -262,6 +262,18 @@
       </div>
     </div>
 
+    <!-- ========== 数据管理 ========== -->
+    <div class="settings-section">
+      <h3 class="section-label">🗄 数据管理</h3>
+      <button
+        class="danger-btn"
+        style="margin-right:10px"
+        :disabled="deletingSessions"
+        @click="deleteAllSessions"
+      >{{ deletingSessions ? '删除中…' : '🗑 删除所有聊天记录' }}</button>
+      <span class="toggle-desc">删除所有会话和历史消息，不影响服务和记忆</span>
+    </div>
+
     <div class="saved-hint" v-if="showSaved">✅ 已保存</div>
   </div>
 </template>
@@ -278,12 +290,14 @@ import { providers, addProvider, updateProvider, deleteProvider, initProviderSto
 import { customAgents, activeAgentId, addCustomAgent, updateCustomAgent, deleteCustomAgent, setActiveAgent, initCustomAgentStore } from '../ai/custom-agent-store'
 import type { AiProvider, CustomAgent } from '../types/service'
 import { getCurrentVersion, checkForUpdate, downloadUpdate, installUpdate, type UpdateStatus, type UpdateInfo } from '../config/updater'
+import { listSessions, deleteSession } from '../ai/session'
 
 const apiKey = ref('')
 const appVersion = ref('...')
 const updateStatus = ref<UpdateStatus>({ stage: 'idle' })
 const showKey = ref(false)
 const showSaved = ref(false); const pending = ref<any[]>([])
+const deletingSessions = ref(false)
 
 // --- Network visibility ---
 const lanVisible = ref(currentVisibility.lan)
@@ -341,6 +355,23 @@ async function clearAllData() {
   if (confirm('确定要清除所有数据吗？这将删除配置、记忆和已安装的服务。此操作不可撤销！')) {
     await storageClear()
     location.reload()
+  }
+}
+
+async function deleteAllSessions() {
+  if (!confirm('确定要删除所有聊天记录吗？此操作不可撤销！')) return
+  deletingSessions.value = true
+  try {
+    const sessions = await listSessions()
+    for (const s of sessions) {
+      await deleteSession(s.id)
+    }
+    console.log('[Settings] 已删除所有会话记录 —', sessions.length, '个')
+    flashSaved()
+  } catch (e: any) {
+    alert('删除失败: ' + (e.message || String(e)))
+  } finally {
+    deletingSessions.value = false
   }
 }
 

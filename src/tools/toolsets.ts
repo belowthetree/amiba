@@ -42,14 +42,19 @@ export const TOOLSETS: Record<string, ToolsetDef> = {
       'service_create',
       'service_file_list',
       'service_file_read',
+      'service_file_edit',
       'service_file_write',
       'service_validate',
     ],
   },
 
+  docs: {
+    tools: ['doc_list', 'doc_read', 'doc_search'],
+  },
+
   chat: {
     tools: ['memory'],
-    includes: ['core', 'service'],
+    includes: ['core', 'service', 'docs'],
   },
 
   review: {
