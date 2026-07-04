@@ -121,6 +121,10 @@ pub fn run() {
       network_session::network_send,
       network_session::network_disconnect,
       network_session::network_get_ws_port,
+      network_session::network_accept_session,
+      network_session::network_reject_session,
+      network_session::network_start_listener,
+      network_session::network_stop_listener,
       network_visibility::network_get_device_id,
     ])
     .run(tauri::generate_context!())

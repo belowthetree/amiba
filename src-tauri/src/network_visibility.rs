@@ -3,8 +3,8 @@
 // ============================================================
 // UDP 广播发现 + 可见性编排。
 // 与 network_session.rs 解耦：本模块只管"被看见"。
-// 跨模块依赖：setVisibility 编排 session 模块的 TCP listener；
-//             UDP 广播读取 session 模块的 ws_port。
+// TCP 监听由各服务按需启动（network_start_listener 命令），
+// 本模块仅通过 SessionStore.ws_port 读取端口用于广播。
 // ============================================================
 
 use std::collections::HashMap;
@@ -17,7 +17,7 @@ use tokio::net::UdpSocket;
 use tokio::sync::{watch, Mutex};
 use uuid::Uuid;
 
-use crate::network_session::{SessionStore, ensure_listener, stop_listener};
+use crate::network_session::SessionStore;
 
 // ---- Types ----
 
@@ -136,16 +136,11 @@ pub async fn network_set_visibility(
         let (cancel_tx, cancel_rx) = watch::channel(false);
         ns.cancel_tx = Some(cancel_tx);
         drop(ns);
-        // 先启 TCP listener（session 模块）→ 拿 ws_port
-        ensure_listener(&sess_state, app.clone()).await?;
-        // 再启 UDP 广播/监听（本模块），广播读 ws_port
+        // 只启 UDP 广播/监听；TCP listener 由服务按需启动（network_start_listener）
         start_udp_broadcast(vis_state.inner().clone(), sess_state.inner().clone(), cancel_rx.clone()).await;
         start_udp_listener(vis_state.inner().clone(), app.clone(), cancel_rx);
-    } else {
-        // 关可见性：停 UDP（已 cancel）+ 停 TCP listener（修复端口常驻泄漏）
-        drop(ns);
-        stop_listener(&sess_state).await?;
     }
+    // 关可见性时仅停 UDP；TCP listener 由服务自行管理
     Ok(visibility)
 }
 

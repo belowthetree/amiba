@@ -96,7 +96,7 @@ export interface ServiceResponse {
 
 export interface HostEvent {
   type: 'event'
-  name: 'page-show' | 'page-hide' | 'task-trigger' | 'peer-discovered' | 'peer-lost' | 'session-created' | 'session-event'
+  name: 'page-show' | 'page-hide' | 'task-trigger' | 'peer-discovered' | 'peer-lost' | 'session-created' | 'session-event' | 'session-request' | 'session-rejected' | 'session-timeout'
   data?: any
 }
 

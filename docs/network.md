@@ -88,28 +88,53 @@ setVisibility({lan:true})      setVisibility({lan:true})
               收到 → peer-discovered
 ```
 
-### 连接与通信流程 (v4)
+### 连接与通信流程 (v5 — 含 hello 握手)
 
 ```
-A 主动连接 B:
+A 主动连接 B（打招呼机制）:
 
-  A: session = await connect(B_id)
+  A: session = await connect(B_id, "你好，一起聊天？")
        │
-       └─ invoke('network_connect', {peerId: B_id})
+       └─ invoke('network_connect', {peerId: B_id, greeting: "你好..."})
             │
             ▼
           Rust: connect_async("ws://B_IP:B_PORT")
             │
-            ├─ 创建 SessionState {id, peer_id, direction: Outbound}
-            ├─ emit "network:session-created" → A 前端收到 session 对象
+            ├─ 发送 hello: {"type":"hello","from":"A_id","name":"A_name","greeting":"你好..."}
+            ├─ 等待 ack / reject / 30s 超时
+            │   ├─ ack   → 创建 Outbound SessionState → emit session-created → 返回 session
+            │   ├─ reject → 关闭 WS → connect() Promise reject(reason)
+            │   └─ 超时  → 关闭 WS → connect() Promise reject("对方未响应")
             └─ spawn_session_io → 双工读写 task
 
-B 接受外来连接:
+B 接受外来连接（双层确认）:
 
   Rust TCP listener accept → upgrade WS
-    ├─ 创建 SessionState {id, direction: Inbound}
-    ├─ emit "network:session-created" → B 前端收到 onSession()
-    └─ spawn_session_io
+    ├─ 读取 hello: {"type":"hello","from":"A_id","name":"A_name","greeting":"你好..."}
+    ├─ 存 PendingSession（持有 WS 分片 + 30s 超时计时器）
+    ├─ emit "network:session-request" {pendingId, peerId, peerName, greeting}
+    │    │
+    │    ├─[宿主层] service-container.vue 弹确认对话框「A 想连接：你好...」
+    │    │    ├─ 用户点接受 → invoke('network_accept_session') → 发 ack → 升级为正式 session
+    │    │    └─ 用户点拒绝 → invoke('network_reject_session') → 发 reject → 关闭 WS
+    │    │
+    │    ├─[服务层] sendEvent('session-request') 转发到 iframe
+    │    │    └─ 服务调 __amiba__.network.acceptSessionRequest / rejectSessionRequest
+    │    │
+    │    └─[10s 超时] 服务和宿主都未响应 → 默认 accept（保证未适配服务可用）
+    │
+    ├─ network_accept_session(pendingId)
+    │    ├─ 发送 ack: {"type":"ack"}
+    │    ├─ 创建 Inbound SessionState（peer_id 来自 hello 真实身份）
+    │    ├─ emit "network:session-created" → B 前端 onSession()
+    │    └─ spawn_session_io
+    │
+    ├─ network_reject_session(pendingId, reason)
+    │    ├─ 发送 reject: {"type":"reject","reason":"..."}
+    │    ├─ 关闭 WS
+    │    └─ emit "network:session-rejected"
+    │
+    └─ 30s 超时 → 自动 reject → emit "network:session-timeout"
 
 消息流 (A → B):
 
@@ -122,6 +147,20 @@ B 接受外来连接:
 消息流 (B → A):
 
   同上，通过 B 的 session.send() → B 的 Rust → A 的 Rust → A 的前端
+```
+
+### 握手协议
+
+| 消息 | 方向 | 格式 | 说明 |
+|------|------|------|------|
+| `hello` | 连接方 → 被动方 | `{"type":"hello","from":"<peerId>","name":"<hostname>","greeting":"<可选>"}` | 首条消息，含设备身份和打招呼文本 |
+| `ack` | 被动方 → 连接方 | `{"type":"ack"}` | 接受连接 |
+| `reject` | 被动方 → 连接方 | `{"type":"reject","reason":"<原因>"}` | 拒绝连接 |
+
+**超时策略**：
+- hello 读取超时：10s（被动方等待 hello）
+- 握手确认超时：30s（被动方等待前端 accept/reject，Rust 层兜底）
+- 服务响应超时：10s（前端服务未响应 → 宿主默认 accept）
 ```
 
 ### 设备生命周期
@@ -143,14 +182,14 @@ B 接受外来连接:
 
 **设置页面入口**：`设置 → 🌐 网络 → 局域网发现` 提供 toggle 开关。打开时调用 `setVisibility({lan:true})` 启动 TCP 监听 + UDP 发现。
 
-## Session 模型 (v4)
+## Session 模型 (v5 — 含 hello 握手)
 
-`NetworkSession` 是整个通信的核心抽象。每次 `connect()` 返回一个 session，外来连接通过 `onSession()` 获得 session。
+`NetworkSession` 是整个通信的核心抽象。每次 `connect()` 发起 hello 握手，握手成功后返回 session；外来连接通过 `onSession()` 获得 session（仅在被动方 accept 后触发）。
 
 ### Session 对象
 
 ```js
-const session = await __amiba__.network.connect(peerId)
+const session = await __amiba__.network.connect(peerId, "你好")
 // → {
 //   id: "uuid",
 //   peerId: "对方设备ID",
@@ -168,10 +207,18 @@ const session = await __amiba__.network.connect(peerId)
 | `message` | 收到消息 | `(message: string)` — 原始 JSON 字符串 |
 | `close` | 对端断开或调用 close() | `(reason?: string)` |
 
+### 握手事件（宿主层 + 服务层）
+
+| 事件 | 触发时机 | handler 参数 |
+|------|----------|-------------|
+| `session-request` | 收到外来 hello | `{pendingId, peerId, peerName, greeting}` |
+| `session-rejected` | 连接被拒绝 | `{pendingId, reason}` |
+| `session-timeout` | 30s 握手超时 | `{pendingId}` |
+
 ### 生命周期
 
 ```
-connect(peerId) → Session 创建 (session-created)
+connect(peerId, greeting) → 发 hello → 等 ack → Session 创建 (session-created)
     │
     ├─ session.send(msg)  ←→  session.on('message', cb)
     │
@@ -193,15 +240,23 @@ await __amiba__.network.stopDiscovery('lan')
 const devices = await __amiba__.network.getVisibleDevices()
 __amiba__.network.onPeerDiscovered((peer) => { ... })
 
-// Session
-const session = await __amiba__.network.connect(peerId)
+// Session（含 hello 握手）
+const session = await __amiba__.network.connect(peerId, "你好，一起聊天？")
 await session.send(JSON.stringify({ type: 'chat', text: 'hello' }))
 session.on('message', (msg) => { const data = JSON.parse(msg); ... })
 session.on('close', () => { /* 对方断开 */ })
 await session.close()
 
-// 接受外来会话
+// 接受外来会话（仅在被动方 accept 后触发）
 __amiba__.network.onSession((session) => { /* 同上 */ })
+
+// 握手确认（被动方收到外来连接请求时）
+__amiba__.network.onSessionRequest((info) => {
+  // info: { pendingId, peerId, peerName, greeting }
+  // 服务可自行决定是否接受：
+  __amiba__.network.acceptSessionRequest(info.pendingId)   // 接受
+  __amiba__.network.rejectSessionRequest(info.pendingId, '不想聊')  // 拒绝
+})
 ```
 
 ## 限制与注意
@@ -220,3 +275,4 @@ __amiba__.network.onSession((session) => { /* 同上 */ })
 - **2025-08-17**: 协议层在 iframe bridge 脚本内实现，与宿主解耦。
 - **2025-08-18 (v4)**: Worker 管理 WebSocket 客户端导致连接状态不可见、双向需两条连接、Rust 和 Worker 各管一半。重构为 Rust 统一管理所有 WebSocket（`connect_async` + `accept_async`），前端通过 `NetworkSession` 抽象与连接交互。协议层移除，序列化由服务自行处理。
 - **2025-08-19 (解耦)**: `network.rs` 拆为 `network_visibility.rs`（UDP 发现 + 可见性编排）与 `network_session.rs`（TCP 监听 + WS 会话）。`NetworkState` 拆为 `VisibilityState` + `SessionStore`。`setVisibility` 编排两模块：先 `ensure_listener` 拿 `ws_port`，再启 UDP 广播。修复 TCP listener 启动后不停止的端口常驻泄漏（`stop_listener` 随可见性关闭调用）。命令名不变，前端零改动。为后续 hello 握手机制铺路。
+- **2025-08-20 (v5 握手)**: 添加 hello/ack/reject 握手协议。入站连接不再直接建 session，而是读取 hello → 存 `PendingSession` → emit `session-request` → 等待前端 accept/reject。出站 `connect()` 发 hello 等 ack（30s 超时）。双层确认：宿主弹对话框 + 服务 `onSessionRequest` 回调，先响应者优先；10s 服务无响应默认 accept；30s Rust 兜底超时自动 reject。修复 inbound session `peer_id` 从 `inbound-<uuid>` 改为 hello 真实 `from`。新增命令 `network_accept_session` / `network_reject_session`，新增事件 `session-request` / `session-rejected` / `session-timeout`。

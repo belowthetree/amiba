@@ -83,12 +83,12 @@ export class NetworkSession {
   }
 }
 
-/** 创建出站 session（调用 Rust network_connect） */
-export async function createOutboundSession(peerId: string): Promise<NetworkSession> {
+/** 创建出站 session（调用 Rust network_connect，含 hello 握手） */
+export async function createOutboundSession(peerId: string, greeting?: string, serviceKey?: string): Promise<NetworkSession> {
   const { invoke } = await import('@tauri-apps/api/core')
   const info = await invoke<{ sessionId: string; peerId: string; peerName: string }>(
     'network_connect',
-    { peerId }
+    { peerId, greeting, serviceKey }
   )
   const session = new NetworkSession(info.sessionId, info.peerId, info.peerName)
   sessions.set(session.id, session)
