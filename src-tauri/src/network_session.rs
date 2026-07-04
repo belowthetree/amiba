@@ -219,7 +219,8 @@ async fn accept_inbound(
     let peer_name = hello["name"].as_str().unwrap_or("unknown").to_string();
     let service_key = hello["service"].as_str().unwrap_or("").to_string();
 
-    eprintln!("[net-session] 收到 hello: service={}, from={}, name={}", service_key, peer_id, peer_name);
+    eprintln!("[net-session] === 收到 hello: service={}, from={}, name={}, addr={} ===", service_key, peer_id, peer_name, addr);
+    eprintln!("[net-session]    当前监听服务: {:?}", { let ss = state.lock().await; ss.listening_services.clone() });
 
     // ---- 服务匹配：自动 accept / reject ----
     let matched = {
@@ -227,8 +228,11 @@ async fn accept_inbound(
         !service_key.is_empty() && ss.listening_services.contains(&service_key)
     };
 
+    eprintln!("[net-session]    匹配结果: matched={}  service_key='{}'", matched, service_key);
+
     if matched {
         // 匹配：发 ack → 建 Inbound Session
+        eprintln!("[net-session]    ✓ 服务匹配，发送 ack ...");
         if let Err(e) = write.send(Message::Text(
             serde_json::json!({"type":"ack"}).to_string().into()
         )).await {
@@ -259,7 +263,7 @@ async fn accept_inbound(
             });
         }
 
-        eprintln!("[net-session] Inbound session 创建: {} <- {} ({})", session_id, peer_id, peer_name);
+        eprintln!("[net-session]    ✓ Inbound session 创建: {} <- {} ({})", session_id, peer_id, peer_name);
 
         let _ = app.emit("network:session-created", serde_json::json!({
             "sessionId": &session_id,
@@ -276,7 +280,7 @@ async fn accept_inbound(
         } else {
             format!("没有服务在监听 '{}'", service_key)
         };
-        eprintln!("[net-session] 服务不匹配，拒绝: {}", reason);
+        eprintln!("[net-session]    ✗ 服务不匹配，拒绝: {}", reason);
         let _ = write.send(Message::Text(
             serde_json::json!({"type":"reject","reason":&reason}).to_string().into()
         )).await;
@@ -324,9 +328,12 @@ pub async fn network_connect(
     if address.is_empty() {
         return Err("设备地址未知".into());
     }
+    if address.ends_with(":0") {
+        return Err("该设备暂未开放连接。请在对方设备上打开相同服务（服务需调用 startListening）".into());
+    }
 
     let url = format!("ws://{}", address);
-    eprintln!("[net-session] 主动连接: {} -> {} (service={})", peer_id, url, service_key.as_deref().unwrap_or(""));
+    eprintln!("[net-session] === 主动连接: {} -> {} (service={}) ===", peer_id, url, service_key.as_deref().unwrap_or(""));
 
     let (ws, _) = connect_async(&url)
         .await
@@ -416,7 +423,7 @@ pub async fn network_connect(
         });
     }
 
-    eprintln!("[net-session] Outbound session 创建: {} -> {} ({})", session_id, peer_id, peer_name);
+    eprintln!("[net-session]    ✓ Outbound session 创建: {} -> {} ({})", session_id, peer_id, peer_name);
 
     let _ = app.emit("network:session-created", serde_json::json!({
         "sessionId": &session_id,
@@ -475,6 +482,7 @@ pub async fn network_start_listener(
     app: AppHandle,
     service_key: String,
 ) -> Result<(), String> {
+    eprintln!("[net-session] === startListening: service='{}' ===", service_key);
     let mut ss = state.lock().await;
     ss.listening_services.insert(service_key);
     ss.listener_refcount += 1;
@@ -483,6 +491,7 @@ pub async fn network_start_listener(
     if need_start {
         ensure_listener(&state, app).await
     } else {
+        eprintln!("[net-session]    TCP 监听已在运行，refcount={}", 1);
         Ok(())
     }
 }
@@ -492,6 +501,7 @@ pub async fn network_stop_listener(
     state: State<'_, Arc<Mutex<SessionStore>>>,
     service_key: String,
 ) -> Result<(), String> {
+    eprintln!("[net-session] === stopListening: service='{}' ===", service_key);
     let mut ss = state.lock().await;
     ss.listening_services.remove(&service_key);
     if ss.listener_refcount > 0 {
@@ -502,6 +512,7 @@ pub async fn network_stop_listener(
     if need_stop {
         stop_listener(&state).await
     } else {
+        eprintln!("[net-session]    其他服务仍在监听，保持 TCP 运行");
         Ok(())
     }
 }

@@ -92,5 +92,6 @@ export async function createOutboundSession(peerId: string, serviceKey?: string)
   )
   const session = new NetworkSession(info.sessionId, info.peerId, info.peerName)
   sessions.set(session.id, session)
+  console.log('[NetSession] created sid=', session.id.slice(0,8), 'peer=', session.peerName)
   return session
 }

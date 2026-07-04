@@ -126,6 +126,7 @@ pub async fn network_set_visibility(
     app: AppHandle,
     visibility: TransportVisibility,
 ) -> Result<TransportVisibility, String> {
+    eprintln!("[net-vis] === setVisibility: lan={} ===", visibility.lan);
     let mut ns = vis_state.lock().await;
     ns.visibility = visibility.clone();
 
@@ -159,6 +160,7 @@ pub async fn network_start_discovery(
     app: AppHandle,
     transport: String,
 ) -> Result<(), String> {
+    eprintln!("[net-vis] === startDiscovery: transport={} ===", transport);
     let mut ns = vis_state.lock().await;
     if let Some(tx) = ns.cancel_tx.take() { let _ = tx.send(true); }
     let (cancel_tx, cancel_rx) = watch::channel(false);
@@ -232,20 +234,18 @@ async fn start_udp_broadcast(
         loop {
             if *cancel_rx.borrow() { eprintln!("[net-vis] UDP 广播已取消"); return; }
             send_count += 1;
-            // 从 session 模块读 ws_port
+            // 从 session 模块读 ws_port（0 = 暂无服务监听，可见但不可连）
             let port = { let ss = sess_store.lock().await; ss.ws_port };
-            if port > 0 {
-                let msg = serde_json::json!({
-                    "id": device_id, "name": device_name, "sid": sid, "ws_port": port,
-                });
-                let payload = msg.to_string();
-                for addr in &addrs {
-                    if let Err(e) = socket.send_to(payload.as_bytes(), addr.as_str()).await {
-                        if send_count <= 1 { eprintln!("[net-vis] UDP 发送到 {} 失败: {}", addr, e); }
+            let msg = serde_json::json!({
+                "id": device_id, "name": device_name, "sid": sid, "ws_port": port,
+            });
+            let payload = msg.to_string();
+            for addr in &addrs {
+                if let Err(e) = socket.send_to(payload.as_bytes(), addr.as_str()).await {
+                    if send_count <= 1 { eprintln!("[net-vis] UDP 发送到 {} 失败: {}", addr, e); }
                     }
                 }
-                if send_count % 10 == 1 { eprintln!("[net-vis] UDP 已发送 {} 次", send_count); }
-            }
+            if send_count % 10 == 1 { eprintln!("[net-vis] UDP 已发送 {} 次", send_count); }
             tokio::select! {
                 _ = tokio::time::sleep(std::time::Duration::from_secs(3)) => {}
                 _ = cancel_rx.changed() => { if *cancel_rx.borrow() { return; } }

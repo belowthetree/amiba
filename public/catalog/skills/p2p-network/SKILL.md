@@ -160,6 +160,7 @@ session.on('message', ...)      session.send(...)
 ### 注意事项
 
 1. **`setVisibility({lan:true})` 只管 UDP 发现**。TCP 监听由服务按需启动（`startListening`），不调用则无法被连接。
+2. **双方都必须先调用 `startListening`** 才能互相连接，否则报错"该设备暂未开放连接"。
 2. **`startDiscovery` 的参数是字符串 `'lan'`**，不是 `{transport:'lan'}`。
 3. **先 `startListening` 再等连接**：不调用 `startListening`，Rust 会直接拒绝外来连接（"没有服务在监听"）。
 4. **connect() 需指定 serviceKey**：第三个参数标识目标服务，hello 中携带 `service` 字段用于路由。

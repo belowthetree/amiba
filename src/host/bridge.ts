@@ -138,7 +138,12 @@ export const BRIDGE_SCRIPT = `
 
       // ---- Session API (v4) ----
       connect: function(peerId, serviceKey) {
+        console.log('[JSBridge] connect ->', peerId, 'serviceKey=', serviceKey);
         return callHost('network', 'connect', { peerId: peerId, serviceKey: serviceKey }).then(function(info) {
+          if (!info || !info.sessionId) {
+            throw new Error('连接失败：' + (info && info.error ? info.error : '未知错误'));
+          }
+          console.log('[JSBridge] connect <- sid=', info.sessionId);
           return createSessionProxy(info.sessionId, info.peerId, info.peerName);
         });
       },
@@ -146,6 +151,7 @@ export const BRIDGE_SCRIPT = `
         window.addEventListener('message', function handler(e) {
           if (e.data && e.data.type === 'event' && e.data.name === 'session-created') {
             var info = e.data.data; // { sessionId, peerId, peerName, direction }
+            console.log('[JSBridge] onSession <- dir=', info.direction, 'sid=', info.sessionId, 'peer=', info.peerName);
             callback(createSessionProxy(info.sessionId, info.peerId, info.peerName));
           }
         });
@@ -153,9 +159,11 @@ export const BRIDGE_SCRIPT = `
 
       // ---- 按需监听（服务主动请求 TCP listener） ----
       startListening: function(serviceKey) {
+        console.log('[JSBridge] startListening:', serviceKey);
         return callHost('network', 'startListening', { serviceKey: serviceKey });
       },
       stopListening: function(serviceKey) {
+        console.log('[JSBridge] stopListening:', serviceKey);
         return callHost('network', 'stopListening', { serviceKey: serviceKey });
       }
     },

@@ -222,18 +222,22 @@ function makeApiHandler(): ApiHandler {
           case 'getVisibleDevices':
             return getVisibleDevices()
           case 'connect': {
-            const session = await connect(params.peerId, params.serviceKey)
-            console.log('[SvcContainer] outbound session connected:', session.id.slice(0,8), 'peer:', session.peerName)
-            ctx!.addSession(session.id)
-            // 转发 session 事件到 iframe
-            session.on('message', (msg: string) => {
-              ctx!.sendEvent('session-event', { sessionId: session.id, event: 'message', data: msg })
-            })
-            session.on('close', () => {
-              ctx!.sendEvent('session-event', { sessionId: session.id, event: 'close', data: null })
-              ctx!.removeSession(session.id)
-            })
-            return { sessionId: session.id, peerId: session.peerId, peerName: session.peerName }
+            try {
+              const session = await connect(params.peerId, params.serviceKey)
+              console.log('[SvcContainer] outbound session connected:', session.id.slice(0,8), 'peer:', session.peerName)
+              ctx!.addSession(session.id)
+              // 转发 session 事件到 iframe
+              session.on('message', (msg: string) => {
+                ctx!.sendEvent('session-event', { sessionId: session.id, event: 'message', data: msg })
+              })
+              session.on('close', () => {
+                ctx!.sendEvent('session-event', { sessionId: session.id, event: 'close', data: null })
+                ctx!.removeSession(session.id)
+              })
+              return { sessionId: session.id, peerId: session.peerId, peerName: session.peerName }
+            } catch (e: any) {
+              throw new Error(e?.message || String(e) || '连接失败')
+            }
           }
           case 'sessionSend': {
             const session = sessions.get(params.sessionId)
@@ -354,7 +358,7 @@ onMounted(async () => {
       // 出站 session 已在 connect case 中处理，不再重复通知
       ctx!.addNetworkUnsub(
         onEvent('session-created', (info: { sessionId: string; peerId: string; peerName: string; direction?: string }) => {
-          console.log('[SvcContainer] session-created dir=', info.direction, 'sid=', info.sessionId.slice(0,8))
+          console.log('[SvcContainer] session-created dir=', info.direction, 'sid=', info.sessionId.slice(0,8), 'peer=', info.peerName)
           if (info.direction !== 'inbound') return  // 出站 session 走 connect 返回值路径
           const session = createInboundSession(info)
           ctx!.addSession(info.sessionId)

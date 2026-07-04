@@ -88,6 +88,12 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 - **State:** Reactive config via `reactive()` + `watch()` with debounced persistence; Pinia stores for page-level state.
 - **AI:** Multi-tool calling via ToolRegistry + toolsets. System prompt: stable layer (identity+rules+skills, cached) + volatile layer (memory+time+nudge, rebuilt each call). Personality via soul.ts (souls/*.md files, `soul_save` tool). Session: multi-session v2 (create/switch/delete, per-session `sessions/<id>.json`). Memory: real-time cache via memory-store.ts (MEMORY.md/USER.md, §-delimited). Skills: SKILL.md with /skill-name commands; skill evolution via skill-usage telemetry + skill-curator lifecycle + optional LLM consolidation. Requirements: per-service REQUIREMENT.md + global summary, 10-turn nudge triggers both memory and requirement checks. Onboarding: first launch → soul_save tool creates personality.
 - **JSBridge:** iframe `postMessage` protocol — `ServiceRequest` (type: api, module, method, params, requestId) → `ServiceResponse` (type: api-response, requestId, result/error). Permission-checked by module name.
+- **流程日志规范**：
+  - **每个模块必须输出关键流程日志**——状态变更（启动/停止）、事件收发、连接建立/断开等，便于问题定位。
+  - Rust: `eprintln!("[模块前缀] 日志内容")`，前缀规范命名（如 `[net-session]`、`[net-vis]`）。
+  - 前端: `console.log('[模块前缀] 日志内容')`，前缀如 `[NetBridge]`、`[JSBridge]`、`[SvcContainer]`、`[NetSession]`。
+  - **禁止在循环内打印日志**（如 UDP 广播每 tick、消息轮询），避免刷屏。循环相关统计日志使用计数打印（如每 10 次一次）。
+  - 流程边界用 `===` 标记（如 `=== 收到 hello: ... ===`），关键结果用 `✓`/`✗` 前缀。
 
 ## Notes
 

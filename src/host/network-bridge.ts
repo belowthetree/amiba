@@ -84,7 +84,10 @@ export async function initNetworkBridge(): Promise<void> {
     // --- Session 事件（Rust → 前端，Phase 4 完善） ---
     await listen<{ sessionId: string; peerId: string; peerName: string; direction: string }>(
       'network:session-created',
-      (event) => emit('session-created', event.payload)
+      (event) => {
+        console.log('[NetBridge] session-created dir=', event.payload.direction, 'sid=', event.payload.sessionId?.slice(0,8), 'peer=', event.payload.peerName)
+        emit('session-created', event.payload)
+      }
     )
     await listen<{ sessionId: string; message: string }>(
       'network:session-message',
@@ -155,7 +158,9 @@ export const sessions = new Map<string, NetworkSession>()
 /** 发起连接 → 返回 NetworkSession */
 export async function connect(peerId: string, serviceKey?: string): Promise<NetworkSession> {
   if (!isTauri) throw new Error('网络功能仅在桌面端可用')
+  console.log('[NetBridge] connect ->', peerId?.slice(0,8), 'serviceKey=', serviceKey)
   const session = await createOutboundSession(peerId, serviceKey)
+  console.log('[NetBridge] connect <- sid=', session.id.slice(0,8))
   return session
 }
 
@@ -171,6 +176,7 @@ export function createInboundSession(info: { sessionId: string; peerId: string; 
 /** 服务请求启动 TCP 监听（引用计数；首个服务触发实际启动） */
 export async function startListening(serviceKey: string): Promise<void> {
   if (!isTauri) throw new Error('网络功能仅在桌面端可用')
+  console.log('[NetBridge] startListening:', serviceKey)
   const { invoke } = await import('@tauri-apps/api/core')
   await invoke('network_start_listener', { serviceKey })
 }
@@ -178,6 +184,7 @@ export async function startListening(serviceKey: string): Promise<void> {
 /** 服务请求停止 TCP 监听（引用计数归零时实际停止） */
 export async function stopListening(serviceKey: string): Promise<void> {
   if (!isTauri) throw new Error('网络功能仅在桌面端可用')
+  console.log('[NetBridge] stopListening:', serviceKey)
   const { invoke } = await import('@tauri-apps/api/core')
   await invoke('network_stop_listener', { serviceKey })
 }
