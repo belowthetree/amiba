@@ -51,16 +51,24 @@
             v-model="settings.ai_model"
             class="form-input"
             placeholder="deepseek-chat"
+            list="global-model-list"
+            autocomplete="off"
           />
+          <datalist id="global-model-list">
+            <option v-for="m in globalModelOptions" :key="m" :value="m" />
+          </datalist>
         </div>
 
         <div class="form-group">
-          <label>生成模型</label>
-          <input
-            v-model="settings.ai_model"
-            class="form-input"
-            placeholder="deepseek-chat"
-          />
+          <label>思考努力程度</label>
+          <select v-model="settings.reasoning_effort" class="form-input">
+            <option :value="undefined">-- 默认（不设置） --</option>
+            <option value="low">低</option>
+            <option value="medium">中（均衡）</option>
+            <option value="high">高（深入）</option>
+            <option value="xhigh">极高</option>
+            <option value="max">最强</option>
+          </select>
         </div>
       </div>
 
@@ -225,6 +233,14 @@
                 <select v-model="agentForm.model" class="form-input" style="margin-bottom:4px">
                   <option value="">-- 选择模型 --</option>
                   <option v-for="m in availableModels" :key="m" :value="m">{{ m }}</option>
+                </select>
+                <select v-model="agentForm.reasoning_effort" class="form-input" style="margin-bottom:4px">
+                  <option :value="undefined">-- 思考努力程度（默认） --</option>
+                  <option value="low">低</option>
+                  <option value="medium">中（均衡）</option>
+                  <option value="high">高（深入）</option>
+                  <option value="xhigh">极高</option>
+                  <option value="max">最强</option>
                 </select>
                 <div class="skill-checkboxes" style="margin-bottom:4px">
                   <label class="skill-cb-label" v-for="s in userSkills" :key="s.name">
@@ -498,7 +514,7 @@ function removeProvider(idx: number) {
 // --- Custom Agent management ---
 const agentList = customAgents as CustomAgent[]
 const agentEditingIdx = ref(-1)
-const agentForm = ref({ name: '', id: '', providerId: '', model: '', selectedSkills: [] as string[], systemPrompt: '' })
+const agentForm = ref({ name: '', id: '', providerId: '', model: '', selectedSkills: [] as string[], systemPrompt: '', reasoning_effort: '' })
 
 // 当前选中供应商的模型列表
 const availableModels = computed(() => {
@@ -507,15 +523,39 @@ const availableModels = computed(() => {
   return p?.models || []
 })
 
+// 全局模型选项：合并预置列表 + 所有供应商的模型
+const PRESET_MODELS = [
+  // DeepSeek
+  'deepseek-chat',
+  'deepseek-reasoner',
+  // OpenAI
+  'gpt-4.1',
+  'gpt-4.1-mini',
+  'gpt-4o',
+  'gpt-4o-mini',
+  // 其他常用
+  'qwen-plus',
+  'qwen-max',
+  'glm-4-plus',
+]
+
+const globalModelOptions = computed(() => {
+  const set = new Set(PRESET_MODELS)
+  for (const p of providerList) {
+    for (const m of p.models) set.add(m)
+  }
+  return [...set]
+})
+
 function addAgentDialog() {
-  agentForm.value = { name: '', id: '', providerId: providerList[0]?.id || '', model: '', selectedSkills: [], systemPrompt: '' }
+  agentForm.value = { name: '', id: '', providerId: providerList[0]?.id || '', model: '', selectedSkills: [], systemPrompt: '', reasoning_effort: '' }
   agentList.push({ id: `agent-${Date.now()}`, name: '新 Agent', providerId: providerList[0]?.id || '', model: '', skills: [] })
   agentEditingIdx.value = agentList.length - 1
 }
 
 function startAgentEdit(idx: number) {
   const a = agentList[idx]
-  agentForm.value = { name: a.name, id: a.id, providerId: a.providerId, model: a.model, selectedSkills: [...a.skills], systemPrompt: a.systemPrompt || '' }
+  agentForm.value = { name: a.name, id: a.id, providerId: a.providerId, model: a.model, selectedSkills: [...a.skills], systemPrompt: a.systemPrompt || '', reasoning_effort: a.reasoning_effort || '' }
   agentEditingIdx.value = idx
 }
 
@@ -529,6 +569,7 @@ function saveAgentEdit(idx: number) {
     model: f.model.trim(),
     skills: [...f.selectedSkills],
     systemPrompt: f.systemPrompt.trim() || undefined,
+    reasoning_effort: (f.reasoning_effort || undefined) as CustomAgent['reasoning_effort'],
   }
   try {
     if (agentList[idx] && agentList[idx].id !== f.id.trim()) {

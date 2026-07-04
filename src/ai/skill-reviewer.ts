@@ -11,12 +11,11 @@
 //   mid_session  — 超过 20 轮时后台审查
 // ============================================================
 
-import OpenAI from 'openai'
+import { generateText, isStepCount } from 'ai'
 import { getSettings, getApiKey } from '../config/config'
 import { buildSystemPrompt } from './system-prompt'
-import { getToolDefinitions } from '../tools/toolsets'
-import { toolRegistry } from '../tools/tool-registry'
-import { getSkillCommands } from './skill-commands'
+import { toAISdkTools } from '../tools/toolsets'
+import { createModelFromConfig } from './provider-factory'
 
 export type ReviewTrigger = 'session_end' | 'manual' | 'curator' | 'mid_session'
 
@@ -101,15 +100,12 @@ export async function forkReviewAgent(
     return { ran: false, trigger, skillsCreated: 0, skillsPatched: 0, skillsDeleted: 0, summary: '', error: 'No API key' }
   }
 
-  const client = new OpenAI({
-    baseURL: s.ai_base_url,
-    apiKey,
-    dangerouslyAllowBrowser: true,
-  })
+  // === AI SDK: 创建 provider + model ===
+  const { model: languageModel } = createModelFromConfig(s.ai_base_url, apiKey, s.ai_model)
 
   // 限制工具：只看 skill 管理
   const reviewToolset = 'review'
-  const toolSchemas = getToolDefinitions([reviewToolset])
+  const tools = toAISdkTools([reviewToolset])
 
   // 构建对话摘要（取最近 30 条，截断过长内容）
   const conversationSummary = visibleMessages
@@ -135,73 +131,38 @@ export async function forkReviewAgent(
     buildSystemPrompt({ enabledToolsets: [reviewToolset], force: true }).split('\n\n').slice(1).join('\n\n')
   }\n\n${REVIEW_PROMPT}${triggerNote}`
 
-  let currentMessages: any[] = [
-    { role: 'system', content: systemMsg },
-    { role: 'user', content: `请审查以下对话，必要时更新 skill：\n\n${conversationSummary}\n\n开始审查。` },
-  ]
-
-  let skillsCreated = 0
-  let skillsPatched = 0
-  let skillsDeleted = 0
-  const maxTurns = 5
-  let summary = ''
-
   try {
-    for (let turn = 0; turn < maxTurns; turn++) {
-      const resp = await client.chat.completions.create({
-        model: s.ai_model,
-        messages: currentMessages,
-        tools: toolSchemas.length > 0 ? (toolSchemas as any) : undefined,
-        tool_choice: toolSchemas.length > 0 ? 'auto' : undefined,
-      })
+    const result = await generateText({
+      model: languageModel,
+      messages: [
+        { role: 'user', content: `请审查以下对话，必要时更新 skill：\n\n${conversationSummary}\n\n开始审查。` },
+      ],
+      instructions: systemMsg,
+      tools,
+      stopWhen: isStepCount(5),
+    })
 
-      const choice = resp.choices[0]
-      const msg = choice.message
+    // 统计工具调用
+    let skillsCreated = 0
+    let skillsPatched = 0
+    let skillsDeleted = 0
+    const allSteps = await result.steps
 
-      // 记录文本回复
-      if (msg.content) {
-        summary = msg.content.slice(0, 500)
-      }
-
-      // 无工具调用 → 结束
-      if (!msg.tool_calls || msg.tool_calls.length === 0) {
-        break
-      }
-
-      // 添加 assistant 消息
-      currentMessages.push({
-        role: 'assistant',
-        content: msg.content || '',
-        tool_calls: msg.tool_calls,
-      })
-
-      // 执行工具
-      for (const tc of msg.tool_calls) {
-        const tcAny = tc as any
-        const toolName = tcAny.function?.name || ''
-        let toolArgs: any = {}
-        try {
-          toolArgs = JSON.parse(tcAny.function?.arguments || '{}')
-        } catch { toolArgs = {} }
-
-        const result = await toolRegistry.dispatch(toolName, toolArgs, {
-          enabledToolsets: [reviewToolset],
-        })
-
-        currentMessages.push({
-          role: 'tool',
-          content: result,
-          tool_call_id: tc.id,
-        })
-
-        // 统计
-        if (toolName === 'skill_manage_create') skillsCreated++
-        else if (toolName === 'skill_manage_patch' || toolName === 'skill_manage_edit') skillsPatched++
-        else if (toolName === 'skill_manage_delete') skillsDeleted++
+    for (const step of allSteps) {
+      for (const tc of step.toolCalls) {
+        if (tc.toolName === 'skill_manage_create') skillsCreated++
+        else if (tc.toolName === 'skill_manage_patch' || tc.toolName === 'skill_manage_edit') skillsPatched++
+        else if (tc.toolName === 'skill_manage_delete') skillsDeleted++
       }
     }
-  } catch (e: any) {
-    console.error('[SkillReviewer] 审查失败:', e)
+
+    const summary = (await result.text).slice(0, 500)
+
+    console.log(
+      `[SkillReviewer] 审查完成 (${trigger}): ` +
+      `创建 ${skillsCreated}, 修补 ${skillsPatched}, 删除 ${skillsDeleted}`,
+    )
+
     return {
       ran: true,
       trigger,
@@ -209,21 +170,17 @@ export async function forkReviewAgent(
       skillsPatched,
       skillsDeleted,
       summary,
+    }
+  } catch (e: any) {
+    console.error('[SkillReviewer] 审查失败:', e)
+    return {
+      ran: true,
+      trigger,
+      skillsCreated: 0,
+      skillsPatched: 0,
+      skillsDeleted: 0,
+      summary: '',
       error: e.message || String(e),
     }
-  }
-
-  console.log(
-    `[SkillReviewer] 审查完成 (${trigger}): ` +
-    `创建 ${skillsCreated}, 修补 ${skillsPatched}, 删除 ${skillsDeleted}`,
-  )
-
-  return {
-    ran: true,
-    trigger,
-    skillsCreated,
-    skillsPatched,
-    skillsDeleted,
-    summary,
   }
 }

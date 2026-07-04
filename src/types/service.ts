@@ -2,6 +2,8 @@
 // 变形虫 (Amiba) — 服务类型定义
 // ============================================================
 
+export type ReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max' | null
+
 // --- Manifest ---
 export interface ServiceManifest {
   id: string // system.xxx | user.yyy
@@ -120,6 +122,7 @@ export interface AppSettings {
   ai_base_url: string
   ai_model: string
   api_key: string
+  reasoning_effort?: ReasoningEffort
   theme_mode: 'light' | 'dark' | 'system'
   language: string
   device_id: string
@@ -139,7 +142,7 @@ export interface AppSettings {
 // --- AI Provider ---
 
 export interface AiProvider {
-  id: string          // 唯一标识，如 "deepseek"、"openai"、"ollama-local"
+  id: string          // 唯一标识，如 "deepseek"、"ollama-local"
   name: string        // 显示名称，如 "DeepSeek"
   baseUrl: string     // API 地址
   apiKey: string      // API 密钥
@@ -156,6 +159,7 @@ export interface CustomAgent {
   skills: string[]     // 启用的 Skill 名称列表
   systemPrompt?: string // 自定义 System Prompt（可选）
   soul?: string        // 关联的人格文件（可选）
+  reasoning_effort?: ReasoningEffort  // 思考努力程度
 }
 
 // --- Memory ---

@@ -40,12 +40,23 @@
         :key="idx"
         :class="['message', msg.role]"
       >
-        <div class="message-content" v-text="msg.role === 'tool' ? '🔧 ' + msg.content : msg.content"></div>
+        <div class="message-content" v-if="msg.role === 'tool'">🔧 {{ msg.content }}</div>
+        <div class="message-content" v-else>
+          <details v-if="msg.reasoning" class="reasoning-block">
+            <summary>思考过程</summary>
+            <div class="reasoning-content">{{ msg.reasoning }}</div>
+          </details>
+          {{ msg.content }}
+        </div>
       </div>
 
       <div v-if="streaming" class="message assistant">
         <div class="message-content streaming">
-          {{ streamingContent }}<span class="cursor">|</span>
+          <details v-if="streamingReasoning" class="reasoning-block" open>
+            <summary>思考中...</summary>
+            <div class="reasoning-content">{{ streamingReasoning }}</div>
+          </details>
+          {{ streamingContent }}<span v-if="!streamingReasoning || streamingContent" class="cursor">|</span>
         </div>
       </div>
 
@@ -150,6 +161,7 @@ const showStats = ref(false)
 const showSessions = ref(false)
 const sessionList = ref<SessionMeta[]>([])
 const currentId = ref<string | null>(null)
+const streamingReasoning = ref('')
 
 const visibleMessages = computed(() => getVisibleMessages())
 
@@ -265,6 +277,7 @@ async function send() {
   sending.value = true
   streaming.value = true
   streamingContent.value = ''
+  streamingReasoning.value = ''
 
   try {
     // 过滤掉隐藏的系统消息，只传 user/assistant 给 API
@@ -277,12 +290,15 @@ async function send() {
     const gen = streamChat(chatMsgs, { turnCount: turnCount.value })
 
     for await (const chunk of gen) {
-      if (chunk.startsWith('\x00TOOL:') && chunk.endsWith('\x00')) {
+      if (chunk.startsWith('\x00REASONING\x00')) {
+        streamingReasoning.value += chunk.slice(11)
+      } else if (chunk.startsWith('\x00TOOL:') && chunk.endsWith('\x00')) {
         const toolName = chunk.slice(6, -1)
         console.log('[ChatPage] 🔧', toolName)
-        if (streamingContent.value) {
-          addAssistantMessage(streamingContent.value)
+        if (streamingContent.value || streamingReasoning.value) {
+          addAssistantMessage(streamingContent.value, streamingReasoning.value || undefined)
           streamingContent.value = ''
+          streamingReasoning.value = ''
         }
         addToolMessage(toolName)
         saveHistory()
@@ -293,7 +309,8 @@ async function send() {
     }
 
     if (streamingContent.value) {
-      addAssistantMessage(streamingContent.value)
+      addAssistantMessage(streamingContent.value, streamingReasoning.value || undefined)
+      streamingReasoning.value = ''
       saveHistory() // 实时保存 AI 回复
     }
   } catch (e: any) {
@@ -302,6 +319,7 @@ async function send() {
     sending.value = false
     streaming.value = false
     streamingContent.value = ''
+    streamingReasoning.value = ''
     scrollToBottom()
   }
 }
@@ -311,6 +329,7 @@ async function sendOnboardingMessage(directive: string) {
   sending.value = true
   streaming.value = true
   streamingContent.value = ''
+  streamingReasoning.value = ''
 
   try {
     const chatMsgs: { role: string; content: string }[] = []
@@ -318,12 +337,17 @@ async function sendOnboardingMessage(directive: string) {
     const gen = streamChat(chatMsgs as any, { turnCount: 0 })
 
     for await (const chunk of gen) {
-      streamingContent.value += chunk
+      if (chunk.startsWith('\x00REASONING\x00')) {
+        streamingReasoning.value += chunk.slice(11)
+      } else {
+        streamingContent.value += chunk
+      }
       scrollToBottom()
     }
 
     if (streamingContent.value) {
-      addAssistantMessage(streamingContent.value)
+      addAssistantMessage(streamingContent.value, streamingReasoning.value || undefined)
+      streamingReasoning.value = ''
     }
   } catch {
     /* 静默处理 */
@@ -331,6 +355,7 @@ async function sendOnboardingMessage(directive: string) {
     sending.value = false
     streaming.value = false
     streamingContent.value = ''
+    streamingReasoning.value = ''
     scrollToBottom()
   }
 }
@@ -815,7 +840,35 @@ watch(showStats, async (open) => {
     max-width: 92%;
   }
 
-  .message-content {
+.reasoning-block {
+  margin-bottom: 8px;
+}
+
+.reasoning-block summary {
+  font-size: 12px;
+  color: #999;
+  cursor: pointer;
+  user-select: none;
+  padding: 2px 0;
+}
+
+.reasoning-block summary::marker {
+  color: #bbb;
+}
+
+.reasoning-content {
+  font-size: 12px;
+  color: #777;
+  font-style: italic;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  padding: 8px 10px;
+  background: rgba(0,0,0,0.03);
+  border-left: 3px solid #d0d0d0;
+  border-radius: 0 6px 6px 0;
+}
+
+.message-content {
     padding: 10px 14px;
     font-size: 13px;
   }

@@ -21,6 +21,7 @@ export interface Message {
   content: string
   hidden?: boolean
   toolName?: string
+  reasoning?: string
 }
 
 export interface SessionMeta {
@@ -409,8 +410,8 @@ export function addUserMessage(content: string): void {
   session.turnCount.value++
 }
 
-export function addAssistantMessage(content: string): void {
-  getSession().messages.value.push({ role: 'assistant', content })
+export function addAssistantMessage(content: string, reasoning?: string): void {
+  getSession().messages.value.push({ role: 'assistant', content, reasoning })
 }
 
 export function addSystemMessage(content: string): void {

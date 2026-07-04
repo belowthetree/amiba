@@ -106,6 +106,10 @@ export class ToolRegistry {
     )
   }
 
+  getEntry(name: string): ToolEntry | undefined {
+    return this.tools.get(name)
+  }
+
   getToolsetForTool(name: string): string | null {
     return this.tools.get(name)?.toolset ?? null
   }

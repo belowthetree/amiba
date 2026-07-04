@@ -1,6 +1,7 @@
 // ============================================================
 // 变形虫 (Amiba) — 工具集（Toolsets）定义
 // ============================================================
+import { tool, jsonSchema } from 'ai'
 import { toolRegistry } from './tool-registry'
 import type { ToolSchema } from './tool-registry'
 
@@ -110,7 +111,7 @@ export function resolveToolset(
 }
 
 /**
- * 根据启用的工具集名称列表，返回对应的 OpenAI ToolSchema 数组
+ * 根据启用的工具集名称列表，返回对应的 ToolSchema 数组
  */
 export function getToolDefinitions(
   enabledToolsets: string[]
@@ -124,4 +125,40 @@ export function getToolDefinitions(
   }
 
   return toolRegistry.getDefinitions([...toolNames])
+}
+
+// ---- AI SDK 工具桥接 ----
+
+/**
+ * 将 ToolRegistry 中的工具转换为 AI SDK v7 的 ToolSet 格式
+ * 供 streamText / generateText 使用
+ */
+export function toAISdkTools(enabledToolsets: string[]): Record<string, any> {
+  const toolNames = new Set<string>()
+
+  for (const tsName of enabledToolsets) {
+    for (const name of resolveToolset(tsName)) {
+      toolNames.add(name)
+    }
+  }
+
+  const tools: Record<string, any> = {}
+
+  for (const name of toolNames) {
+    const entry = toolRegistry.getEntry(name)
+    if (!entry || (entry.checkFn && !entry.checkFn())) continue
+
+    const schema = entry.schema
+
+    tools[name] = tool({
+      description: schema.function.description,
+      inputSchema: jsonSchema(schema.function.parameters),
+      execute: async (input: any) => {
+        console.log('[AI SDK] 🔧', name, 'args=', JSON.stringify(input).slice(0, 200))
+        return toolRegistry.dispatch(name, input, { enabledToolsets })
+      },
+    })
+  }
+
+  return tools
 }

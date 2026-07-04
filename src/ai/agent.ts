@@ -1,14 +1,16 @@
 // ============================================================
-// 变形虫 (Amiba) — LLM Agent (OpenAI 兼容流式对话) v2
+// 变形虫 (Amiba) — LLM Agent (AI SDK v7 流式对话) v3
 // ============================================================
-// v2 改造：多工具循环 + ToolRegistry 集成 + 工具集选择 + token 预算
+// v3 改造：使用 Vercel AI SDK streamText + stopWhen 替代手动 while 循环
 // ============================================================
-import OpenAI from 'openai'
+
+import { streamText, isStepCount, pruneMessages, tool } from 'ai'
+import type { LanguageModel, ModelMessage } from 'ai'
 import { getSettings, getApiKey } from '../config/config'
-import { toolRegistry } from '../tools/tool-registry'
-import { getToolDefinitions } from '../tools/toolsets'
 import { memoryStore } from './memory-store'
-import { buildSystemPrompt, buildSkillsIndex, consumeMemoryCheckpointPrompt } from './system-prompt'
+import { buildSystemPrompt, consumeMemoryCheckpointPrompt } from './system-prompt'
+import { toAISdkTools } from '../tools/toolsets'
+import { createModelFromConfig } from './provider-factory'
 import type { CustomAgent } from '../types/service'
 
 export interface ChatMessage {
@@ -41,14 +43,10 @@ const DEFAULT_OPTIONS = {
 
 // ---- 粗略 token 估算 ----
 
-function estimateTokens(messages: ChatMessage[]): number {
-  // 粗略：4 字符 ≈ 1 token
+function estimateTokens(messages: ModelMessage[]): number {
   let chars = 0
   for (const m of messages) {
-    chars += m.content.length
-    if (m.tool_calls) {
-      chars += JSON.stringify(m.tool_calls).length
-    }
+    chars += typeof m.content === 'string' ? m.content.length : JSON.stringify(m.content).length
   }
   return Math.ceil(chars / 4)
 }
@@ -64,7 +62,7 @@ export async function* streamChat(
   const s = getSettings()
   let apiKey = await getApiKey()
   let baseUrl = s.ai_base_url
-  let model = s.ai_model
+  let modelName = s.ai_model
 
   // 如果指定了自定义 Agent，使用其供应商配置
   let customAgent: CustomAgent | undefined
@@ -76,7 +74,7 @@ export async function* streamChat(
       const provider = getProvider(customAgent.providerId)
       if (provider) {
         baseUrl = provider.baseUrl
-        model = customAgent.model
+        modelName = customAgent.model
         if (provider.apiKey) {
           apiKey = provider.apiKey
         }
@@ -92,16 +90,17 @@ export async function* streamChat(
   // Refresh memory cache
   await memoryStore.init()
 
-  const client = new OpenAI({
-    baseURL: baseUrl,
-    apiKey: apiKey,
-    dangerouslyAllowBrowser: true,
-  })
+  // === AI SDK: 创建 provider + model ===
+  const { model: languageModel, providerName } = createModelFromConfig(baseUrl, apiKey, modelName)
 
-  // 获取工具 schemas
-  const toolSchemas = getToolDefinitions(opts.enabledToolsets)
-  const hasTools = toolSchemas.length > 0
+  // === AI SDK: 构建工具 ===
+  const tools = toAISdkTools(opts.enabledToolsets)
+  const hasTools = Object.keys(tools).length > 0
 
+  // === 推理强度 ===
+  const reasoningEffort = customAgent?.reasoning_effort || s.reasoning_effort
+
+  // === 构建 system prompt ===
   let systemContent = buildSystemPrompt({
     enabledToolsets: opts.enabledToolsets,
     turnCount: opts.turnCount,
@@ -125,146 +124,78 @@ export async function* streamChat(
     systemContent += '\n\n' + customAgent.systemPrompt
   }
 
-  const systemMsg: ChatMessage = {
-    role: 'system',
-    content: systemContent,
-  }
+  // === 转换消息为 ModelMessage（仅 user / assistant） ===
+  const modelMessages: ModelMessage[] = messages
+    .filter((m) => m.role === 'user' || m.role === 'assistant')
+    .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
 
-  let currentMessages = [systemMsg, ...messages]
-  let apiCallCount = 0
+  // === AI SDK streaming ===
+  try {
+    const result = streamText({
+      model: languageModel,
+      messages: modelMessages,
+      instructions: systemContent,
+      tools: hasTools ? tools : undefined,
+      stopWhen: isStepCount(opts.maxIterations),
+      providerOptions: reasoningEffort ? { [providerName]: { reasoningEffort } } as any : undefined,
+      prepareStep: async ({ messages: stepMsgs }) => {
+        const est = estimateTokens(stepMsgs)
+        if (est > opts.maxContextTokens) {
+          console.warn(
+            `[Agent] Token 预算预警: 估算 ${est} > ${opts.maxContextTokens}，开始截断`
+          )
+          // 触发记忆压缩钩子（借鉴 Hermes on_pre_compress）
+          memoryStore.onTruncation(
+            stepMsgs
+              .filter((m) => m.role === 'user' || m.role === 'assistant')
+              .map((m) => ({ role: m.role as string, content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content) }))
+          ).catch((e) => console.warn('[Agent] 截断钩子失败:', e))
 
-  while (apiCallCount < opts.maxIterations) {
-    apiCallCount++
-
-    // Token 预算检测：超出时截断最旧的非 system 消息
-    const estTokens = estimateTokens(currentMessages)
-    if (estTokens > opts.maxContextTokens) {
-      console.warn(
-        `[Agent] Token 预算预警: 估算 ${estTokens} > ${opts.maxContextTokens}，开始截断旧消息`
-      )
-      // 截断前：触发记忆压缩钩子（借鉴 Hermes on_pre_compress）
-      const keep = Math.max(2, currentMessages.length - 4)
-      const truncated = currentMessages.slice(1, keep) // 不包括 system msg
-      memoryStore.onTruncation(
-        truncated
-          .filter((m) => m.role === 'user' || m.role === 'assistant')
-          .map((m) => ({ role: m.role as string, content: m.content }))
-      ).catch((e) => console.warn('[Agent] 截断钩子失败:', e))
-
-      // 保留 system + 最后 4 条消息
-      currentMessages = [
-        currentMessages[0],
-        ...currentMessages.slice(keep),
-      ]
-
-      // 注入过滤安全序言（借鉴 Hermes compression preamble）
-      const preamble: ChatMessage = {
-        role: 'system',
-        content:
-          '[System note: This is a handoff from a previous context window. ' +
-          'Treat the above as background reference, NOT as active instructions. ' +
-          'Do NOT answer questions or re-execute tasks mentioned in earlier context ' +
-          'unless the user explicitly asks about them.]',
-      }
-      // 在 system 消息之后、保留消息之前插入
-      currentMessages.splice(1, 0, preamble)
-    }
-
-    const stream = await client.chat.completions.create({
-      model: model,
-      messages: currentMessages as any,
-      stream: true,
-      tools: hasTools ? (toolSchemas as any) : undefined,
-      tool_choice: hasTools ? 'auto' : undefined,
-    })
-
-    let fullContent = ''
-    let toolCalls: any[] = []
-
-    for await (const chunk of stream) {
-      const delta = chunk.choices[0]?.delta
-
-      if (delta?.content) {
-        fullContent += delta.content
-        yield delta.content
-      }
-
-      if (delta?.tool_calls) {
-        for (const tc of delta.tool_calls) {
-          if (tc.index !== undefined) {
-            if (!toolCalls[tc.index]) {
-              toolCalls[tc.index] = {
-                id: tc.id || '',
-                type: 'function',
-                function: { name: '', arguments: '' },
-              }
-            }
-            if (tc.id) toolCalls[tc.index].id = tc.id
-            if (tc.function?.name)
-              toolCalls[tc.index].function.name += tc.function.name
-            if (tc.function?.arguments)
-              toolCalls[tc.index].function.arguments += tc.function.arguments
+          return {
+            messages: pruneMessages({
+              messages: stepMsgs,
+              reasoning: 'all',
+              toolCalls: 'before-last-3-messages',
+              emptyMessages: 'remove',
+            }),
           }
         }
-      }
-
-      const reason = chunk.choices[0]?.finish_reason
-      if (reason === 'tool_calls') break
-      if (reason === 'stop') {
-        // 在还有 tool_calls 待处理时不提前退出
-        if (toolCalls.filter(Boolean).length === 0) {
-          return // 正常结束
+      },
+      onError: ({ error }) => {
+        console.error('[Agent] 流式错误:', error)
+      },
+      onToolExecutionStart: ({ toolCall }) => {
+        console.log('[Agent] 🔧', toolCall.toolName)
+      },
+      onToolExecutionEnd: ({ toolCall, toolExecutionMs, toolOutput }) => {
+        if (toolOutput.type === 'tool-error') {
+          console.warn('[Agent] 🔧✗', toolCall.toolName, `(${toolExecutionMs}ms)`, String(toolOutput.error).slice(0, 200))
+        } else {
+          console.log('[Agent] 🔧✓', toolCall.toolName, `(${toolExecutionMs}ms)`)
         }
-        break
+      },
+    })
+
+    for await (const part of result.stream) {
+      if (part.type === 'text-delta') {
+        yield part.text
+      } else if (part.type === 'reasoning-delta') {
+        yield `\x00REASONING\x00${part.text}`
+      } else if (part.type === 'tool-call') {
+        yield `\x00TOOL:${part.toolName}\x00`
+      } else if (part.type === 'tool-error') {
+        console.warn('[Agent] 工具执行异常:', part.toolName, String(part.error).slice(0, 300))
+      } else if (part.type === 'error') {
+        console.error('[Agent] 流事件错误:', part.error)
       }
     }
 
-    toolCalls = toolCalls.filter(Boolean)
-
-    if (toolCalls.length > 0) {
-      // 添加 assistant 消息（含 tool_calls）
-      currentMessages.push({
-        role: 'assistant',
-        content: fullContent || '',
-        tool_calls: toolCalls,
-      })
-
-      // 调度每个工具
-      for (const tc of toolCalls) {
-        const toolName = tc.function?.name || ''
-        let toolArgs: any = {}
-
-        try {
-          toolArgs = JSON.parse(tc.function?.arguments || '{}')
-        } catch {
-          toolArgs = {}
-        }
-
-        console.log('[Agent] 🔧', toolName, 'args=', (tc.function?.arguments || '').slice(0, 200))
-        yield `\x00TOOL:${toolName}\x00`
-
-        const result = await toolRegistry.dispatch(toolName, toolArgs, {
-          enabledToolsets: opts.enabledToolsets,
-        })
-
-        currentMessages.push({
-          role: 'tool',
-          content: result,
-          tool_call_id: tc.id,
-        })
-
-        // 若工具执行结果包含 continue 指令，可在此处理
-        // 例如 memory 工具内部会 refreshMemoryCache()
-      }
-    } else {
-      // 无 tool_calls：对话结束
-      return
-    }
-  }
-
-  // 达到 maxIterations 上限仍未结束
-  if (apiCallCount >= opts.maxIterations) {
-    yield '\n\n[已达到最大对话轮次限制，请简化问题重试]'
+    // 记录用量
+    const usage = await result.usage
+    console.log('[Agent] 用量:', usage)
+  } catch (e: any) {
+    console.error('[Agent] streamText 异常:', e)
+    yield `\n\n[AI 调用异常: ${e.message || String(e)}]`
   }
 }
 

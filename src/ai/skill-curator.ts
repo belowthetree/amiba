@@ -539,7 +539,7 @@ async function readSkillInfo(
  * 运行 LLM 合并遍历
  *
  * 仅在 consolidateEnabled 为 true 且有足够 agent-created skill 时执行。
- * 使用独立 OpenAI client，不污染主对话。
+ * 使用独立 AI SDK 调用，不污染主对话。
  */
 async function runConsolidation(
   config: CuratorConfig
@@ -625,25 +625,22 @@ async function runConsolidation(
       }
     }
 
-    const OpenAI = (await import('openai')).default
-    const client = new OpenAI({
-      baseURL: s.ai_base_url,
-      apiKey,
-      dangerouslyAllowBrowser: true,
-    })
+    const { createModelFromConfig } = await import('./provider-factory')
+    const { model: languageModel } = createModelFromConfig(s.ai_base_url, apiKey, s.ai_model)
 
     console.log('[Curator] 正在调用合并 LLM...')
 
-    const response = await client.chat.completions.create({
-      model: s.ai_model,
+    const { generateText } = await import('ai')
+    const result = await generateText({
+      model: languageModel,
       messages: [
-        { role: 'system', content: systemPrompt },
         { role: 'user', content: userMessage },
       ],
+      instructions: systemPrompt,
       // 不使用工具 —— 合并 agent 只分析并输出 YAML 决策
     })
 
-    const reply = response.choices[0]?.message?.content || ''
+    const reply = await result.text
 
     // 解析 YAML 输出
     const parsed = parseConsolidationYaml(reply)
