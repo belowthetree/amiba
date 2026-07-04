@@ -47,7 +47,7 @@ keywords:
 | `name` | string | 显示名称（中文优先） |
 | `version` | string | 语义化版本，如 `"1.0.0"` |
 | `description` | string | 简短描述（≤30 字） |
-| `permissions` | string[] | 仅允许 `"storage"`、`"notification"`、`"widgets"` |
+| `permissions` | string[] | 允许的值：`"storage"`、`"notification"`、`"widgets"`、`"network"` |
 
 ---
 
@@ -89,12 +89,18 @@ keywords:
 | `__amiba__.widgets.hide(id)` | 隐藏悬浮块 | `"widgets"` |
 | `__amiba__.network.setVisibility(opts)` | 设置可见性 `{lan,ble}` | `"network"` |
 | `__amiba__.network.getVisibility()` | 获取可见性设置 | `"network"` |
-| `__amiba__.network.startDiscovery('lan'\|'ble'\|'all')` | 开始设备发现 | `"network"` |
-| `__amiba__.network.stopDiscovery('lan'\|'ble'\|'all')` | 停止发现 | `"network"` |
-| `__amiba__.network.getVisibleDevices()` | 列出已发现设备 | `"network"` |
-| `__amiba__.network.connect(peerId)` | 连接设备 | `"network"` |
-| `__amiba__.network.send(peerId, msg)` | 发送消息 | `"network"` |
-| `__amiba__.network.disconnect(peerId)` | 断开连接 | `"network"` |
+| `__amiba__.network.startDiscovery('lan')` | 开始设备发现 | `"network"` |
+| `__amiba__.network.stopDiscovery('lan')` | 停止发现 | `"network"` |
+| `__amiba__.network.getVisibleDevices()` | 列出已发现设备，返回 `[{id,name,transport,address}]` | `"network"` |
+| `__amiba__.network.onPeerDiscovered(cb)` | 监听新设备上线，`cb(peer)` | `"network"` |
+| `__amiba__.network.startListening(serviceKey)` | 启动 TCP 监听并注册服务标识（必须先调用才能接收连接） | `"network"` |
+| `__amiba__.network.stopListening(serviceKey)` | 停止监听（host 在服务卸载时自动调用） | `"network"` |
+| `__amiba__.network.connect(peerId, serviceKey)` | 连接设备，返回 `{id,peerId,peerName,send,close,on}` session 对象 | `"network"` |
+| `__amiba__.network.onSession(cb)` | 监听外来会话，`cb(session)`。仅在 `startListening` 后、服务匹配成功时自动触发 | `"network"` |
+| `session.send(message)` | 发送字符串消息（建议 JSON 序列化） | `"network"` |
+| `session.close()` | 断开此次会话 | `"network"` |
+| `session.on('message', cb)` | 监听收到消息，`cb(rawString)` | `"network"` |
+| `session.on('close', cb)` | 监听会话断开 | `"network"` |
 
 - **禁止** `alert()`、`prompt()`（iframe 沙箱不支持）
 - **禁止** `fetch()` 访问外部 API（CORS + 沙箱限制）
@@ -167,16 +173,74 @@ init();
 
 - ❌ 在 HTML 中内联 `<script>` 和 `<style>` → 必须用独立文件
 - ❌ `manifest.id` 不以 `"user."` 开头
-- ❌ `permissions` 使用了 `"storage"` / `"notification"` 以外的值
+- ❌ `permissions` 使用了 `"storage"` / `"notification"` / `"widgets"` / `"network"` 以外的值
 - ❌ 返回了 markdown 代码块包裹 → 必须纯 JSON
 - ❌ 使用外部 CDN 或 `fetch` 外部 API
 - ❌ `content` 中的代码有语法错误
 - ❌ 修改已安装服务时重新生成整个 JSON → 应用 `service_file_write` 直接编辑文件
 - ❌ 目录导入时 manifest.json 包含外层 `files` 包裹 → 目录导入 manifest.json 只含 id/name/version/description/permissions
+- ❌ P2P 服务未调用 `startListening(SERVICE_KEY)` → 无法被其他设备连接
+- ❌ P2P 服务使用旧 API `connect(peerId)` 而非 `connect(peerId, SERVICE_KEY)` → hello 缺少 service 字段，连接被拒绝
 
 ---
 
-## 9. Chart.js 图表（统一图表库）
+## 9. 网络服务开发（P2P 通信）
+
+当生成的服务需要局域网 P2P 通信时（如聊天、文件传输、协作工具），需遵循以下模板。
+
+### 必需步骤
+
+服务**入口处**必须依次调用：
+
+```js
+// ① 声明 network 权限
+// manifest.json: { "permissions": ["network", "notification"] }
+
+// ② 使设备可见（UDP 发现）
+await __amiba__.network.setVisibility({ lan: true })
+
+// ③ 开始扫描局域网
+await __amiba__.network.startDiscovery('lan')
+
+// ④ ★ 启动监听并注册服务标识（必须先调用，否则无法接收连接）
+const SERVICE_KEY = 'user.todo'  // 建议用 manifest.id
+await __amiba__.network.startListening(SERVICE_KEY)
+```
+
+### 主动连接
+
+```js
+const session = await __amiba__.network.connect(peerId, SERVICE_KEY)
+// 成功返回 session 对象，失败抛出错误（如"该设备暂未开放连接"）
+```
+
+### 接收外来连接
+
+```js
+__amiba__.network.onSession((session) => {
+  // 同服务对端连接时自动触发，无需手动确认
+  session.on('message', (raw) => { /* 处理消息 */ })
+  session.on('close', () => { /* 对方断开 */ })
+})
+```
+
+### 发现设备
+
+```js
+__amiba__.network.onPeerDiscovered((peer) => {
+  // peer: { id, name, transport, address }
+})
+const devices = await __amiba__.network.getVisibleDevices()
+// 不要每秒都轮询，建议 4-5 秒间隔
+```
+
+### 完整示例
+
+参考 `example/p2p-chat/` 和 `SKILL.md`（p2p-network）。关键：**所有网络服务都必须先调 `startListening(SERVICE_KEY)`，`connect` 必须传 `SERVICE_KEY` 作为第二个参数。**
+
+---
+
+## 10. Chart.js 图表（统一图表库）
 
 需要使用图表时，**统一使用 Chart.js v4**（已预置在平台中）：
 
@@ -197,7 +261,7 @@ Canvas 必须显式设置 width/height。示例：`example/chart-demo/`
 
 ---
 
-## 10. 迭代修改已安装服务
+## 11. 迭代修改已安装服务
 
 生成服务后如需修改，**不要重新生成整个服务**，使用 Agent Tools：
 
@@ -212,13 +276,13 @@ Canvas 必须显式设置 width/height。示例：`example/chart-demo/`
 
 ---
 
-## 11. 多页面服务
+## 12. 多页面服务
 
 如需多个页面，在 `files` 中添加多个 `.html` 文件，页面间通过 `__amiba__.navigateTo('page2.html')` 跳转。
 
 ---
 
-## 12. 悬浮块（Widget）开发
+## 13. 悬浮块（Widget）开发
 
 当用户需求涉及「快捷入口」「悬浮按钮」「侧边栏小工具」「快速查看」「常驻显示」等场景时，在服务中附带悬浮块。
 
@@ -296,7 +360,7 @@ await __amiba__.widgets.register({
 
 ---
 
-## 13. 检查清单
+## 14. 检查清单
 
 - [ ] 输出是纯 JSON，无 markdown 包裹
 - [ ] `manifest` 含 `id` / `name` / `version` / `description` / `permissions`
@@ -305,6 +369,7 @@ await __amiba__.widgets.register({
 - [ ] `index.html` 通过 `<link>` 和 `<script src>` 引用 CSS/JS
 - [ ] `app.js` 中正确使用 `window.__amiba__` API
 - [ ] 如含 widget，`manifest.permissions` 包含 `"widgets"`
+- [ ] 如含 P2P，`manifest.permissions` 包含 `"network"`，且 `app.js` 调用了 `startListening` + `connect(peerId, SERVICE_KEY)`
 - [ ] widget.json 格式正确，引用路径与 files 一致
 - [ ] 无外部依赖、无 fetch 外部 API
 - [ ] 代码语法正确、可直接运行

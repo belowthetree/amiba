@@ -78,7 +78,7 @@ await __amiba__.network.stopListening('p2p-chat')
 await __amiba__.network.startListening('p2p-chat')
 
 // ② 主动连接 → 发送 hello 握手 → 返回 session 对象
-const session = await __amiba__.network.connect(peerId, "你好，一起聊天？", 'p2p-chat')
+const session = await __amiba__.network.connect(peerId, 'p2p-chat')
 // → { id, peerId, peerName, send(), close(), on() }
 
 // 发送消息（原始字符串，建议 JSON 序列化）
@@ -161,9 +161,8 @@ session.on('message', ...)      session.send(...)
 
 1. **`setVisibility({lan:true})` 只管 UDP 发现**。TCP 监听由服务按需启动（`startListening`），不调用则无法被连接。
 2. **双方都必须先调用 `startListening`** 才能互相连接，否则报错"该设备暂未开放连接"。
-2. **`startDiscovery` 的参数是字符串 `'lan'`**，不是 `{transport:'lan'}`。
-3. **先 `startListening` 再等连接**：不调用 `startListening`，Rust 会直接拒绝外来连接（"没有服务在监听"）。
-4. **connect() 需指定 serviceKey**：第三个参数标识目标服务，hello 中携带 `service` 字段用于路由。
+3. **`startDiscovery` 的参数是字符串 `'lan'`**，不是 `{transport:'lan'}`。
+4. **connect() 需指定 serviceKey**：第二个参数标识目标服务，hello 中携带 `service` 字段用于路由。
 5. **消息格式为字符串**，推荐 JSON 序列化。服务自行设计消息协议（如 `{type, payload}`）。
 6. **Session 绑定服务生命周期**：服务 iframe 卸载时，所有 session 会自动 close，同时自动 `stopListening`。
 
@@ -237,11 +236,6 @@ __amiba__.network.onSession((session) => {
 })
 
 // 发现设备
-__amiba__.network.onPeerDiscovered(() => refreshDeviceList())
-setInterval(() => refreshDeviceList(), 4000)
-```
-
-// 发现
 __amiba__.network.onPeerDiscovered(() => refreshDeviceList())
 setInterval(() => refreshDeviceList(), 4000)
 ```
