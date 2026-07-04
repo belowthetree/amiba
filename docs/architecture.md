@@ -25,7 +25,7 @@
 │  │                                              │ │
 │  │  <router-view> 或 <iframe>                   │ │
 │  │                                              │ │
-│  │  内置服务:   Home | Chat | Generate           │ │
+│  │  内置服务:   Home | Chat                       │ │
 │  │             Settings | MyServices | Memory    │ │
 │  │                                              │ │
 │  ├──────────────────────────────────────────────┤ │
@@ -69,12 +69,11 @@ amiba/
 │   ├── App.vue              # 根组件 (TopBar + router-view)
 │   ├── router/
 │   │   └── index.ts         # 路由定义
-│   ├── pages/               # 6 个内置服务页面
+│   ├── pages/               # 5 个内置服务页面
 │   │   ├── HomePage.vue
 │   │   ├── ChatPage.vue
-│   │   ├── GeneratePage.vue
 │   │   ├── SettingsPage.vue
-│   │   ├── MyServicesPage.vue
+│   │   ├── ServiceBrowsePage.vue
 │   │   └── MemoryPage.vue
 │   ├── ai/                  # AI 核心
 │   │   ├── agent.ts           # LLM 对话（多工具循环）
@@ -84,7 +83,7 @@ amiba/
 │   │   ├── commands.ts        # 内置命令（/new 等）
 │   │   ├── memory-store.ts    # 记忆存储引擎
 │   │   ├── memory.ts          # 记忆导出重封装
-│   │   ├── generator.ts       # 服务生成
+│   │   ├── packager.ts        # 服务打包（多文件→单 HTML）
 │   │   ├── catalog.ts         # Catalog 管理
 │   │   ├── skills.ts          # Skill 管理
 │   │   ├── skill-parser.ts    # SKILL.md 解析器
@@ -92,26 +91,38 @@ amiba/
 │   │   ├── skill-curator.ts   # Skill 生命周期管理
 │   │   ├── skill-consolidation-prompt.ts  # Skill 合并 Prompt
 │   │   ├── skill-usage.ts     # Skill 使用统计
-│   │   ├── provider-store.ts  # AI 供应商管理（多供应商）
+│   │   ├── service-validator.ts  # 服务代码校验
+│   │   ├── doc-index.ts       # 文档索引/搜索
+│   │   ├── requirement-store.ts  # 需求追踪引擎
+│   │   ├── provider-store.ts  # AI 供应商管理
 │   │   └── custom-agent-store.ts  # 自定义 Agent 管理
 │   ├── tools/                # 工具系统
 │   │   ├── tool-registry.ts   # ToolRegistry 核心
 │   │   ├── discover.ts        # 工具自动发现
 │   │   ├── toolsets.ts        # 工具集定义
-│   │   ├── memory.tool.ts     # 记忆工具
-│   │   ├── generate.tool.ts   # 服务生成工具
-│   │   ├── catalog.tool.ts    # Catalog 查询工具
-│   │   ├── skill.tool.ts      # 技能查询工具
-│   │   └── service-file.tool.ts  # 服务文件编辑工具
+│   │   ├── memory.tool.ts
+│   │   ├── catalog.tool.ts
+│   │   ├── skill.tool.ts
+│   │   ├── skill-manage.tool.ts
+│   │   ├── service.tool.ts
+│   │   ├── service-file.tool.ts
+│   │   ├── service-validate.tool.ts
+│   │   ├── doc.tool.ts
+│   │   ├── requirement.tool.ts
+│   │   ├── session-search.tool.ts
+│   │   ├── soul.tool.ts
+│   │   └── web-browser.tool.ts
 │   ├── host/                # 服务运行时
 │   │   ├── service-container.vue  # iframe 外壳 + session 生命周期
 │   │   ├── bridge.ts        # postMessage 通信 + BRIDGE_SCRIPT 注入
 │   │   ├── registry.ts      # 服务注册表
-│   │   ├── network-bridge.ts # UDP 发现 + session 管理中枢
+│   │   ├── network-bridge.ts # UDP 发现 + session 管理中枢 + 全局网络门控
 │   │   ├── network-session.ts # NetworkSession 类（send/on/close）
 │   │   └── floating-widget-manager.ts # 悬浮块管理
 │   ├── config/
-│   │   └── config.ts        # 统一配置
+│   │   ├── config.ts        # 统一配置（amiba_settings，合并所有普通设置项）
+│   │   ├── storage.ts       # 存储抽象
+│   │   └── updater.ts       # 更新检查 + Rust reqwest 下载
 │   └── types/
 │       └── service.ts       # 服务类型定义
 ├── public/

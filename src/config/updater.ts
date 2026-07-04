@@ -182,16 +182,23 @@ export async function downloadUpdate(
   onProgress: (received: number, total: number) => void,
   signal?: AbortSignal,
 ): Promise<DownloadResult> {
+  const platform = detectPlatform()
+  const fileName = url.split('/').pop()?.split('?')[0] || 'update.bin'
+
   // 构建保存路径
   let tempDir: string
   try {
-    const { tempDir: getTempDir } = await import('@tauri-apps/api/path')
-    tempDir = await getTempDir()
+    if (platform === 'android') {
+      const { appCacheDir } = await import('@tauri-apps/api/path')
+      tempDir = await appCacheDir()
+    } else {
+      const { tempDir: getTempDir } = await import('@tauri-apps/api/path')
+      tempDir = await getTempDir()
+    }
   } catch {
     throw new Error('无法获取临时目录')
   }
 
-  const fileName = url.split('/').pop()?.split('?')[0] || 'update.bin'
   const dirPath = `${tempDir}amiba-update`
   const filePath = `${dirPath}/${fileName}`
 
@@ -252,8 +259,11 @@ export async function downloadUpdate(
 
 // ---- 拉起安装 ----
 
-/** 用系统默认程序打开下载好的文件（安装包） */
+/** 用系统默认程序打开下载好的文件（安装包）。Android 上跳过，需手动安装。 */
 export async function installUpdate(filePath: string): Promise<void> {
+  if (detectPlatform() === 'android') {
+    throw new Error(`APK 已下载到 ${filePath}，请前往文件管理器手动安装`)
+  }
   const { openPath } = await import('@tauri-apps/plugin-opener')
   await openPath(filePath)
 }

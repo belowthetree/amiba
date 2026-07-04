@@ -60,8 +60,7 @@ libloading = "0.8"  # 用于动态加载 libnativehelper.so 获取 JVM
 2. 填入 API Key
 3. 默认使用 DeepSeek API，可改为任何 OpenAI 兼容接口：
    - Base URL: `https://api.deepseek.com/v1`
-   - 对话模型: `deepseek-chat`
-   - 生成模型: `deepseek-chat`
+   - 对话模型: `deepseek-v4-flash`
 
 ### 多供应商配置
 
@@ -85,29 +84,55 @@ libloading = "0.8"  # 用于动态加载 libnativehelper.so 获取 JVM
 
 ```
 src/
-├── main.ts              # Vue 入口，挂载 Pinia + Router
-├── App.vue              # 根组件：TopBar + router-view + 汉堡菜单
-├── router/index.ts      # 7 条路由（含动态服务路由）
+├── main.ts              # Vue 入口，挂载 Router
+├── App.vue              # 根组件：TopBar + router-view
+├── router/index.ts      # 6 条路由（含动态服务路由）
 ├── types/service.ts     # 全部 TypeScript 类型
-├── config/config.ts     # 统一配置（reactive + localStorage）
+├── config/config.ts     # 统一配置（amiba_settings，reactive + 自动持久化）
+├── config/storage.ts    # 存储抽象层
+├── config/updater.ts    # 更新检查 + Rust reqwest 下载
 ├── ai/
-│   ├── agent.ts         # LLM 流式对话，含 memory tool calling
-│   ├── generator.ts     # 服务生成：prompt → JSON → HTML 打包
-│   ├── memory.ts        # MEMORY.md / USER.md 读写
-│   ├── catalog.ts       # YAML 加载、校验、Prompt 注入
-│   ├── skills.ts        # 3 个内置 Skill 模板 + 匹配
-│   ├── provider-store.ts    # AI 供应商管理（多供应商）
+│   ├── agent.ts         # LLM 流式对话 + 多工具循环
+│   ├── system-prompt.ts # System Prompt 两层组装器（stable/volatile）
+│   ├── soul.ts          # 人格系统
+│   ├── session.ts       # 多会话管理（创建/切换/删除）
+│   ├── memory-store.ts  # MEMORY.md / USER.md 记忆引擎
+│   ├── packager.ts      # 多文件 ServicePackage → 单 HTML 内联
+│   ├── catalog.ts       # YAML 组件目录
+│   ├── skills.ts        # Skill 管理 + 导入
+│   ├── skill-parser.ts  # SKILL.md frontmatter 解析
+│   ├── skill-commands.ts # Skill 扫描 + 斜杠命令检测
+│   ├── skill-usage.ts   # Skill 使用统计
+│   ├── skill-curator.ts # Skill 生命周期管理
+│   ├── service-validator.ts  # 服务代码校验（localStorage/BroadcastChannel/权限一致性）
+│   ├── doc-index.ts     # 文档索引/搜索/读取（内置 + 用户）
+│   ├── requirement-store.ts  # 需求追踪引擎
+│   ├── provider-store.ts   # AI 供应商管理
 │   └── custom-agent-store.ts # 自定义 Agent 管理
+├── tools/               # 工具系统（auto-discover via import.meta.glob）
+│   ├── tool-registry.ts # ToolRegistry 核心
+│   ├── toolsets.ts      # 工具集定义（core/service/docs）
+│   ├── memory.tool.ts
+│   ├── catalog.tool.ts
+│   ├── skill.tool.ts / skill-manage.tool.ts
+│   ├── service.tool.ts / service-file.tool.ts / service-validate.tool.ts
+│   ├── doc.tool.ts
+│   ├── requirement.tool.ts
+│   ├── session-search.tool.ts
+│   ├── soul.tool.ts
+│   └── web-browser.tool.ts
 ├── host/
 │   ├── service-container.vue  # iframe 沙箱外壳
-│   ├── bridge.ts        # postMessage 通信 + __amiba__ 注入
-│   └── registry.ts      # 服务注册表（CRUD + 存储）
+│   ├── bridge.ts        # postMessage JSBridge
+│   ├── registry.ts      # 服务注册表
+│   ├── network-bridge.ts # 网络中枢 + 全局门控
+│   ├── network-session.ts
+│   └── floating-widget-manager.ts
 └── pages/
-    ├── HomePage.vue         # 功能入口 + 最近使用
+    ├── HomePage.vue         # 功能入口
     ├── ChatPage.vue         # 流式 AI 对话
-    ├── GeneratePage.vue     # AI 生成服务界面
-    ├── SettingsPage.vue     # API Key / 供应商 / Agent / 主题 / Skill
-    ├── MyServicesPage.vue   # 服务管理 + Demo 安装
+    ├── SettingsPage.vue     # 标签页：通用 / 技能 & Agent / 数据
+    ├── ServiceBrowsePage.vue # 服务浏览与管理
     └── MemoryPage.vue       # MEMORY.md / USER.md 编辑器
 src-tauri/
 ├── Cargo.toml          # Rust 依赖配置

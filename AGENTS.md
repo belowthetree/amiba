@@ -28,7 +28,7 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 | **Tools** | `src/tools/` | ToolRegistry (deferred-queue), auto-discovery, 4 toolsets (core/service/docs), 25+ tool impls: memory, catalog_search, skill_view/list, skill_manage_*(5 tools), service_list/view/create, service_file_*(4 tools), service_validate, doc_list/read/search, soul_save, requirement_*(3 tools), session_search, web_fetch, web_browse |
 | **Host Runtime** | `src/host/` | iframe sandbox (`service-container.vue`), postMessage JSBridge (`bridge.ts`), service registry (`registry.ts`) |
 | **Web Bridge** | `src/config/web-bridge.ts` | 封装 Tauri `web_fetch`/`web_click`/`web_input_text`/`web_get_content`/`web_close` 命令，含超时和日志 |
-| **Updater** | `src/config/updater.ts` | 纯前端更新检查：调 GitHub Releases API，semver 比较，全平台统一 |
+| **Updater** | `src/config/updater.ts` | 纯前端更新检查：调 GitHub Releases API，semver 比较，Rust reqwest 下载（绕过浏览器 CORS），全平台统一 |
 | **Pages** | `src/pages/` | 6 routes: Chat, Home, Memory, MyServices, ServiceBrowse, Settings |
 | **Config** | `src/config/` | Reactive settings persisted via Tauri FS plugin (`config.ts`), storage abstraction (`storage.ts`: auto-mkdir + pretty-print JSON), session-db wrapper (`session-db.ts`: Tauri invoke → Rust SQLite FTS5) |
 | **Router** | `src/router/` | `createWebHistory` with lazy-loaded page components |
@@ -55,8 +55,9 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 | `catalog.ts` | Component catalog YAML parser |
 | `packager.ts` | Inline multi-file ServicePackage into single HTML for iframe rendering |
 | `service-validator.ts` | Service code validation: storage API, sandbox APIs, permission consistency |
+| `doc-index.ts` | Document index/search/read for builtin (`public/docs/`) and user (`{AppData}/docs/`) docs |
 | `provider-store.ts` | Multi-provider AI vendor management: reactive list, CRUD, auto-persist to `amiba_providers` |
-| `custom-agent-store.ts` | Custom agent management: reactive list + activeAgentId, CRUD, auto-persist to `amiba_custom_agents` |
+| `custom-agent-store.ts` | Custom agent management: reactive list + settings.active_agent_id, CRUD, auto-persist to `amiba_custom_agents` |
 
 ## Tools inventory
 
@@ -106,7 +107,7 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 ## Notes
 
 - **Storage layout:** `{AppData}/amiba/` →
-  - Flat K/V files: `amiba_settings`, `amiba_api_key`, `amiba_memory_md`, `amiba_user_md`, `amiba_active_soul`
+  - `amiba_settings` — 统一配置（api_key, network_lan_visible, active_agent_id, device_id 等已合并至此）
   - `state.db` — SQLite (WAL mode) with sessions/messages tables + messages_fts FTS5 virtual table
   - `services/{id}/` — generated app files + `REQUIREMENT.md` (per-service)
   - `services/REQUIREMENTS.md` — global requirement summary
@@ -117,6 +118,7 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
   - `skills/.archive/` — archived skills
   - `skills/.curator_state` / `.curator-logs/` — curator lifecycle
   - `souls/{name}.md` — personality files
+  - `docs/` — user custom document files (override builtin `public/docs/`)
 - **Android 源码:** Kotlin 类在 `src-tauri/gen/android/app/src/main/java/com/amiba/desktop/MainActivity.kt`（`JsCallback` + `WebViewHelper`）；`tauri android init` 会重置 `gen/android`，自定义代码需在重置后重新写入
 - **Storage auto-mkdir:** `storageSet` creates parent directories automatically before writing
 - **JSON pretty-print:** all `storageSetJSON` writes use 2-space indentation
