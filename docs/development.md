@@ -191,18 +191,20 @@ npm run test:e2e     # 端到端测试（Playwright）
 
 应用通过设置页「🔍 检查更新」按钮触发更新检查：
 
-- **实现方式**：纯前端，调 GitHub Releases API (`GET /repos/{owner}/{repo}/releases/latest`)
+- **实现方式**：纯前端检查 + Rust reqwest 下载，绕过浏览器 CORS
 - **仓库地址**：硬编码在 `src/config/updater.ts` 的 `GITHUB_API` 常量中（当前：`belowthetree/amiba`）
 - **版本比较**：`tag_name` 去 `v` 前缀后做 semver 三段式比较
 - **版本来源**：Tauri 运行时走 `@tauri-apps/api/app.getVersion()`（读 `tauri.conf.json` version），非 Tauri 环境降级到 Vite 注入的 `__APP_VERSION__`（读 `package.json` version）
-- **全平台统一**：桌面 / Android / Web 同一套逻辑，无需 Rust 改动
-- **行为**：发现新版本 → 显示版本号和发布说明 → 点击「📥 前往下载」→ `window.open` 在系统浏览器打开 GitHub Releases 页
+- **平台资产匹配**：按当前平台匹配 GitHub Release Assets（Windows → `.exe`/`.msi`，macOS → `.dmg`，Linux → `.AppImage`/`.deb`，Android → `.apk`）
+- **下载**：调用 Rust `download_file` 命令（基于 reqwest），走流式下载 + `download-progress` 事件，前端展示进度条
+- **安装**：下载到临时目录后通过 `@tauri-apps/plugin-opener.openPath()` 拉起系统默认安装程序
+- **全平台统一**：桌面 / Android / Web 同一套逻辑
 
 ### 版本号维护
 
 - `tauri.conf.json` 的 `version` 字段为 Tauri 构建版本，`getVersion()` 返回此值
 - `package.json` 的 `version` 为前端兜底版本，Vite 构建时注入 `__APP_VERSION__`
-- 发布前应确保两处版本一致（当前不一致：`tauri.conf.json` = `0.1.4`，`package.json` = `0.3.4`）
+- 发布前应确保两处版本一致
 
 ## 不做的事情（明确边界）
 
@@ -212,3 +214,7 @@ npm run test:e2e     # 端到端测试（Playwright）
 - ❌ 不做第三方登录/支付（后续可加）
 - ❌ 不做实时协作/多人
 - ❌ 不做离线 AI（端侧模型，后续探索）
+
+## 经验教训
+
+- **2026-07-05**: 更新下载功能中的路径拼接使用了 `${tempDir}amiba-update` 模板字符串，缺少路径分隔符。`@tauri-apps/api/path` 的 `tempDir()` 返回不含尾部斜杠的路径，导致 Windows 上生成 `C:\Users\...\Tempamiba-update` 而非 `C:\Users\...\Temp\amiba-update`。应始终使用 `join()` 函数进行跨平台路径拼接，切勿手动字符串拼接。同时 Rust `download_file` 缺少 HTTP 状态码检查，下载 404/403 错误页会导致假成功——需在流式下载前检查 `response.status().is_success()`。

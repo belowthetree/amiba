@@ -177,6 +177,11 @@
             <button class="danger-btn" style="margin-top:8px" @click="doCancelDownload">✕ 取消下载</button>
           </div>
           <p v-else-if="updateStatus.stage === 'installing'" class="update-msg ok">🔧 正在启动安装程序…</p>
+          <div v-else-if="updateStatus.stage === 'downloaded'" class="update-available">
+            <p class="update-msg ok">✅ 已下载 {{ updateStatus.fileName }}</p>
+            <button class="primary-btn" @click="doInstall(updateStatus.filePath)">📦 立即安装</button>
+            <button class="secondary-btn" style="margin-left:8px" @click="doRedownload">🔄 重新下载</button>
+          </div>
           <p v-else-if="updateStatus.stage === 'cancelled'" class="update-msg" style="color:#f57c00">⚠️ 下载已取消</p>
         </div>
       </div>
@@ -323,7 +328,7 @@ import { loadUserSkills, addUserSkill, updateUserSkill, deleteUserSkill, importS
 import { providers, addProvider, updateProvider, deleteProvider, initProviderStore } from '../ai/provider-store'
 import { customAgents, addCustomAgent, updateCustomAgent, deleteCustomAgent, setActiveAgent, initCustomAgentStore } from '../ai/custom-agent-store'
 import type { AiProvider, CustomAgent } from '../types/service'
-import { getCurrentVersion, checkForUpdate, downloadUpdate, installUpdate, type UpdateStatus, type UpdateInfo } from '../config/updater'
+import { getCurrentVersion, checkForUpdate, downloadUpdate, installUpdate, getCachedUpdate, type UpdateStatus, type UpdateInfo } from '../config/updater'
 import { listSessions, deleteSession } from '../ai/session'
 
 const appVersion = ref('...')
@@ -623,11 +628,22 @@ async function doCheckUpdate() {
   try {
     const info = await checkForUpdate()
     if (info.hasUpdate) {
+      // 检查本地是否已有同版本的缓存文件
+      const cached = await getCachedUpdate(info.latestVersion)
+      if (cached) {
+        updateStatus.value = {
+          stage: 'downloaded',
+          filePath: cached.filePath,
+          fileName: cached.fileName,
+        }
+        return
+      }
       updateStatus.value = { stage: 'available', info }
     } else {
       updateStatus.value = { stage: 'upToDate', currentVersion: info.currentVersion, latestVersion: info.latestVersion }
     }
   } catch (e: any) {
+    console.error('[Settings] 更新检查失败:', e)
     updateStatus.value = { stage: 'error', message: e.message || '检查更新失败' }
   }
 }
@@ -650,6 +666,7 @@ async function doDownload(info: UpdateInfo) {
   try {
     const result = await downloadUpdate(
       info.downloadUrl,
+      info.latestVersion,
       (received, total) => {
         updateStatus.value = {
           stage: 'downloading',
@@ -663,14 +680,46 @@ async function doDownload(info: UpdateInfo) {
 
     updateStatus.value = { stage: 'installing' }
     await installUpdate(result.filePath)
+    // 安装已发起，保留文件路径以便重试
+    updateStatus.value = {
+      stage: 'downloaded',
+      filePath: result.filePath,
+      fileName: result.fileName,
+    }
   } catch (e: any) {
+    console.error('[Settings] 下载/安装失败:', e)
     if (e.name === 'AbortError') {
       updateStatus.value = { stage: 'cancelled' }
     } else {
-      updateStatus.value = { stage: 'error', message: e.message || '下载失败' }
+      updateStatus.value = { stage: 'error', message: e.message || String(e) || '下载失败' }
     }
   } finally {
     downloadAbort = null
+  }
+}
+
+async function doInstall(filePath: string) {
+  updateStatus.value = { stage: 'installing' }
+  try {
+    await installUpdate(filePath)
+    updateStatus.value = { stage: 'downloaded', filePath, fileName: filePath.split('/').pop() || filePath }
+  } catch (e: any) {
+    updateStatus.value = { stage: 'error', message: e.message || String(e) || '安装启动失败' }
+  }
+}
+
+async function doRedownload() {
+  // 清缓存后重新检查
+  updateStatus.value = { stage: 'checking' }
+  try {
+    const info = await checkForUpdate()
+    if (info.hasUpdate) {
+      updateStatus.value = { stage: 'available', info }
+    } else {
+      updateStatus.value = { stage: 'upToDate', currentVersion: info.currentVersion, latestVersion: info.latestVersion }
+    }
+  } catch (e: any) {
+    updateStatus.value = { stage: 'error', message: e.message || '检查更新失败' }
   }
 }
 

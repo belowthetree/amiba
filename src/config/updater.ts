@@ -29,6 +29,7 @@ export type UpdateStatus =
   | { stage: 'upToDate'; currentVersion: string; latestVersion: string }
   | { stage: 'available'; info: UpdateInfo }
   | { stage: 'downloading'; received: number; total: number; cancel: () => void }
+  | { stage: 'downloaded'; filePath: string; fileName: string }
   | { stage: 'installing' }
   | { stage: 'cancelled' }
 
@@ -179,41 +180,47 @@ export interface DownloadResult {
  */
 export async function downloadUpdate(
   url: string,
+  version: string,
   onProgress: (received: number, total: number) => void,
   signal?: AbortSignal,
 ): Promise<DownloadResult> {
-  const platform = detectPlatform()
   const fileName = url.split('/').pop()?.split('?')[0] || 'update.bin'
 
-  // 构建保存路径
-  let tempDir: string
-  try {
-    if (platform === 'android') {
-      const { appCacheDir } = await import('@tauri-apps/api/path')
-      tempDir = await appCacheDir()
-    } else {
-      const { tempDir: getTempDir } = await import('@tauri-apps/api/path')
-      tempDir = await getTempDir()
-    }
-  } catch {
-    throw new Error('无法获取临时目录')
-  }
+  const { join } = await import('@tauri-apps/api/path')
+  const { appCacheDir } = await import('@tauri-apps/api/path')
 
-  const dirPath = `${tempDir}amiba-update`
-  const filePath = `${dirPath}/${fileName}`
+  // 使用 cache 目录（已配置 FileProvider cache-path；不再清理旧文件，下载后持久保留）
+  const baseDir = await appCacheDir()
+  const dirPath = await join(baseDir, 'amiba-update')
+  const filePath = await join(dirPath, fileName)
+  const result = await doDownloadWithPaths(url, filePath, fileName, onProgress, signal)
 
-  // 确保目录存在并清理旧文件
-  const { mkdir, exists, readDir, remove } = await import('@tauri-apps/plugin-fs')
+  // 保存版本元数据，下次检查时判断是否需要重新下载
+  await saveDownloadMeta({
+    version,
+    fileName: result.fileName,
+    filePath: result.filePath,
+    downloadUrl: url,
+    downloadedAt: new Date().toISOString(),
+  })
+
+  return result
+}
+
+async function doDownloadWithPaths(
+  url: string,
+  filePath: string,
+  fileName: string,
+  onProgress: (received: number, total: number) => void,
+  signal?: AbortSignal,
+): Promise<DownloadResult> {
+  const { join, dirname } = await import('@tauri-apps/api/path')
+  const dirPath = await dirname(filePath)
+
+  // 确保目录存在（不删除已有文件，支持断点续装）
+  const { mkdir, remove } = await import('@tauri-apps/plugin-fs')
   try {
-    const dirExists = await exists(dirPath)
-    if (dirExists) {
-      const entries = await readDir(dirPath)
-      for (const entry of entries) {
-        try { await remove(`${dirPath}/${entry.name}`) } catch { /* 忽略 */ }
-      }
-    } else {
-      await mkdir(dirPath, { recursive: true })
-    }
+    await mkdir(dirPath, { recursive: true })
   } catch {
     // 目录可能已存在
   }
@@ -247,13 +254,15 @@ export async function downloadUpdate(
 
     return { filePath: resultPath, fileName }
   } catch (e: any) {
+    console.error('[Updater] 下载失败:', e)
     if (cancelled || e.name === 'AbortError') {
       try { await remove(filePath) } catch { /* ignore */ }
       throw new DOMException('Download cancelled', 'AbortError')
     }
-    throw new Error(typeof e === 'string' ? e : (e.message || '下载失败'))
+    const errMsg = typeof e === 'string' ? e : (e.message || String(e) || '下载失败')
+    throw new Error(errMsg)
   } finally {
-    unlisten()
+    try { unlisten() } catch { /* ignore */ }
   }
 }
 
@@ -261,6 +270,74 @@ export async function downloadUpdate(
 
 /** 用系统默认程序打开下载好的文件（安装包） */
 export async function installUpdate(filePath: string): Promise<void> {
-  const { openPath } = await import('@tauri-apps/plugin-opener')
-  await openPath(filePath)
+  console.log('[Updater] 准备安装:', filePath)
+  const { invoke } = await import('@tauri-apps/api/core')
+  await invoke('open_downloaded_file', { filePath })
+  console.log('[Updater] ✓ 已启动安装程序')
+}
+
+// ---- 下载元数据 ----
+
+export interface DownloadMeta {
+  version: string
+  fileName: string
+  filePath: string
+  downloadUrl: string
+  downloadedAt: string
+}
+
+const META_FILE = 'download_info.json'
+
+/** 保存下载元数据，下次检查更新时用于判断是否需要重新下载 */
+async function saveDownloadMeta(meta: DownloadMeta): Promise<void> {
+  try {
+    const { join } = await import('@tauri-apps/api/path')
+    const { appCacheDir } = await import('@tauri-apps/api/path')
+    const { writeTextFile, mkdir } = await import('@tauri-apps/plugin-fs')
+    const baseDir = await appCacheDir()
+    const dirPath = await join(baseDir, 'amiba-update')
+    await mkdir(dirPath, { recursive: true })
+    const metaPath = await join(dirPath, META_FILE)
+    await writeTextFile(metaPath, JSON.stringify(meta, null, 2))
+    console.log('[Updater] 元数据已保存:', meta.version)
+  } catch (e) {
+    console.error('[Updater] 保存元数据失败:', e)
+  }
+}
+
+/** 读取下载元数据 */
+async function readDownloadMeta(): Promise<DownloadMeta | null> {
+  try {
+    const { join } = await import('@tauri-apps/api/path')
+    const { appCacheDir } = await import('@tauri-apps/api/path')
+    const { readTextFile, exists } = await import('@tauri-apps/plugin-fs')
+    const baseDir = await appCacheDir()
+    const metaPath = await join(baseDir, 'amiba-update', META_FILE)
+    if (!(await exists(metaPath))) return null
+    const raw = await readTextFile(metaPath)
+    return JSON.parse(raw) as DownloadMeta
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 检查本地缓存的更新文件是否为最新版本。
+ * 若文件存在且版本与 latestVersion 一致，返回 DownloadMeta；
+ * 否则返回 null（需要重新下载）。
+ */
+export async function getCachedUpdate(
+  latestVersion: string
+): Promise<DownloadMeta | null> {
+  try {
+    const meta = await readDownloadMeta()
+    if (!meta || meta.version !== latestVersion) return null
+
+    const { exists } = await import('@tauri-apps/plugin-fs')
+    if (await exists(meta.filePath)) {
+      console.log('[Updater] 发现已缓存的最新版本:', meta.version, meta.filePath)
+      return meta
+    }
+  } catch { /* ignore */ }
+  return null
 }
