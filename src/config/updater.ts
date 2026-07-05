@@ -322,22 +322,57 @@ async function readDownloadMeta(): Promise<DownloadMeta | null> {
 }
 
 /**
- * 检查本地缓存的更新文件是否为最新版本。
- * 若文件存在且版本与 latestVersion 一致，返回 DownloadMeta；
- * 否则返回 null（需要重新下载）。
+ * 检查本地缓存的更新文件：
+ * - 若版本与 latestVersion 一致且文件存在 → 返回 DownloadMeta（跳过下载）
+ * - 若版本 <= currentVersion → 删除过期文件，返回 null
+ * - 其他 → 返回 null（需重新下载）
  */
 export async function getCachedUpdate(
-  latestVersion: string
+  latestVersion: string,
+  currentVersion: string,
 ): Promise<DownloadMeta | null> {
   try {
     const meta = await readDownloadMeta()
-    if (!meta || meta.version !== latestVersion) return null
+    if (!meta) return null
 
-    const { exists } = await import('@tauri-apps/plugin-fs')
-    if (await exists(meta.filePath)) {
-      console.log('[Updater] 发现已缓存的最新版本:', meta.version, meta.filePath)
-      return meta
+    // 缓存的版本 <= 当前版本 → 已过期，清理
+    if (compareVersions(meta.version, currentVersion) <= 0) {
+      console.log('[Updater] 缓存版本 %s <= 当前版本 %s，清理', meta.version, currentVersion)
+      await deleteCachedUpdate()
+      return null
+    }
+
+    // 缓存的版本与最新版一致 → 可用
+    if (meta.version === latestVersion) {
+      const { exists } = await import('@tauri-apps/plugin-fs')
+      if (await exists(meta.filePath)) {
+        console.log('[Updater] 发现已缓存的最新版本:', meta.version, meta.filePath)
+        return meta
+      }
     }
   } catch { /* ignore */ }
   return null
+}
+
+/** 删除缓存的更新文件及元数据 */
+async function deleteCachedUpdate(): Promise<void> {
+  try {
+    const meta = await readDownloadMeta()
+    if (meta) {
+      const { remove, exists } = await import('@tauri-apps/plugin-fs')
+      if (await exists(meta.filePath)) {
+        await remove(meta.filePath)
+      }
+      // 删除元数据文件
+      const { join } = await import('@tauri-apps/api/path')
+      const { appCacheDir } = await import('@tauri-apps/api/path')
+      const metaPath = await join(await appCacheDir(), 'amiba-update', META_FILE)
+      if (await exists(metaPath)) {
+        await remove(metaPath)
+      }
+      console.log('[Updater] 已清理过期缓存:', meta.version)
+    }
+  } catch (e) {
+    console.error('[Updater] 清理缓存失败:', e)
+  }
 }

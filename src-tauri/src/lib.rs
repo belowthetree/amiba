@@ -3,8 +3,13 @@ mod web;
 mod network_visibility;
 mod network_session;
 
+use std::sync::Mutex;
 use tauri::Manager;
 use tauri::Emitter;
+use tokio::sync::watch;
+
+/// 下载取消令牌：download_file 流式循环中检查此通道，cancel_download 触发
+struct DownloadCancel(Mutex<Option<watch::Sender<bool>>>);
 
 /// Android: 缓存的 JavaVM 原始指针，在 setup 阶段从 ndk_context 获取
 #[cfg(target_os = "android")]
@@ -30,6 +35,13 @@ async fn download_file(
     use futures_util::StreamExt;
     use std::io::Write;
 
+    // 建立取消通道
+    let (tx, mut rx) = watch::channel(false);
+    {
+        let cancel = app.state::<DownloadCancel>();
+        *cancel.0.lock().unwrap() = Some(tx);
+    }
+
     let client = reqwest::Client::builder()
         .user_agent("amiba-updater")
         .timeout(std::time::Duration::from_secs(600))
@@ -42,7 +54,6 @@ async fn download_file(
         .await
         .map_err(|e| format!("下载请求失败: {}", e))?;
 
-    // 检查 HTTP 状态码（reqwest 自动跟随重定向）
     let status = response.status();
     if !status.is_success() {
         return Err(format!("服务器返回 HTTP {}", status.as_u16()));
@@ -51,7 +62,6 @@ async fn download_file(
     let total = response.content_length().unwrap_or(0);
     let mut received: u64 = 0;
 
-    // 确保目标目录存在
     let dest_path = std::path::Path::new(&dest);
     if let Some(parent) = dest_path.parent() {
         std::fs::create_dir_all(parent)
@@ -63,12 +73,19 @@ async fn download_file(
 
     let mut stream = response.bytes_stream();
     while let Some(chunk) = stream.next().await {
+        // 检查是否被取消
+        if *rx.borrow() {
+            drop(file);
+            let _ = std::fs::remove_file(&dest);
+            println!("[download_file] 已取消: {}", url);
+            return Err("下载已取消".into());
+        }
+
         let chunk = chunk.map_err(|e| format!("接收数据失败: {}", e))?;
         received += chunk.len() as u64;
         file.write_all(&chunk)
             .map_err(|e| format!("写入文件失败: {}", e))?;
 
-        // 发射进度事件
         let _ = app.emit("download-progress", serde_json::json!({
             "received": received,
             "total": total,
@@ -77,8 +94,26 @@ async fn download_file(
 
     file.flush().map_err(|e| format!("刷新文件失败: {}", e))?;
 
+    // 清理取消通道
+    {
+        let cancel = app.state::<DownloadCancel>();
+        *cancel.0.lock().unwrap() = None;
+    }
+
     println!("[download_file] 完成: {} → {} ({} bytes)", url, dest, received);
     Ok(dest)
+}
+
+/// 取消正在进行的下载
+#[tauri::command]
+fn cancel_download(app: tauri::AppHandle) -> Result<(), String> {
+    let cancel = app.state::<DownloadCancel>();
+    let tx = cancel.0.lock().unwrap().take();
+    if let Some(tx) = tx {
+        let _ = tx.send(true);
+        println!("[cancel_download] 已发送取消信号");
+    }
+    Ok(())
 }
 
 // ============================================================
@@ -306,6 +341,9 @@ pub fn run() {
       let sess_state = network_session::init_session_store();
       app.manage(std::sync::Arc::new(tokio::sync::Mutex::new(sess_state)));
 
+      // 下载取消令牌
+      app.manage(DownloadCancel(Mutex::new(None)));
+
       // Android: 缓存 JavaVM 指针
       #[cfg(target_os = "android")]
       {
@@ -355,6 +393,7 @@ pub fn run() {
     })
     .invoke_handler(tauri::generate_handler![
       download_file,
+      cancel_download,
       open_downloaded_file,
       db::commands::search_sessions,
       db::commands::index_message,

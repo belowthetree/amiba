@@ -629,7 +629,7 @@ async function doCheckUpdate() {
     const info = await checkForUpdate()
     if (info.hasUpdate) {
       // 检查本地是否已有同版本的缓存文件
-      const cached = await getCachedUpdate(info.latestVersion)
+      const cached = await getCachedUpdate(info.latestVersion, info.currentVersion)
       if (cached) {
         updateStatus.value = {
           stage: 'downloaded',
@@ -723,8 +723,13 @@ async function doRedownload() {
   }
 }
 
-function doCancelDownload() {
+async function doCancelDownload() {
   downloadAbort?.abort()
+  // 通知 Rust 端取消流式下载
+  try {
+    const { invoke } = await import('@tauri-apps/api/core')
+    await invoke('cancel_download')
+  } catch { /* ignore */ }
 }
 
 onMounted(async () => {
