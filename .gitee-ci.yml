@@ -1,314 +1,181 @@
-# ============================================================
-# 变形虫 (Amiba) — Gitee CI/CD (Gitee Go)
-# 当 package.json 中版本号变更并推送到 main 时触发
-# 构建桌面三平台 + Android APK，发布到 Gitee Release
-# ============================================================
+# ==============================================================
+# 变形虫 (Amiba) — Gitee Go 流水线
+# ==============================================================
+# 功能：package.json 版本号变更 → 构建 Linux + Android → 发布 Release
 #
-# 使用说明：
-#   1. 在 Gitee 项目 "设置 → CI/CD → 变量" 中配置 Secrets
-#   2. 推送 package.json 版本变更到 main 分支即可触发
+# 启用步骤：
+#   1. Gitee 项目 → 服务 → Gitee Go → 开启
+#   2. 项目设置 → CI/CD → 变量 → 添加以下 Secrets：
+#      PRIVATE_TOKEN       — Gitee 私人令牌（权限：user_info + projects）
+#      KEYSTORE_BASE64     — Android 签名 keystore 的 base64（可选）
+#      KEYSTORE_PASSWORD   — keystore 密码
+#      KEY_PASSWORD        — key 密码
+#   3. 推送此文件到 main 分支（文件必须在仓库根目录，名为 .gitee-ci.yml）
 #
-# 需要配置的 Secrets：
-#   GITEE_TOKEN         — Gitee 私人令牌（用于创建 Release）
-#   KEYSTORE_BASE64     — Android 签名 keystore 的 base64
-#   KEYSTORE_PASSWORD   — keystore 密码
-#   KEY_PASSWORD        — key 密码
-# ============================================================
+# 注意：
+#   - Gitee 变量不能以 GITEE_ 开头，故用 PRIVATE_TOKEN
+#   - 若需桌面三平台构建，仍需使用 GitHub Actions
+# ==============================================================
 
-name: Release
+kind: pipeline
+type: docker
+name: release
 
-on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'package.json'
+trigger:
+  branch:
+    - main
+  paths:
+    include:
+      - package.json
 
-jobs:
-  # ============================================================
-  # 桌面三平台构建
-  # ============================================================
-  build-desktop:
-    strategy:
-      matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
-    runs-on: ${{ matrix.os }}
+steps:
+  # ---- 版本检查 ----
+  - name: check-version
+    image: node:20
+    commands:
+      - VERSION=$(node -p "require('./package.json').version")
+      - echo "VERSION=$VERSION"
+      - |
+        if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+          echo "Tag v$VERSION already exists, stopping"
+          exit 78
+        fi
+      - echo "▶ Building version v$VERSION"
 
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+  # ---- Linux 桌面构建 ----
+  - name: build-linux
+    image: rust:1-slim
+    environment:
+      RUSTC_WRAPPER: sccache
+    commands:
+      # 系统依赖
+      - apt-get update
+      - apt-get install -y curl nodejs npm pkg-config libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      # sccache
+      - cargo install sccache --version 0.9.1 2>/dev/null || echo "sccache skip"
+      # 前端
+      - npm ci
+      - npm run build
+      # Tauri 构建
+      - cargo install tauri-cli --version "^2"
+      - npx tauri build --bundles deb,appimage
+    when:
+      status: success
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+  # ---- 归档 Linux 产物 ----
+  - name: collect-linux
+    image: alpine
+    commands:
+      - mkdir -p dist/linux
+      - |
+        find src-tauri/target/release/bundle -name "*.deb" -exec cp {} dist/linux/ \; 2>/dev/null
+        find src-tauri/target/release/bundle -name "*.AppImage" -exec cp {} dist/linux/ \; 2>/dev/null
+      - ls -la dist/linux/
 
-      # ---- 版本检查 ----
-      - name: Check Version
-        id: check
-        shell: bash
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
-            echo "Tag v$VERSION already exists, skipping"
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      # ---- Linux 系统依赖 ----
-      - name: Install system deps (Linux)
-        if: steps.check.outputs.skip == 'false' && runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-
-      # ---- sccache 加速 Rust 编译 ----
-      - name: Setup sccache
-        if: steps.check.outputs.skip == 'false'
-        run: |
-          cargo install sccache --version 0.9.1
-          mkdir -p src-tauri/.cargo
-          echo "[env]" > src-tauri/.cargo/config.toml
-          echo 'RUSTC_WRAPPER = "sccache"' >> src-tauri/.cargo/config.toml
-
-      - name: Cache Rust
-        if: steps.check.outputs.skip == 'false'
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            src-tauri/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-
-
-      # ---- 构建 ----
-      - name: Build frontend
-        if: steps.check.outputs.skip == 'false'
-        run: |
-          npm ci
-          npm run build
-
-      - name: Build Tauri app
-        if: steps.check.outputs.skip == 'false'
-        uses: tauri-apps/tauri-action@v0
-        with:
-          tauriScript: npx tauri
-
-      # ---- 上传产物 ----
-      - name: Upload artifacts (Windows)
-        if: steps.check.outputs.skip == 'false' && runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
-        with:
-          name: desktop-windows
-          path: |
-            src-tauri/target/release/bundle/msi/*.msi
-            src-tauri/target/release/bundle/nsis/*.exe
-
-      - name: Upload artifacts (macOS)
-        if: steps.check.outputs.skip == 'false' && runner.os == 'macOS'
-        uses: actions/upload-artifact@v4
-        with:
-          name: desktop-macos
-          path: src-tauri/target/release/bundle/dmg/*.dmg
-
-      - name: Upload artifacts (Linux)
-        if: steps.check.outputs.skip == 'false' && runner.os == 'Linux'
-        uses: actions/upload-artifact@v4
-        with:
-          name: desktop-linux
-          path: |
-            src-tauri/target/release/bundle/deb/*.deb
-            src-tauri/target/release/bundle/appimage/*.AppImage
-
-  # ============================================================
-  # Android APK 构建
-  # ============================================================
-  build-android:
-    runs-on: ubuntu-latest
-    env:
+  # ---- Android APK 构建 ----
+  - name: build-android
+    image: rust:1-slim
+    environment:
       ANDROID_NDK_VERSION: 27.0.12077973
+      KEYSTORE_BASE64:
+        from_secret: KEYSTORE_BASE64
+      KEYSTORE_PASSWORD:
+        from_secret: KEYSTORE_PASSWORD
+      KEY_PASSWORD:
+        from_secret: KEY_PASSWORD
+    commands:
+      # 基础环境
+      - apt-get update
+      - apt-get install -y curl unzip nodejs npm openjdk-17-jdk
+      # 前端
+      - npm ci
+      - npm run build
+      # Android SDK
+      - export ANDROID_SDK_ROOT=/opt/android-sdk
+      - mkdir -p $ANDROID_SDK_ROOT
+      - curl -sL https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o /tmp/sdk.zip
+      - unzip -q /tmp/sdk.zip -d /tmp/sdk
+      - yes | /tmp/sdk/cmdline-tools/bin/sdkmanager --sdk_root=$ANDROID_SDK_ROOT "platforms;android-34" "build-tools;34.0.0" "ndk;27.0.12077973" 2>/dev/null
+      - export ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/27.0.12077973
+      - export PATH=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
+      # Rust targets
+      - rustup target add aarch64-linux-android x86_64-linux-android
+      - rustup component add rust-std --target aarch64-linux-android
+      - rustup component add rust-std --target x86_64-linux-android
+      # Tauri CLI
+      - cargo install tauri-cli --version "^2"
+      # 签名
+      - |
+        if [ -n "$KEYSTORE_BASE64" ]; then
+          echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
+          export KEYSTORE_PATH=$PWD/release.keystore
+          export KEY_ALIAS=amiba
+          echo "✅ keystore decoded"
+        else
+          echo "⚠️ Building unsigned APK"
+        fi
+      # 构建
+      - npx tauri android build
+    when:
+      status: success
 
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+  # ---- 归档 Android 产物 ----
+  - name: collect-android
+    image: alpine
+    commands:
+      - mkdir -p dist/android
+      - |
+        find src-tauri/gen/android/app/build/outputs/apk -name "*.apk" -exec cp {} dist/android/ \; 2>/dev/null
+      - ls -la dist/android/
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      # ---- 版本检查 ----
-      - name: Check Version
-        id: check
-        shell: bash
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
+  # ---- 发布到 Gitee Release ----
+  - name: publish-release
+    image: node:20
+    environment:
+      PRIVATE_TOKEN:
+        from_secret: PRIVATE_TOKEN
+    commands:
+      - VERSION=$(node -p "require('./package.json').version")
+      - OWNER=$(echo $DRONE_REPO | cut -d/ -f1)
+      - REPO=$(echo $DRONE_REPO | cut -d/ -f2)
+      - |
+        # 创建 Release
+        RESP=$(curl -s -X POST "https://gitee.com/api/v5/repos/$OWNER/$REPO/releases" \
+          -H "Content-Type: application/json" \
+          -H "Authorization: token $PRIVATE_TOKEN" \
+          -d "{
+            \"tag_name\": \"v$VERSION\",
+            \"name\": \"v$VERSION\",
+            \"body\": \"自动构建于 $(date '+%Y-%m-%d %H:%M')\",
+            \"target_commitish\": \"main\"
+          }")
+        echo "Create release response: $RESP"
+        RELEASE_ID=$(echo "$RESP" | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).id || ''")
+        if [ -z "$RELEASE_ID" ]; then
+          echo "❌ Create release failed"
+          exit 1
+        fi
+        echo "✅ Release created, id=$RELEASE_ID"
+        # 上传产物
+        for DIR in dist/linux dist/android; do
+          if [ -d "$DIR" ]; then
+            for FILE in $DIR/*; do
+              if [ -f "$FILE" ]; then
+                FNAME=$(basename "$FILE")
+                echo "📤 Uploading $FNAME ..."
+                curl -s -X POST \
+                  "https://gitee.com/api/v5/repos/$OWNER/$REPO/releases/$RELEASE_ID/attach_files" \
+                  -H "Authorization: token $PRIVATE_TOKEN" \
+                  -F "file=@$FILE"
+                echo ""
+              fi
+            done
           fi
+        done
+        echo "🎉 Release v$VERSION published on Gitee"
+    when:
+      status: success
 
-      - name: Check Android project
-        if: steps.check.outputs.skip == 'false'
-        run: |
-          if [ ! -d "src-tauri/gen/android" ]; then
-            echo "❌ src-tauri/gen/android/ doesn't exist!"
-            echo "Run: cargo tauri android init && commit gen/android/"
-            exit 1
-          fi
-
-      - name: Setup Android SDK
-        if: steps.check.outputs.skip == 'false'
-        uses: android-actions/setup-android@v3
-        with:
-          packages: 'platforms;android-34 build-tools;34.0.0 ndk;27.0.12077973'
-
-      - name: Set NDK env
-        if: steps.check.outputs.skip == 'false'
-        run: |
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION" >> $GITHUB_ENV
-          echo "$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION/toolchains/llvm/prebuilt/linux-x86_64/bin" >> $GITHUB_PATH
-
-      - name: Setup Rust targets
-        if: steps.check.outputs.skip == 'false'
-        run: |
-          rustup target add aarch64-linux-android x86_64-linux-android
-          rustup component add rust-std --target aarch64-linux-android
-          rustup component add rust-std --target x86_64-linux-android
-
-      - name: Setup sccache
-        if: steps.check.outputs.skip == 'false'
-        run: |
-          cargo install sccache --version 0.9.1
-          mkdir -p src-tauri/.cargo
-          echo "[env]" > src-tauri/.cargo/config.toml
-          echo 'RUSTC_WRAPPER = "sccache"' >> src-tauri/.cargo/config.toml
-
-      - name: Cache Rust
-        if: steps.check.outputs.skip == 'false'
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            src-tauri/target
-          key: android-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
-          restore-keys: android-cargo-
-
-      - name: Install cargo-tauri
-        if: steps.check.outputs.skip == 'false'
-        run: cargo install tauri-cli --version "^2"
-
-      - name: Build frontend
-        if: steps.check.outputs.skip == 'false'
-        run: |
-          npm ci
-          npm run build
-
-      # ---- 签名 ----
-      - name: Decode keystore
-        if: steps.check.outputs.skip == 'false'
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-        run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
-            echo "KEYSTORE_PATH=$PWD/release.keystore" >> $GITHUB_ENV
-            echo "KEY_ALIAS=amiba" >> $GITHUB_ENV
-            echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
-            echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
-            echo "✅ keystore ready"
-          else
-            echo "⚠️ KEYSTORE_BASE64 not set — building unsigned APK"
-          fi
-
-      - name: Build APK
-        if: steps.check.outputs.skip == 'false'
-        run: npx tauri android build
-
-      - name: Upload artifacts
-        if: steps.check.outputs.skip == 'false'
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-apk
-          path: |
-            src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
-            src-tauri/gen/android/app/build/outputs/apk/release/*.apk
-          fail_on_unmatched_files: false
-
-  # ============================================================
-  # 创建 Gitee Release
-  # ============================================================
-  create-release:
-    runs-on: ubuntu-latest
-    needs: [build-desktop, build-android]
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Get version
-        id: version
-        run: |
-          V=$(node -p "require('./package.json').version")
-          echo "version=$V" >> "$GITHUB_OUTPUT"
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: ./artifacts
-
-      # ---- 使用 Gitee OpenAPI 创建 Release 并上传附件 ----
-      - name: Create Gitee Release
-        env:
-          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          OWNER="belowthetree"
-          REPO="amiba"
-
-          # 1. 创建 Release（带 tag）
-          RESP=$(curl -s -X POST "https://gitee.com/api/v5/repos/$OWNER/$REPO/releases" \
-            -H "Content-Type: application/json" \
-            -H "Authorization: token $GITEE_TOKEN" \
-            -d "{
-              \"tag_name\": \"v$VERSION\",
-              \"name\": \"v$VERSION\",
-              \"body\": \"自动构建于 $(date '+%Y-%m-%d %H:%M')\",
-              \"target_commitish\": \"main\"
-            }")
-
-          RELEASE_ID=$(echo "$RESP" | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).id || ''")
-          if [ -z "$RELEASE_ID" ]; then
-            echo "❌ 创建 Release 失败: $RESP"
-            exit 1
-          fi
-          echo "✅ Release created, id=$RELEASE_ID"
-
-          # 2. 上传所有构建产物
-          find ./artifacts -type f | while read -r FILE; do
-            FNAME=$(basename "$FILE")
-            echo "📤 Uploading $FNAME ..."
-            curl -s -X POST \
-              "https://gitee.com/api/v5/repos/$OWNER/$REPO/releases/$RELEASE_ID/attach_files" \
-              -H "Authorization: token $GITEE_TOKEN" \
-              -F "file=@$FILE"
-            echo ""
-          done
-
-          echo "🎉 Release v$VERSION published on Gitee"
+volumes:
+  - name: dist
+    temp: {}
