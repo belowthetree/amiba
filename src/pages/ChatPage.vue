@@ -74,11 +74,19 @@
         @keydown.enter.exact.prevent="send"
       ></textarea>
       <button
+        v-if="streaming"
+        class="stop-btn"
+        @click="stopStreaming"
+      >
+        {{ $t('chat.stop') }}
+      </button>
+      <button
+        v-else
         class="send-btn"
         :disabled="!input.trim() || sending"
         @click="send"
       >
-        {{ sending ? $t('chat.sending') : $t('chat.send') }}
+        {{ $t('chat.send') }}
       </button>
     </div>
 
@@ -165,6 +173,14 @@ const showSessions = ref(false)
 const sessionList = ref<SessionMeta[]>([])
 const currentId = ref<string | null>(null)
 const streamingReasoning = ref('')
+let abortController: AbortController | null = null
+
+function stopStreaming() {
+  if (abortController) {
+    abortController.abort()
+    abortController = null
+  }
+}
 
 const visibleMessages = computed(() => getVisibleMessages())
 
@@ -208,6 +224,7 @@ async function switchTo(id: string) {
 
 async function doNewSession() {
   showSessions.value = false
+  stopStreaming()
   await newSession()
   await refreshSessionList()
   scrollToBottom()
@@ -282,6 +299,9 @@ async function send() {
   streamingContent.value = ''
   streamingReasoning.value = ''
 
+  // 创建中止控制器
+  abortController = new AbortController()
+
   try {
     // 过滤掉隐藏的系统消息，只传 user/assistant 给 API
     const history = messages.value
@@ -290,7 +310,7 @@ async function send() {
     const chatMsgs = buildMessages(history.slice(0, -1))
     chatMsgs.push({ role: 'user', content: injectedUserMsg })
 
-    const gen = streamChat(chatMsgs, { turnCount: turnCount.value })
+    const gen = streamChat(chatMsgs, { turnCount: turnCount.value, abortSignal: abortController.signal })
 
     for await (const chunk of gen) {
       if (chunk.startsWith('\x00REASONING\x00')) {
@@ -317,8 +337,11 @@ async function send() {
       saveHistory() // 实时保存 AI 回复
     }
   } catch (e: any) {
-    errorMsg.value = `${t('chat.errorPrefix')}: ${e.message}`
+    if (e.name !== 'AbortError') {
+      errorMsg.value = `${t('chat.errorPrefix')}: ${e.message}`
+    }
   } finally {
+    abortController = null
     sending.value = false
     streaming.value = false
     streamingContent.value = ''
@@ -334,10 +357,12 @@ async function sendOnboardingMessage(directive: string) {
   streamingContent.value = ''
   streamingReasoning.value = ''
 
+  abortController = new AbortController()
+
   try {
     const chatMsgs: { role: string; content: string }[] = []
     chatMsgs.push({ role: 'system', content: directive })
-    const gen = streamChat(chatMsgs as any, { turnCount: 0 })
+    const gen = streamChat(chatMsgs as any, { turnCount: 0, abortSignal: abortController.signal })
 
     for await (const chunk of gen) {
       if (chunk.startsWith('\x00REASONING\x00')) {
@@ -355,6 +380,7 @@ async function sendOnboardingMessage(directive: string) {
   } catch {
     /* 静默处理 */
   } finally {
+    abortController = null
     sending.value = false
     streaming.value = false
     streamingContent.value = ''
@@ -646,10 +672,10 @@ watch(showStats, async (open) => {
   display: flex;
   align-items: flex-end;
   gap: 8px;
-  padding: 8px 8px 8px 16px;
+  padding: 8px 12px 8px 16px;
   max-width: 1080px;
-  width: 100%;
-  margin: 0 auto;
+  width: calc(100% - 24px);
+  margin: 0 auto 12px auto;
   background: white;
   border-radius: 16px;
 }
@@ -691,6 +717,23 @@ watch(showStats, async (open) => {
 .send-btn:disabled {
   background: #ccc;
   cursor: not-allowed;
+}
+
+.stop-btn {
+  flex-shrink: 0;
+  padding: 10px 18px;
+  background: #e53935;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  align-self: flex-end;
+}
+
+.stop-btn:hover {
+  background: #c62828;
 }
 
 /* ---- 统计模态框 ---- */
@@ -877,9 +920,11 @@ watch(showStats, async (open) => {
   }
 
   .chat-input-bar {
-    padding: 6px 6px 6px 12px;
-    border-radius: 0;
+    padding: 6px 8px 6px 12px;
+    border-radius: 16px;
     gap: 4px;
+    width: calc(100% - 16px);
+    margin: 0 auto 8px auto;
   }
 
   .chat-input {
@@ -888,6 +933,12 @@ watch(showStats, async (open) => {
   }
 
   .send-btn {
+    padding: 8px 14px;
+    font-size: 13px;
+    border-radius: 10px;
+  }
+
+  .stop-btn {
     padding: 8px 14px;
     font-size: 13px;
     border-radius: 10px;

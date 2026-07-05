@@ -36,7 +36,7 @@ async fn download_file(
     use std::io::Write;
 
     // 建立取消通道
-    let (tx, mut rx) = watch::channel(false);
+    let (tx, rx) = watch::channel(false);
     {
         let cancel = app.state::<DownloadCancel>();
         *cancel.0.lock().unwrap() = Some(tx);

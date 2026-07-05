@@ -38,6 +38,7 @@ export interface LocalesSchema {
     placeholder: string
     send: string
     sending: string
+    stop: string
     defaultSessionTitle: string
     today: string
     yesterday: string

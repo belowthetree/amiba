@@ -39,6 +39,7 @@ const zhCN: LocalesSchema = {
     placeholder: '输入消息...',
     send: '发送',
     sending: '...',
+    stop: '停止',
     defaultSessionTitle: 'AI 对话',
     today: '今天',
     yesterday: '昨天',

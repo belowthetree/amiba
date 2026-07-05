@@ -32,6 +32,8 @@ export interface StreamChatOptions {
   turnCount?: number
   /** 指定使用的自定义 Agent ID（可选，不传则用默认配置） */
   agentId?: string
+  /** 中止信号（用于停止流式生成） */
+  abortSignal?: AbortSignal
 }
 
 const DEFAULT_OPTIONS = {
@@ -137,6 +139,7 @@ export async function* streamChat(
       instructions: systemContent,
       tools: hasTools ? tools : undefined,
       stopWhen: isStepCount(opts.maxIterations),
+      abortSignal: opts.abortSignal,
       providerOptions: reasoningEffort ? { [providerName]: { reasoningEffort } } as any : undefined,
       prepareStep: async ({ messages: stepMsgs }) => {
         const est = estimateTokens(stepMsgs)

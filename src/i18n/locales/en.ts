@@ -39,6 +39,7 @@ const en: LocalesSchema = {
     placeholder: 'Type a message...',
     send: 'Send',
     sending: '...',
+    stop: 'Stop',
     defaultSessionTitle: 'AI Chat',
     today: 'Today',
     yesterday: 'Yesterday',
