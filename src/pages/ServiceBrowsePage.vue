@@ -42,11 +42,11 @@
           <div class="card-desc">{{ svc.manifest.description || $t('services.noDescription') }}</div>
           <div class="card-meta">{{ svc.manifest.id }} · v{{ svc.manifest.version }}</div>
           <div class="card-actions" @click.stop>
-            <label class="toggle">
+            <label v-if="hasWidgetConfig(svc.manifest.id)" class="toggle" :title="$t('services.widgetToggle')">
               <input
                 type="checkbox"
-                :checked="svc.enabled"
-                @change="handleToggle(svc.manifest.id, !svc.enabled)"
+                :checked="hasServiceWidgetVisible(svc.manifest.id)"
+                @change="handleWidgetToggle(svc.manifest.id)"
               />
               <span class="toggle-slider"></span>
             </label>
@@ -105,10 +105,12 @@ import {
   registerService,
   storeServicePackage,
   removeServiceStorage,
+  getService,
 } from '../host/registry'
 import type { ServiceEntry, ServicePackage } from '../types/service'
 import { DEMO_PACKAGE } from './demo-package'
 import { readDirRecursive } from '../config/storage'
+import { widgetStates, setServiceWidgetsVisible, hasWidgetConfig } from '../host/floating-widget-manager'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -157,6 +159,20 @@ function openService(svc: ServiceEntry) {
 
 async function handleToggle(id: string, enabled: boolean) {
   await toggleService(id, enabled)
+}
+
+function hasServiceWidgetVisible(serviceId: string): boolean {
+  const hasVisible = Object.values(widgetStates).some(
+    (s) => s.config.serviceId === serviceId && s.visible
+  )
+  if (hasVisible) return true
+  // 内存中无 widget 时（离开服务页面后），查 registry 持久化状态
+  return getService(serviceId)?.widgetsVisible === true
+}
+
+function handleWidgetToggle(serviceId: string) {
+  const currentlyVisible = hasServiceWidgetVisible(serviceId)
+  setServiceWidgetsVisible(serviceId, !currentlyVisible)
 }
 
 function deleteService(svc: ServiceEntry) {

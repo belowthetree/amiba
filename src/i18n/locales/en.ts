@@ -208,6 +208,7 @@ const en: LocalesSchema = {
     missingIndexHtml: 'Service package must include index.html',
     imported: 'Service "{name}" imported!',
     importFailed: 'Import failed',
+    widgetToggle: 'Show widgets',
   },
   host: {
     loading: 'Loading service...',

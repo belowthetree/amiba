@@ -105,7 +105,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { peerList, startDiscovery, stopDiscovery } from '../host/network-bridge'
 import { getUserServices } from '../host/registry'
@@ -150,8 +150,6 @@ function close() {
     listening.value = false
     pendingReq.value = null
   }
-  stopDiscovery('lan').catch(() => {})
-  clearDiscoveryInterval()
   visible.value = false
   statusText.value = ''
   statusPercent.value = -1
@@ -240,11 +238,18 @@ onMounted(() => {
     }
   })
 
-  // 打开弹窗时自动开始设备发现
-  startDiscovery('lan').catch(() => {})
-  discoveryInterval = setInterval(() => {
-    startDiscovery('lan').catch(() => {})
-  }, 15000)
+  // 弹窗可见时才启动设备发现
+  watch(visible, (v) => {
+    if (v) {
+      startDiscovery('lan').catch(() => {})
+      discoveryInterval = setInterval(() => {
+        startDiscovery('lan').catch(() => {})
+      }, 15000)
+    } else {
+      stopDiscovery('lan').catch(() => {})
+      clearDiscoveryInterval()
+    }
+  })
 })
 
 onUnmounted(() => {

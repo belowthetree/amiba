@@ -208,6 +208,7 @@ const zhCN: LocalesSchema = {
     missingIndexHtml: '服务包必须包含 index.html',
     imported: '服务 "{name}" 已导入！',
     importFailed: '导入失败',
+    widgetToggle: '显示悬浮块',
   },
   host: {
     loading: '正在加载服务...',

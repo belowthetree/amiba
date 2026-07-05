@@ -170,6 +170,7 @@ import { soulManager } from '../ai/soul'
 import { peerList } from '../host/network-bridge'
 import { 
   startDiscovery as netStartDiscovery,
+  stopDiscovery as netStopDiscovery,
 } from '../host/network-bridge'
 
 const { t } = useI18n()
@@ -506,12 +507,14 @@ watch(
   }
 )
 
-// 打开统计框时自动启动设备发现（网络接口处有全局门控）
+// 打开统计框时自动启动设备发现，关闭时停止
 watch(showStats, async (open) => {
   if (open) {
     try {
       await netStartDiscovery('lan')
     } catch { /* 非 Tauri 环境或无权限静默跳过 */ }
+  } else {
+    netStopDiscovery('lan').catch(() => {})
   }
 })
 </script>

@@ -1,86 +1,52 @@
 // ============================================================
 // 变形虫 (Amiba) — FloatingWidgetManager（悬浮块状态管理器）
 // ============================================================
+// 状态持久化在 amiba_service_registry 的 ServiceEntry.hasWidgets / widgetsVisible。
+// 可见性生命周期判定委托给 widget-lifecycle.ts。
+// ============================================================
 import { reactive } from 'vue'
+import { getService, setServiceWidgetConfig, setServiceWidgetsVisible as setRegistryWidgetsVisible } from './registry'
+import { evaluateWidget, onWidgetToggled } from './widget-lifecycle'
 import type { FloatingWidgetConfig, FloatingWidgetState } from '../types/service'
 
 // ---- 状态 ----
 
 export const widgetStates = reactive<Record<string, FloatingWidgetState>>({})
 
-// ---- 当前路由名称（外部设置） ----
-let currentRouteName: string | null = null
-
-/** 由容器在挂载/路由变化时调用 */
-export function setCurrentRoute(name: string | null) {
-  const prev = currentRouteName
-  currentRouteName = name
-
-  // 路由变化时，重新计算所有 widget 的 visible
-  for (const id of Object.keys(widgetStates)) {
-    const state = widgetStates[id]
-
-    // persistent + manual 模式：路由变化不重置 visible
-    if (state.config.lifecycle === 'persistent' && state.config.trigger === 'manual') {
-      // 保持当前 visible 状态不变
-      continue
-    }
-
-    const wasVisible = state.visible
-    state.visible = computeVisible(state.config)
-
-    // 离开生命周期页面 → 自动折叠面板
-    if (wasVisible && !state.visible) {
-      state.expanded = false
-    }
-  }
-}
-
-function computeVisible(config: FloatingWidgetConfig): boolean {
-  switch (config.trigger) {
-    case 'manual':
-      // manual 模式：初始隐藏，完全由 show()/hide() API 控制
-      // 如果之前被 show() 调用过且路由仍然匹配（或全局），保持状态
-      // 这里返回当前状态不变，由外部 setWidgetVisible 控制
-      // 首次注册时 visible=false
-      return false
-
-    case 'page':
-      // page 模式：当前路由在 showOn 中时自动显示
-      if (!config.showOn || config.showOn.length === 0) {
-        // 空数组 = 全局生命周期，始终可见
-        return true
-      }
-      if (currentRouteName && config.showOn.includes(currentRouteName)) {
-        return true
-      }
-      return false
-
-    default:
-      return false
-  }
-}
-
 // ---- 公开 API ----
 
 export function registerWidget(config: FloatingWidgetConfig, htmlContent: string): void {
-  if (widgetStates[config.id]) {
-    console.warn(`[FloatingWidget] Widget "${config.id}" 已存在，覆盖注册`)
+  const existing = widgetStates[config.id]
+  if (existing) {
+    // 已注册：只更新 HTML 内容，保留 UI 状态（位置、展开状态、可见性）
+    existing.htmlContent = htmlContent
+    if (!existing.config.serviceId) {
+      existing.config = { ...existing.config, serviceId: config.serviceId }
+    }
+    console.log(`[FloatingWidget] 更新 HTML: ${config.id}`)
+    return
   }
 
+  // 新注册：从 lifecycle 获取初始可见性
   const state: FloatingWidgetState = {
-    config,
-    visible: computeVisible(config),
+    config: { ...config, serviceId: config.serviceId },
+    visible: evaluateWidget(config),
     expanded: false,
     yPosition: config.position,
     htmlContent,
   }
 
   widgetStates[config.id] = state
-  console.log(`[FloatingWidget] 注册: ${config.id} (trigger=${config.trigger}, visible=${state.visible})`)
+
+  // 标记该服务有 widget
+  const svc = getService(config.serviceId)
+  if (!svc?.hasWidgets) {
+    setServiceWidgetConfig(config.serviceId, true, state.visible)
+  }
+
+  console.log(`[FloatingWidget] 注册: ${config.id} (visible=${state.visible})`)
 }
 
-/** 移除单个 widget */
 export function unregisterWidget(id: string): void {
   if (widgetStates[id]) {
     delete widgetStates[id]
@@ -88,12 +54,19 @@ export function unregisterWidget(id: string): void {
   }
 }
 
-/** 按服务 ID 批量注销（persistent widget 不随服务卸载销毁） */
 export function unregisterServiceWidgets(serviceId: string): void {
-  const ids = Object.keys(widgetStates).filter(
-    (id) => widgetStates[id].config.serviceId === serviceId
-      && widgetStates[id].config.lifecycle !== 'persistent'
-  )
+  const ids = Object.keys(widgetStates).filter((id) => {
+    const config = widgetStates[id].config
+    if (config.serviceId !== serviceId) return false
+    // 如果 lifecycle 包含路由名或其他服务 ID，widget 不应随服务卸载
+    const tokens = (config.lifecycle || '').split('|').map(t => t.trim()).filter(Boolean)
+    // 旧字段兼容
+    if (config.lifecycle === 'persistent') return false
+    if (config.lifecycle === 'service') return true
+    if (!tokens.length) return true // 无配置 → 默认随服务卸载
+    // 只要不是纯服务 ID 列表（包含路由名或 "*"），就不随服务卸载
+    return tokens.every(t => t !== '*' && !isRouteToken(t))
+  })
   for (const id of ids) {
     delete widgetStates[id]
   }
@@ -102,30 +75,19 @@ export function unregisterServiceWidgets(serviceId: string): void {
   }
 }
 
-/**
- * 手动设置 visible。
- * - manual 模式：完全由 show()/hide() 控制
- * - page 模式：路由匹配时自动为 true，但手动 hide() 可临时隐藏
- */
+const knownRoutes = new Set(['chat', 'home', 'services', 'settings', 'memory', 'service'])
+function isRouteToken(t: string) { return knownRoutes.has(t) }
+
 export function setWidgetVisible(id: string, visible: boolean): void {
   const state = widgetStates[id]
   if (!state) return
-
-  if (state.config.trigger === 'manual') {
-    // manual 模式：直接设置
-    state.visible = visible
-    if (!visible) state.expanded = false
-  } else {
-    // page 模式：hide() 可以临时隐藏，但路由变化会重新计算
-    state.visible = visible
-    if (!visible) state.expanded = false
-  }
+  state.visible = visible
+  if (!visible) state.expanded = false
 }
 
 export function setWidgetExpanded(id: string, expanded: boolean): void {
   const state = widgetStates[id]
   if (state) {
-    // 展开时折叠其他所有 widget
     if (expanded) {
       for (const otherId of Object.keys(widgetStates)) {
         if (otherId !== id) {
@@ -148,13 +110,40 @@ export function getWidgetState(id: string): FloatingWidgetState | undefined {
   return widgetStates[id]
 }
 
-/** 关闭 persistent widget（彻底移除，不可恢复） */
+/** 按服务批量设置 widget 可见性（持久化到 registry） */
+export function setServiceWidgetsVisible(serviceId: string, visible: boolean): void {
+  for (const id of Object.keys(widgetStates)) {
+    const state = widgetStates[id]
+    if (state.config.serviceId === serviceId) {
+      state.visible = visible
+      if (!visible) state.expanded = false
+    }
+  }
+  setRegistryWidgetsVisible(serviceId, visible)
+  onWidgetToggled(serviceId)
+  console.log(`[FloatingWidget] 服务 "${serviceId}" widget 可见性: ${visible}`)
+}
+
 export function closePersistentWidget(id: string): void {
   const state = widgetStates[id]
   if (!state) return
-  if (state.config.lifecycle !== 'persistent') {
-    console.warn(`[FloatingWidget] "${id}" 不是 persistent widget，请使用 unregisterWidget`)
+  // 没有跨路由生命周期配置的 widget 不能手动关闭
+  const tokens = (state.config.lifecycle || '').split('|').map(t => t.trim()).filter(Boolean)
+  const isGlobalLike = state.config.lifecycle === 'persistent'
+    || state.config.lifecycle === '*'
+    || tokens.some(t => t === '*' || isRouteToken(t) || t.startsWith('user.'))
+  if (!isGlobalLike) {
+    console.warn(`[FloatingWidget] "${id}" 没有跨路由生命周期，不可手动关闭`)
     return
   }
   unregisterWidget(id)
+}
+
+/** 判断某服务是否有 widget 配置（从 registry 读取） */
+export function hasWidgetConfig(serviceId: string): boolean {
+  const svc = getService(serviceId)
+  if (!svc) return false
+  if (svc.hasWidgets !== undefined) return svc.hasWidgets
+  // 已安装的旧服务还没有 hasWidgets 字段，用权限兜底
+  return svc.manifest.permissions.includes('widgets')
 }

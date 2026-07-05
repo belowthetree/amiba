@@ -207,6 +207,7 @@ export interface LocalesSchema {
     missingIndexHtml: string
     imported: string
     importFailed: string
+    widgetToggle: string
   }
   host: {
     loading: string

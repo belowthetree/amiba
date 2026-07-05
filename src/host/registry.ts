@@ -103,6 +103,23 @@ export async function toggleService(id: string, enabled: boolean) {
   }
 }
 
+/** 标记服务有悬浮块配置，并设置可见性 */
+export async function setServiceWidgetConfig(serviceId: string, hasWidgets: boolean, visible?: boolean) {
+  if (userServices[serviceId]) {
+    userServices[serviceId].hasWidgets = hasWidgets
+    if (visible !== undefined) userServices[serviceId].widgetsVisible = visible
+    await saveRegistry()
+  }
+}
+
+/** 设置服务的悬浮块可见性 */
+export async function setServiceWidgetsVisible(serviceId: string, visible: boolean) {
+  if (userServices[serviceId]) {
+    userServices[serviceId].widgetsVisible = visible
+    await saveRegistry()
+  }
+}
+
 // ============================================================
 // Service data storage (sandboxed — services/{id}/data/)
 // ============================================================

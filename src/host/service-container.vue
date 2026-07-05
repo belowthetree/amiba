@@ -48,6 +48,7 @@ import {
   stopListening,
   onEvent,
 } from './network-bridge'
+import { onServiceLoaded, onServiceUnloaded } from './widget-lifecycle'
 import type { ApiHandler } from './bridge'
 import type { ServicePackage, FloatingWidgetManifest } from '../types/service'
 
@@ -303,6 +304,7 @@ function showToast(title: string, icon: string) {
 
 onMounted(async () => {
   console.log("[Container] loading service:", serviceId.value);
+  onServiceLoaded(serviceId.value)
   ctx = new ServiceContext(serviceId.value)
   const svc = getService(serviceId.value)
   if (!svc) {
@@ -378,6 +380,8 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  console.log("[Container] unloading service:", serviceId.value);
+  onServiceUnloaded(serviceId.value)
   // 自动清理本服务请求的监听
   if (listeningServiceKey.value) {
     stopListening(listeningServiceKey.value).catch(() => {})

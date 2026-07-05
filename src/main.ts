@@ -17,6 +17,7 @@ import { maybeRunCurator } from './ai/skill-curator'
 import { initProviderStore } from './ai/provider-store'
 import { initCustomAgentStore } from './ai/custom-agent-store'
 import { initNetworkBridge } from './host/network-bridge'
+import { initPersistentWidgets } from './host/widget-lifecycle'
 
 async function bootstrap() {
   await initStorage()
@@ -30,6 +31,9 @@ async function bootstrap() {
   ])
   // 网络互联桥初始化（非 Tauri 环境静默跳过）
   initNetworkBridge()
+
+  // 预加载 persistent widget
+  await initPersistentWidgets()
 
   // 工具自发现
   discoverTools()

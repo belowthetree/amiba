@@ -21,6 +21,8 @@ export interface ServiceEntry {
   enabled: boolean
   installedAt: string // ISO datetime
   source: 'builtin' | 'ai-generated' | 'downloaded'
+  hasWidgets?: boolean      // 是否有悬浮块配置（首次注册 widget 时标记）
+  widgetsVisible?: boolean   // 悬浮块可见性开关
 }
 
 // --- Catalog Types ---
@@ -190,7 +192,7 @@ export interface FloatingWidgetConfig {
   position: number              // 初始 y 位置（px，距顶部）
   showOn: string[]              // 生命周期：在哪些路由名下存在，空数组 = 全局
   trigger: 'manual' | 'page'   // 触发方式：manual=API 调用 show(), page=进入 showOn 路由时自动显示
-  lifecycle?: 'service' | 'persistent'  // 生命周期：service=随服务页面卸载销毁（默认），persistent=跨路由驻留直到用户主动关闭
+  lifecycle?: string  // 管道分隔的界面/服务 ID 列表，如 "chat|user.floating-demo"。匹配时 widget 可见。"" 或 "*" = 全局。空 = 仅服务加载时可见。
 }
 
 export interface FloatingWidgetManifest {

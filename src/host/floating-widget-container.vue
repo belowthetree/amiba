@@ -60,24 +60,24 @@ import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import {
   widgetStates,
-  setCurrentRoute,
   setWidgetExpanded,
   updateWidgetPosition,
   closePersistentWidget,
 } from './floating-widget-manager'
+import { onRouteChange } from './widget-lifecycle'
 
 const route = useRoute()
 
 // ---- 路由监听 ----
 
 onMounted(() => {
-  setCurrentRoute((route.name as string) || null)
+  onRouteChange((route.name as string) || null)
 })
 
 watch(
   () => route.name,
   (name) => {
-    setCurrentRoute((name as string) || null)
+    onRouteChange((name as string) || null)
   }
 )
 
@@ -97,14 +97,7 @@ function toggle(id: string) {
 }
 
 function collapse(id: string) {
-  const state = widgetStates[id]
-  if (!state) return
-  // persistent widget: 关闭按钮彻底移除
-  if (state.config.lifecycle === 'persistent') {
-    closePersistentWidget(id)
-  } else {
-    setWidgetExpanded(id, false)
-  }
+  setWidgetExpanded(id, false)
 }
 
 // ---- 拖动 ----
