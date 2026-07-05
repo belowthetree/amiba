@@ -14,6 +14,7 @@ export interface WebviewOverlayState {
   pageTitle: string
   pageContent: string
   screenshot: string       // base64 data URL
+  xPosition: number
   yPosition: number
 }
 
@@ -23,6 +24,7 @@ export const webviewOverlay = reactive<WebviewOverlayState>({
   pageTitle: '',
   pageContent: '',
   screenshot: '',
+  xPosition: 0,
   yPosition: 80,
 })
 
@@ -61,6 +63,8 @@ export function startBrowsing(url: string, title: string, content: string) {
   webviewOverlay.pageTitle = title || url
   webviewOverlay.pageContent = content || ''
   webviewOverlay.screenshot = ''
+  webviewOverlay.xPosition = (window.innerWidth - 460) / 2
+  webviewOverlay.yPosition = 80
   console.log('[WebviewOverlay] startBrowsing:', url, title)
 }
 
@@ -79,6 +83,7 @@ export function stopBrowsing() {
   console.log('[WebviewOverlay] stopBrowsing')
 }
 
-export function updateOverlayPosition(y: number) {
+export function updateOverlayPosition(x: number, y: number) {
+  webviewOverlay.xPosition = Math.max(0, Math.min(window.innerWidth - 100, x))
   webviewOverlay.yPosition = Math.max(60, Math.min(window.innerHeight - 200, y))
 }

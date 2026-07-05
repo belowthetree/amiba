@@ -5,7 +5,7 @@
   <div
     v-if="webviewOverlay.isBrowsing"
     class="webview-overlay"
-    :style="{ top: webviewOverlay.yPosition + 'px' }"
+    :style="{ left: webviewOverlay.xPosition + 'px', top: webviewOverlay.yPosition + 'px' }"
   >
     <!-- 拖动把手 + 标题栏 -->
     <div
@@ -84,16 +84,22 @@ async function handleClose() {
 
 // ---- 拖动 ----
 
+let dragStartX = 0
 let dragStartY = 0
+let dragStartWidgetX = 0
 let dragStartWidgetY = 0
 let hasDragged = false
 
 function startDrag(event: MouseEvent | TouchEvent) {
   hasDragged = false
+  dragStartWidgetX = webviewOverlay.xPosition
   dragStartWidgetY = webviewOverlay.yPosition
 
+  const clientX =
+    event instanceof MouseEvent ? event.clientX : event.touches[0].clientX
   const clientY =
     event instanceof MouseEvent ? event.clientY : event.touches[0].clientY
+  dragStartX = clientX
   dragStartY = clientY
 
   document.addEventListener('mousemove', onDrag)
@@ -103,11 +109,14 @@ function startDrag(event: MouseEvent | TouchEvent) {
 }
 
 function onDrag(event: MouseEvent | TouchEvent) {
+  const clientX =
+    event instanceof MouseEvent ? event.clientX : event.touches[0].clientX
   const clientY =
     event instanceof MouseEvent ? event.clientY : event.touches[0].clientY
+  const deltaX = clientX - dragStartX
   const deltaY = clientY - dragStartY
-  if (Math.abs(deltaY) > 5) hasDragged = true
-  updateOverlayPosition(dragStartWidgetY + deltaY)
+  if (Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3) hasDragged = true
+  updateOverlayPosition(dragStartWidgetX + deltaX, dragStartWidgetY + deltaY)
 }
 
 function stopDrag() {
@@ -129,8 +138,7 @@ onUnmounted(() => {
 <style scoped>
 .webview-overlay {
   position: fixed;
-  right: 8px;
-  width: 500px;
+  width: 460px;
   background: #2c2c2c;
   border-radius: 10px;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);

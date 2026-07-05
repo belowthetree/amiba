@@ -7,7 +7,6 @@
       <h2>📦 {{ $t('services.title') }}</h2>
       <div class="header-btns">
         <button class="import-btn" @click="importFromFolder">📂 {{ $t('services.importFolder') }}</button>
-        <button class="new-btn" @click="$router.push('/')">💬 {{ $t('services.createNew') }}</button>
         <button class="share-btn" @click="showShareDialog = true">📡</button>
       </div>
     </div>
@@ -76,19 +75,6 @@
       </div>
     </div>
 
-    <!-- Demo service quick install -->
-    <div class="section" v-if="!hasDemoService">
-      <div class="demo-card">
-        <div class="demo-info">
-          <span class="demo-icon">🎁</span>
-          <div>
-            <strong>{{ $t('services.demoTitle') }}</strong>
-            <p>{{ $t('services.demoDesc') }}</p>
-          </div>
-        </div>
-        <button class="install-btn" @click="installDemo">{{ $t('services.install') }}</button>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -108,7 +94,6 @@ import {
   getService,
 } from '../host/registry'
 import type { ServiceEntry, ServicePackage } from '../types/service'
-import { DEMO_PACKAGE } from './demo-package'
 import { readDirRecursive } from '../config/storage'
 import { widgetStates, setServiceWidgetsVisible, hasWidgetConfig } from '../host/floating-widget-manager'
 
@@ -123,10 +108,6 @@ const systemServices = computed(() =>
   BUILTIN_SERVICES.filter((s) =>
     ['system.chat', 'system.settings', 'system.memory'].includes(s.manifest.id)
   )
-)
-
-const hasDemoService = computed(() =>
-  userServices.value.some((s) => s.manifest.id === 'user.hello_world')
 )
 
 function sysIcon(id: string): string {
@@ -188,18 +169,6 @@ function formatDate(iso: string): string {
   } catch {
     return iso
   }
-}
-
-async function installDemo() {
-  const manifest = {
-    id: 'user.hello_world',
-    name: 'Hello World',
-    version: '1.0.0',
-    description: '基础示例',
-    permissions: ['notification'] as ('storage' | 'notification')[],
-  }
-  await registerService(manifest, 'ai-generated')
-  await storeServicePackage(manifest.id, DEMO_PACKAGE)
 }
 
 async function importFromFolder() {
@@ -264,16 +233,6 @@ async function importFromFolder() {
 .header-btns {
   display: flex;
   gap: 8px;
-}
-
-.new-btn {
-  padding: 8px 16px;
-  background: #1976D2;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 13px;
-  cursor: pointer;
 }
 
 .import-btn {
@@ -523,49 +482,5 @@ async function importFromFolder() {
   border-radius: 8px;
   font-size: 14px;
   cursor: pointer;
-}
-
-.demo-card {
-  background: white;
-  border-radius: 12px;
-  padding: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  border: 1px dashed #1976D2;
-}
-
-.demo-info {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.demo-icon {
-  font-size: 28px;
-}
-
-.demo-info strong {
-  font-size: 14px;
-  color: #333;
-}
-
-.demo-info p {
-  font-size: 12px;
-  color: #999;
-  margin-top: 2px;
-}
-
-.install-btn {
-  padding: 8px 16px;
-  background: #1976D2;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 13px;
-  cursor: pointer;
-  white-space: nowrap;
 }
 </style>

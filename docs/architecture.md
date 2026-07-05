@@ -162,15 +162,24 @@ amiba/
 
 ### WebView 预览系统
 
-当 AI 使用 `web_browse` 时，隐藏 WebView（480x360）渲染目标页面，后台通过注入 `html2canvas`（`include_str!` 嵌入）截图转 base64 JPEG，通过 Tauri event `webview-screenshot` 推送到前端 `WebviewOverlay.vue`（可拖拽悬浮面板）以 `<img>` 渲染。
+当 AI 使用 `web_browse` 时，隐藏 WebView（480x360）渲染目标页面。前端 `WebviewOverlay.vue`（可拖拽悬浮面板）通过 html2canvas 截图实时预览页面内容。
+
+**截图流程：**
+```
+web_browse action 完成 → captureScreenshot() fire-and-forget
+  → Rust: wv.eval() 注入 CAPTURE_TRIGGER_JS（CDN 加载 html2canvas → 截图 → 写 window._amiba_screenshot）
+  → Rust: 轮询 wv.eval_with_callback("window._amiba_screenshot||''") 每500ms，直到非空
+  → emit("webview-screenshot", base64 JPEG)
+  → 前端 listen → WebviewOverlay.vue <img :src="screenshot">
+```
 
 | 模块 | 文件 | 角色 |
 |------|------|------|
-| 状态管理 | `src/host/webview-overlay-state.ts` | 响应式共享状态 + 监听 `webview-screenshot` 事件 |
-| 控制栏组件 | `src/components/WebviewOverlay.vue` | 可拖拽悬浮面板：标题/✕关闭/确认弹窗/截图渲染 |
-| 截图触发 | `src/tools/web-browser.tool.ts` | 每个 browse action 后 fire-and-forget 触发截图 |
-| 截图命令 | `src-tauri/src/web.rs` | `web_capture_screenshot`：注入 html2canvas → 截图 → emit event |
-| 截图库 | `src-tauri/html2canvas.min.js` | `include_str!` 嵌入 Rust 二进制，注入页面 |
+| 状态管理 | `src/host/webview-overlay-state.ts` | 响应式共享状态 + 监听 `webview-screenshot` Tauri 事件 |
+| 控制栏组件 | `src/components/WebviewOverlay.vue` | 可拖拽悬浮面板：标题栏（拖动把手+✕关闭+确认弹窗）+ `<img>` 截图渲染 |
+| 截图触发 | `src/tools/web-browser.tool.ts` | navigate/click/input_text/get_content 后 `captureScreenshot()` |
+| 截图命令 | `src-tauri/src/web.rs` | `web_capture_screenshot`：eval 注入截图逻辑 → spawn_blocking 轮询全局变量 → emit event |
+| 截图库 | CDN: `cdn.jsdelivr.net/npm/html2canvas@1.4.1` | 通过 `<script src>` 动态加载，避免内嵌 198KB 源码的字符串转义问题 |
 
 ### Android 架构（v3）
 
@@ -211,4 +220,5 @@ Tauri Command (web_fetch / web_eval / web_click / web_input_text / web_close)
 - **2026-07-05**: vue-i18n v11 的 `i18n.global.locale` 是 `WritableComputedRef<string>`，切换语言需用 `.value = lang` 赋值，直接对整个 ref 对象赋值不会触发 Vue 响应式更新，导致界面不刷新。
 - **2026-07-05**: 服务分享（`service-share.ts`）使用 `NetworkSession.send()` 传输 JSON 消息，大文件需按 64KB 分块传输并逐块等待 ACK 确认。分享弹窗关闭时必须调用 `stopDiscovery('lan')` 停止 Rust 端 UDP 扫描，否则日志会持续输出。
 - **2026-07-05**: AI SDK `streamText` 的 `stopWhen` 回调参数是 `{ steps: StepResult[] }`，用于实现自定义工具调用轮次限制。替换 `isStepCount` 的常用模式：`stopWhen: ({ steps }) => steps.length >= maxIterations`。
-- **2026-07-06**: Tauri v2.11.3 中 `WebviewWindowBuilder::parent_window()` 未实现（跨平台兼容性问题），不能将浏览窗口设为子窗口。替代方案：独立 `always_on_top` + `skip_taskbar` 窗口，通过 `app.get_webview_window("main")` 获取主窗口位置进行相对定位。`decorations(false)` 可创建无边框窗口。
+- **2026-07-06**: Tauri v2.11.3 中 `WebviewWindowBuilder::parent_window()` 未实现（跨平台兼容性问题），不能将浏览窗口设为子窗口。`decorations(false)` 可创建无边框窗口，但浏览器窗口始终是独立 OS 窗口。
+- **2026-07-06**: `eval_with_callback` 不支持 Promise 返回值——当 JS 返回 Promise 时，回调收到的是 Promise 对象的 JSON 序列化结果 `{}`，而非 resolved value。Sync 表达式（如 `JSON.stringify(...)` 或 `window.myVar`）可正常返回。绕过方案：用 `wv.eval()` 注入异步逻辑将结果写全局变量，再轮询 `eval_with_callback("window.myVar||''")` 同步读取；轮询须放在 `tokio::task::spawn_blocking` 中因 eval 内部使用阻塞 `mpsc::channel`。html2canvas 源码通过 CDN `<script src>` 动态加载，避免 `include_str!` 嵌入 198KB 源码时 Rust 字符串转义破坏 JS 语法。

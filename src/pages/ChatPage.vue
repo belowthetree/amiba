@@ -10,7 +10,6 @@
       </div>
       <div class="topbar-actions">
         <button class="action-btn" :title="$t('chat.newSession')" @click="doNewSession">＋</button>
-        <button class="stats-btn" @click="debugBrowseBing">🧪</button>
         <button class="stats-btn" @click="showStats = true">📊</button>
       </div>
       <!-- Session 下拉列表 -->
@@ -173,8 +172,6 @@ import {
   startDiscovery as netStartDiscovery,
   stopDiscovery as netStopDiscovery,
 } from '../host/network-bridge'
-import { fetchPage, closeBrowser, captureScreenshot } from '../config/web-bridge'
-import { startBrowsing, stopBrowsing } from '../host/webview-overlay-state'
 
 const { t } = useI18n()
 
@@ -315,19 +312,6 @@ async function doNewSession() {
   await newSession()
   await refreshSessionList()
   scrollToBottom()
-}
-
-// 调试：启动 bing.com 预览
-async function debugBrowseBing() {
-  const url = 'https://www.bing.com'
-  console.log('[ChatPage] debugBrowseBing →', url)
-  try {
-    const result = await fetchPage(url)
-    startBrowsing(url, result.title, result.text.slice(0, 5000))
-    captureScreenshot().catch(() => {})
-  } catch (e: any) {
-    console.error('[ChatPage] debugBrowseBing failed:', e)
-  }
 }
 
 async function doDeleteSession(id: string) {

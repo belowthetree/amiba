@@ -91,6 +91,8 @@ src/
 ├── config/config.ts     # 统一配置（amiba_settings，reactive + 自动持久化）
 ├── config/storage.ts    # 存储抽象层
 ├── config/updater.ts    # 更新检查 + Rust reqwest 下载
+├── config/session-db.ts # SQLite FTS5 数据库封装
+├── config/web-bridge.ts  # Tauri web_* invoke 封装（fetchPage/clickGetContent/close + captureScreenshot）
 ├── i18n/                 # 多语言 (zh-CN / en)
 │   ├── index.ts          # createI18n + settings.language 同步
 │   ├── types.ts          # LocalesSchema 类型
@@ -136,7 +138,12 @@ src/
 │   ├── network-session.ts
 │   ├── service-share.ts  # 局域网服务分享引擎
 │   ├── service-archive.ts # 服务版本归档引擎
-│   └── floating-widget-manager.ts
+│   ├── floating-widget-manager.ts
+│   ├── floating-widget-container.vue
+│   ├── widget-lifecycle.ts
+│   └── webview-overlay-state.ts  # WebView 截图预览状态 + Tauri 事件监听
+├── components/
+│   └── WebviewOverlay.vue  # 可拖拽 WebView 预览悬浮面板
 └── pages/
     ├── HomePage.vue         # 功能入口
     ├── ChatPage.vue         # 流式 AI 对话
