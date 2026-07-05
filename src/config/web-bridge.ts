@@ -93,3 +93,14 @@ export async function closeBrowser(sessionId?: string): Promise<void> {
   console.log('[web-bridge] closeBrowser:', sessionId || 'all')
   await invoke('web_close', { sessionId: sessionId ?? null })
 }
+
+// ---- 截图 ----
+
+/**
+ * 触发隐藏 WebView 的截图捕获（fire-and-forget）。
+ * 截图结果通过 Tauri 事件 `webview-screenshot` 推送。
+ */
+export async function captureScreenshot(): Promise<void> {
+  console.log('[web-bridge] captureScreenshot')
+  await invoke('web_capture_screenshot')
+}

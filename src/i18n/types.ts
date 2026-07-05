@@ -235,4 +235,12 @@ export interface LocalesSchema {
     declined: string
     installing: string
   }
+  webview: {
+    browsing: string
+    closeTitle: string
+    closeConfirm: string
+    confirm: string
+    cancel: string
+    capturing: string
+  }
 }

@@ -409,6 +409,7 @@ pub fn run() {
       web::web_input_text,
       web::web_get_content,
       web::web_close,
+      web::web_capture_screenshot,
       network_visibility::network_set_visibility,
       network_visibility::network_get_visibility,
       network_visibility::network_start_discovery,

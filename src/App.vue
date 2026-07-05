@@ -29,6 +29,9 @@
 
       <!-- 全局悬浮块容器 -->
       <FloatingWidgetContainer />
+
+      <!-- WebView 预览悬浮控制栏 -->
+      <WebviewOverlay />
     </main>
   </div>
 </template>
@@ -38,6 +41,7 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import FloatingWidgetContainer from './host/floating-widget-container.vue'
+import WebviewOverlay from './components/WebviewOverlay.vue'
 
 const { t } = useI18n()
 const route = useRoute()

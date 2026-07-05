@@ -236,6 +236,14 @@ const zhCN: LocalesSchema = {
     declined: '已拒绝',
     installing: '正在安装...',
   },
+  webview: {
+    browsing: '正在浏览',
+    closeTitle: '关闭 WebView',
+    closeConfirm: '确定要关闭 WebView 吗？',
+    confirm: '确定关闭',
+    cancel: '取消',
+    capturing: '截图中...',
+  },
 }
 
 export default zhCN

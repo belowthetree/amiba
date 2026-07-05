@@ -12,7 +12,9 @@ import {
   clickElement,
   inputText,
   closeBrowser,
+  captureScreenshot,
 } from '../config/web-bridge'
+import { startBrowsing, updateBrowsingContent, stopBrowsing } from '../host/webview-overlay-state'
 
 // ---- web_fetch ----
 
@@ -106,6 +108,8 @@ toolRegistry.register({
           console.log('[web_browse] navigate →', url)
           const r = await fetchPage(url)
           console.log('[web_browse] navigate ← title:', r.title, 'text:', r.text.length, 'chars')
+          startBrowsing(url, r.title, r.text.slice(0, 5000))
+          captureScreenshot().catch(() => {})
           return `✅ 已导航到 ${r.url}\n标题: ${r.title}\n\n${r.text.slice(0, 3000)}`
         }
         case 'click': {
@@ -114,6 +118,8 @@ toolRegistry.register({
           const clickResult = await clickElement(sel)
           const content = await getContent()
           console.log('[web_browse] click →', clickResult.result, '\n', content.result)
+          updateBrowsingContent('', content.result.slice(0, 5000))
+          captureScreenshot().catch(() => {})
           const navNote = clickResult.result.startsWith('navigated:')
             ? `\n⚠️ 页面已导航到 ${clickResult.result.slice(11)}，以下内容可能仍是旧页面 DOM（需重新 navigate 获取）`
             : ''
@@ -127,16 +133,21 @@ toolRegistry.register({
           await inputText(sel, txt)
           const content = await getContent()
           console.log('[web_browse] input_text → get_content:\n', content.result)
+          updateBrowsingContent('', content.result.slice(0, 5000))
+          captureScreenshot().catch(() => {})
           return `✅ 已在 "${sel}" 输入 ${txt.length} 个字符\n\n页面结构:\n${content.result.slice(0, 6000)}`
         }
         case 'get_content': {
           const content = await getContent()
           console.log('[web_browse] get_content:\n', content.result)
+          updateBrowsingContent('', content.result.slice(0, 5000))
+          captureScreenshot().catch(() => {})
           return content.result.slice(0, 7000)
         }
         case 'close': {
           await closeBrowser((p.session_id as string) || undefined)
           console.log('[web_browse] close done')
+          stopBrowsing()
           return '✅ 会话已关闭'
         }
         default:

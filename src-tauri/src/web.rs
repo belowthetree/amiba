@@ -11,6 +11,7 @@
 
 use std::collections::HashMap;
 use std::sync::Mutex;
+use tauri::Emitter;
 #[cfg(target_os = "android")]
 use tauri::Manager;
 use url::Url;
@@ -74,7 +75,6 @@ impl BrowserPool {
             let sessions = self.sessions.lock().unwrap();
             for (id, handle) in sessions.iter() {
                 if let BrowserHandle::Desktop(wv) = handle {
-                    // 检查 window 是否仍然有效
                     if wv.url().is_ok() {
                         let wv_clone = wv.clone();
                         return Ok((id.clone(), wv_clone));
@@ -83,7 +83,7 @@ impl BrowserPool {
             }
         }
 
-        // 创建新的
+        // 创建新的隐藏窗口（480x360 用于截图渲染）
         let id = self.next_id();
         let builder = tauri::WebviewWindowBuilder::new(
             app,
@@ -91,7 +91,7 @@ impl BrowserPool {
             tauri::WebviewUrl::External(url.clone()),
         )
         .visible(false)
-        .inner_size(1.0, 1.0)
+        .inner_size(480.0, 360.0)
         .skip_taskbar(true)
         .resizable(false)
         .maximizable(false)
@@ -800,6 +800,110 @@ pub async fn web_close(
     }
 
     Ok(())
+}
+
+// ============================================================
+// 截图捕获命令
+// ============================================================
+
+// 注入截图触发逻辑，结果写入 window._amiba_screenshot
+const CAPTURE_TRIGGER_JS: &str = r#"(function(){
+  function capture(){
+    try{
+      html2canvas(document.body,{
+        width:window.innerWidth,
+        height:Math.min(window.innerHeight,4096),
+        windowWidth:window.innerWidth,
+        windowHeight:window.innerHeight,
+        scale:1,
+        useCORS:true,
+        allowTaint:true,
+        logging:false
+      }).then(function(canvas){
+        window._amiba_screenshot=canvas.toDataURL('image/jpeg',0.65);
+      }).catch(function(e){
+        window._amiba_screenshot='ERROR:'+e.message;
+      });
+    }catch(e){
+      window._amiba_screenshot='ERROR:'+e.message;
+    }
+  }
+  if(window._amiba_h2c_loaded){
+    capture();
+  }else if(typeof html2canvas!=='undefined'){
+    window._amiba_h2c_loaded=true;
+    capture();
+  }else{
+    var s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+    s.onload=function(){window._amiba_h2c_loaded=true;capture();};
+    s.onerror=function(){window._amiba_screenshot='ERROR: CDN load failed';};
+    (document.head||document.documentElement).appendChild(s);
+  }
+})()"#;
+
+#[tauri::command]
+pub async fn web_capture_screenshot(
+    app: tauri::AppHandle,
+    pool: tauri::State<'_, BrowserPool>,
+) -> Result<(), String> {
+    #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+    {
+        let wv = {
+            let sessions = pool.sessions.lock().unwrap();
+            sessions.iter().find_map(|(_id, handle)| {
+                if let BrowserHandle::Desktop(wv) = handle {
+                    Some(wv.clone())
+                } else {
+                    None
+                }
+            })
+        }.ok_or("No active browser session")?;
+
+        // Step 1: 清空旧结果，触发截图
+        wv.eval("window._amiba_screenshot='';").ok();
+        wv.eval(CAPTURE_TRIGGER_JS).ok();
+
+        let app_clone = app.clone();
+        let wv_clone = wv.clone();
+
+        let result = tokio::task::spawn_blocking(move || {
+            // Step 2: 轮询读取结果（eval_with_callback 同步表达式）
+            for i in 0..60 {
+                std::thread::sleep(std::time::Duration::from_millis(500));
+                let (tx, rx) = std::sync::mpsc::channel::<String>();
+                let _ = wv_clone.eval_with_callback(
+                    "window._amiba_screenshot||''",
+                    move |r| { let _ = tx.send(r); },
+                );
+                if let Ok(raw) = rx.recv_timeout(std::time::Duration::from_secs(1)) {
+                    let val: String = serde_json::from_str(&raw).unwrap_or_else(|_| raw);
+                    if !val.is_empty() {
+                        eprintln!("[web_capture_screenshot] result({}): {:?}", val.len(), &val[..val.len().min(80)]);
+                        if !val.starts_with("ERROR:") {
+                            println!("[web_capture_screenshot] OK, {} chars, poll={}", val.len(), i);
+                        } else {
+                            eprintln!("[web_capture_screenshot] {}", val);
+                        }
+                        let _ = app_clone.emit("webview-screenshot", val);
+                        return;
+                    }
+                }
+            }
+            eprintln!("[web_capture_screenshot] poll timeout after 30s");
+        }).await;
+
+        if let Err(e) = result {
+            eprintln!("[web_capture_screenshot] spawn_blocking error: {}", e);
+        }
+
+        Ok(())
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        let _ = (app, pool);
+        Ok(())
+    }
 }
 
 // ============================================================

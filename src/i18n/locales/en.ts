@@ -236,6 +236,14 @@ const en: LocalesSchema = {
     declined: 'Declined',
     installing: 'Installing...',
   },
+  webview: {
+    browsing: 'Browsing',
+    closeTitle: 'Close WebView',
+    closeConfirm: 'Close the WebView?',
+    confirm: 'Confirm',
+    cancel: 'Cancel',
+    capturing: 'Capturing...',
+  },
 }
 
 export default en
