@@ -36,7 +36,7 @@ cargo tauri build     # Tauri desktop (package EXE/DMG/deb)
 
 ### Service Generation
 - Natural language → complete HTML/CSS/JS mini-app
-- Apps run in iframe sandbox; JSBridge (`window.__amiba__`) provides storage, notifications, navigation
+- Apps run in iframe sandbox; JSBridge (`window.__amiba__`) provides host capabilities (see "Service API" below)
 - Chart.js v4 support
 - Post-generation editing via AI (`service_file_*` tools)
 
@@ -48,6 +48,164 @@ cargo tauri build     # Tauri desktop (package EXE/DMG/deb)
 ### Offline-first
 - All data stored locally under `{AppData}/amiba/`
 - Config, memory, history, services, skills, souls — all local
+
+## Service API (JSBridge)
+
+Generated services run inside `<iframe sandbox>` and call host capabilities via the `window.__amiba__` global object. Each API method requires the corresponding permission declared in the service manifest.
+
+| Module | Permission | Description |
+|--------|-----------|-------------|
+| `storage` | `storage` | Per-service key-value storage |
+| `notification` | `notification` | Toast notifications |
+| `ui` | — | Page navigation |
+| `widgets` | `widgets` | Floating widget management |
+| `network` | `network` | LAN/BLE device discovery & P2P messaging |
+
+### storage — Key-Value Store
+
+Each service has its own isolated key-value namespace, persisted to disk.
+
+```js
+await __amiba__.storage.set('count', 42)
+const count = await __amiba__.storage.get('count')
+await __amiba__.storage.remove('count')
+```
+
+| Method | Parameters | Returns |
+|--------|-----------|---------|
+| `set(key, data)` | `key: string, data: any` | `Promise<void>` |
+| `get(key)` | `key: string` | `Promise<any>` |
+| `remove(key)` | `key: string` | `Promise<void>` |
+
+### notification — Toast
+
+```js
+await __amiba__.showToast('Saved successfully', 'success')
+```
+
+| Method | Parameters | Returns |
+|--------|-----------|---------|
+| `showToast(title, icon?)` | `title: string, icon?: 'success' \| 'error' \| 'loading' \| 'none'` | `Promise<void>` |
+
+### ui — Navigation
+
+```js
+await __amiba__.navigateTo('/chat')
+await __amiba__.navigateBack()
+```
+
+| Method | Parameters | Returns |
+|--------|-----------|---------|
+| `navigateTo(url)` | `url: string` | `Promise<void>` |
+| `navigateBack(delta?)` | `delta?: number` | `Promise<void>` |
+
+### widgets — Floating Widgets
+
+Programmatically register and control floating panels. Can also be declared declaratively via `widget.json` in the service bundle (see [Services document](docs/services.md#widget)).
+
+```js
+await __amiba__.widgets.register({
+  id: 'my-widget',
+  icon: '🔔',
+  page: 'widgets/alert.html',
+  edge: 'right',
+  position: 200,
+  showOn: [],
+  trigger: 'manual'
+})
+await __amiba__.widgets.show('my-widget')
+await __amiba__.widgets.hide('my-widget')
+await __amiba__.widgets.remove('my-widget')
+```
+
+| Method | Parameters | Returns |
+|--------|-----------|---------|
+| `register(config)` | `config: FloatingWidgetConfig` | `Promise<void>` |
+| `remove(id)` | `id: string` | `Promise<void>` |
+| `show(id)` | `id: string` | `Promise<void>` |
+| `hide(id)` | `id: string` | `Promise<void>` |
+
+`FloatingWidgetConfig` fields:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | `string` | ✅ | Unique kebab-case identifier |
+| `icon` | `string` | ✅ | Emoji icon e.g. `"📝"` |
+| `label` | `string` | — | Tooltip text |
+| `page` | `string` | ✅ | Widget HTML file path |
+| `edge` | `'left' \| 'right'` | ✅ | Snap edge |
+| `position` | `number` | ✅ | Initial Y position (px from top) |
+| `showOn` | `string[]` | ✅ | Route names where widget lives; empty = global |
+| `trigger` | `'manual' \| 'page'` | ✅ | `manual` = API-controlled (default), `page` = auto-show on matching route |
+
+### network — LAN / BLE Networking
+
+Device discovery, peer-to-peer connection and messaging. See [Network Communication](docs/network.md).
+
+```js
+// Visibility & Discovery
+await __amiba__.network.setVisibility({ lan: true, ble: false })
+const vis = await __amiba__.network.getVisibility()
+await __amiba__.network.startDiscovery('lan')
+await __amiba__.network.stopDiscovery('lan')
+const devices = await __amiba__.network.getVisibleDevices()
+__amiba__.network.onPeerDiscovered((peer) => { /* { id, name, transport, address } */ })
+
+// TCP listener (start on demand to accept incoming connections)
+await __amiba__.network.startListening('my-service')
+await __amiba__.network.stopListening('my-service')
+
+// Connect (with service matching)
+const session = await __amiba__.network.connect(peerId, 'my-service')
+await session.send(JSON.stringify({ type: 'chat', text: 'hello' }))
+session.on('message', (msg) => { const data = JSON.parse(msg); /* ... */ })
+session.on('close', (reason) => { /* peer disconnected */ })
+await session.close()
+
+// Accept incoming connections
+__amiba__.network.onSession((session) => { /* same as above */ })
+```
+
+**Visibility & Discovery:**
+
+| Method | Parameters | Returns |
+|--------|-----------|---------|
+| `setVisibility(opts)` | `{ lan: boolean, ble: boolean }` | `Promise<void>` |
+| `getVisibility()` | — | `Promise<{ lan: boolean, ble: boolean }>` |
+| `startDiscovery(transport)` | `'lan' \| 'ble' \| 'all'` | `Promise<void>` |
+| `stopDiscovery(transport)` | `'lan' \| 'ble' \| 'all'` | `Promise<void>` |
+| `getVisibleDevices()` | — | `DiscoveredPeer[]` |
+| `onPeerDiscovered(cb)` | `(peer: DiscoveredPeer) => void` | `void` |
+
+**Session Management:**
+
+| Method | Parameters | Returns |
+|--------|-----------|---------|
+| `connect(peerId, serviceKey)` | `peerId: string, serviceKey: string` | `Promise<Session>` |
+| `onSession(cb)` | `(session: Session) => void` | `void` |
+| `startListening(serviceKey)` | `serviceKey: string` | `Promise<void>` |
+| `stopListening(serviceKey)` | `serviceKey: string` | `Promise<void>` |
+
+**Session Object:**
+
+| Property / Method | Description |
+|------------------|-------------|
+| `.id` | Session UUID |
+| `.peerId` | Peer device ID |
+| `.peerName` | Peer device name |
+| `.send(message)` | Send `string` message, returns `Promise<void>` |
+| `.close()` | Close session, returns `Promise<void>` |
+| `.on('message', cb)` | Listen for messages, `cb(message: string)` |
+| `.on('close', cb)` | Listen for close, `cb(reason?: string)` |
+
+### Permission Reference
+
+| Permission | Description |
+|-----------|-------------|
+| `storage` | Per-service key-value storage |
+| `notification` | Toast notifications |
+| `widgets` | Floating widget functionality |
+| `network` | LAN/BLE networking (discovery & messaging) |
 
 ## Android Build
 
@@ -189,6 +347,7 @@ skills/               Skill files
 | [Requirement Tracking](./docs/requirement-tracking.md) | Dual-layer requirements |
 | [Tools](./docs/tools.md) | Tool inventory |
 | [JSBridge](./docs/jsbridge.md) | Sandbox protocol |
+| [Network](./docs/network.md) | LAN/BLE device discovery & P2P messaging |
 | [Services](./docs/services.md) | Service generation |
 | [Development](./docs/development.md) | Dev guide |
 

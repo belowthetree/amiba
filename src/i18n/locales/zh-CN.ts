@@ -214,6 +214,27 @@ const zhCN: LocalesSchema = {
     back: '返回',
     close: '关闭',
   },
+  share: {
+    title: '局域网分享',
+    sendTab: '发送服务',
+    receiveTab: '等待接收',
+    selectService: '选择服务',
+    selectPeer: '选择设备',
+    send: '发送',
+    waitForShare: '等待分享',
+    waiting: '等待中...',
+    noPeers: '未发现附近设备',
+    noUserServices: '没有可分享的用户服务',
+    progress: '传输中',
+    complete: '完成',
+    error: '错误',
+    requestFrom: '{name} 想分享服务',
+    confirm: '确认接收',
+    decline: '拒绝',
+    accepted: '已接受，接收中...',
+    declined: '已拒绝',
+    installing: '正在安装...',
+  },
 }
 
 export default zhCN

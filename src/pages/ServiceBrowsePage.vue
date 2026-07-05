@@ -8,8 +8,12 @@
       <div class="header-btns">
         <button class="import-btn" @click="importFromFolder">📂 {{ $t('services.importFolder') }}</button>
         <button class="new-btn" @click="$router.push('/')">💬 {{ $t('services.createNew') }}</button>
+        <button class="share-btn" @click="showShareDialog = true">📡</button>
       </div>
     </div>
+
+    <!-- 分享弹窗 -->
+    <ShareDialog v-model="showShareDialog" />
 
     <!-- User services -->
     <div class="section">
@@ -89,9 +93,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import ShareDialog from './ShareDialog.vue'
 import {
   BUILTIN_SERVICES,
   getUserServices,
@@ -107,6 +112,8 @@ import { readDirRecursive } from '../config/storage'
 
 const router = useRouter()
 const { t } = useI18n()
+
+const showShareDialog = ref(false)
 
 const userServices = computed(() => getUserServices())
 
@@ -261,6 +268,19 @@ async function importFromFolder() {
   border-radius: 8px;
   font-size: 13px;
   cursor: pointer;
+}
+
+.share-btn {
+  padding: 8px 12px;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.share-btn:hover {
+  background: #f0f0f0;
 }
 
 .section {

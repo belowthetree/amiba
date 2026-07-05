@@ -213,4 +213,25 @@ export interface LocalesSchema {
     back: string
     close: string
   }
+  share: {
+    title: string
+    sendTab: string
+    receiveTab: string
+    selectService: string
+    selectPeer: string
+    send: string
+    waitForShare: string
+    waiting: string
+    noPeers: string
+    noUserServices: string
+    progress: string
+    complete: string
+    error: string
+    requestFrom: string
+    confirm: string
+    decline: string
+    accepted: string
+    declined: string
+    installing: string
+  }
 }

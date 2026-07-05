@@ -29,7 +29,7 @@ interface ServiceResponse {
 // 宿主 → 服务 事件推送
 interface HostEvent {
   type: 'event'
-  name: string            // page-show | page-hide | task-trigger
+  name: string            // page-show | page-hide | task-trigger | peer-discovered | peer-lost | session-created | session-event
   data?: any
 }
 ```
@@ -92,9 +92,11 @@ Widget 也可以通过服务目录下的 `widget.json` 声明式配置，服务�
 | `startDiscovery` | `'lan' \| 'ble' \| 'all'` (字符串) | `void` | network |
 | `stopDiscovery` | `'lan' \| 'ble' \| 'all'` | `void` | network |
 | `getVisibleDevices` | — | `DiscoveredPeer[]` | network |
-| `connect` | `{ peerId: string }` | `{ sessionId, peerId, peerName }` — Promise | network |
+| `connect` | `{ peerId: string, serviceKey?: string }` | `{ sessionId, peerId, peerName }` — Promise | network |
 | `sessionSend` | `{ sessionId: string, message: string }` | `void` | network |
 | `sessionClose` | `{ sessionId: string }` | `void` | network |
+| `startListening` | `{ serviceKey: string }` | `void` | network |
+| `stopListening` | `{ serviceKey: string }` | `void` | network |
 
 **Session 对象**（`connect()` 返回 / `onSession()` 接收）：
 
@@ -132,10 +134,14 @@ window.__amiba__ = {
   navigateBack: (delta) => callHost('ui', 'navigateBack', { delta }),
   network: {
     setVisibility: (opts) => callHost('network', 'setVisibility', { visibility: opts }),
-    getVisibleDevices: () => callHost('network', 'getVisibleDevices', {}),
+    getVisibility: () => callHost('network', 'getVisibility', {}),
     startDiscovery: (t) => callHost('network', 'startDiscovery', { transport: t }),
-    connect: (peerId) => callHost('network', 'connect', { peerId }),
+    stopDiscovery: (t) => callHost('network', 'stopDiscovery', { transport: t }),
+    getVisibleDevices: () => callHost('network', 'getVisibleDevices', {}),
+    connect: (peerId, serviceKey) => callHost('network', 'connect', { peerId, serviceKey }),
       // → { sessionId, peerId, peerName } → 构造 session 代理
+    startListening: (serviceKey) => callHost('network', 'startListening', { serviceKey }),
+    stopListening: (serviceKey) => callHost('network', 'stopListening', { serviceKey }),
     onPeerDiscovered: (cb) => { /* event listener for peer-discovered */ },
     onSession: (cb) => { /* event listener for session-created → cb(sessionProxy) */ },
   },

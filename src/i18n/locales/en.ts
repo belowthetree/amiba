@@ -214,6 +214,27 @@ const en: LocalesSchema = {
     back: 'Back',
     close: 'Close',
   },
+  share: {
+    title: 'LAN Share',
+    sendTab: 'Send',
+    receiveTab: 'Receive',
+    selectService: 'Select Service',
+    selectPeer: 'Select Device',
+    send: 'Send',
+    waitForShare: 'Wait for Share',
+    waiting: 'Waiting...',
+    noPeers: 'No nearby devices found',
+    noUserServices: 'No user services to share',
+    progress: 'Transferring',
+    complete: 'Complete',
+    error: 'Error',
+    requestFrom: '{name} wants to share a service',
+    confirm: 'Accept',
+    decline: 'Decline',
+    accepted: 'Accepted, receiving...',
+    declined: 'Declined',
+    installing: 'Installing...',
+  },
 }
 
 export default en

@@ -28,7 +28,7 @@ interface ServicePackage {
     name: string
     version: string
     description: string
-    permissions: ('storage' | 'notification')[]
+    permissions: ('storage' | 'notification' | 'widgets' | 'network')[]
   }
   files: ServiceFile[]  // 多文件列表
   tasks?: GeneratedTask[] // 定时任务（可选）

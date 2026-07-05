@@ -36,7 +36,7 @@ cargo tauri build     # Tauri 桌面应用（打包 EXE/DMG/deb）
 
 ### AI 服务生成
 - 自然语言描述 → 生成完整 HTML/CSS/JS 小程序
-- 生成的服务运行在 iframe 沙箱中，通过 JSBridge (`window.__amiba__`) 调用存储、通知等宿主能力
+- 生成的服务运行在 iframe 沙箱中，通过 JSBridge (`window.__amiba__`) 调用宿主能力（详见下方「服务 API」）
 - 支持 Chart.js v4 图表
 - 生成后可继续用 AI 编辑服务文件（`service_file_*` 工具）
 
@@ -49,6 +49,164 @@ cargo tauri build     # Tauri 桌面应用（打包 EXE/DMG/deb）
 ### 离线优先
 - 所有数据本地存储在 `{AppData}/amiba/`
 - 配置、记忆、对话历史、服务文件、技能、人格文件全部本地化
+
+## 服务 API (JSBridge)
+
+AI 生成的服务运行在 `<iframe sandbox>` 中，通过 `window.__amiba__` 全局对象调用宿主能力。所有 API 均需在服务 manifest 中声明对应权限。
+
+| 模块 | 权限 | 说明 |
+|------|------|------|
+| `storage` | `storage` | 服务专属键值存储 |
+| `notification` | `notification` | Toast 通知 |
+| `ui` | — | 页面导航 |
+| `widgets` | `widgets` | 悬浮块管理 |
+| `network` | `network` | 局域网/蓝牙设备发现与对等通信 |
+
+### storage — 键值存储
+
+服务拥有独立的 key-value 存储空间，数据持久化到本地磁盘。
+
+```js
+await __amiba__.storage.set('count', 42)
+const count = await __amiba__.storage.get('count')
+await __amiba__.storage.remove('count')
+```
+
+| 方法 | 参数 | 返回 |
+|------|------|------|
+| `set(key, data)` | `key: string, data: any` | `Promise<void>` |
+| `get(key)` | `key: string` | `Promise<any>` |
+| `remove(key)` | `key: string` | `Promise<void>` |
+
+### notification — 通知
+
+```js
+await __amiba__.showToast('保存成功', 'success')
+```
+
+| 方法 | 参数 | 返回 |
+|------|------|------|
+| `showToast(title, icon?)` | `title: string, icon?: 'success' \| 'error' \| 'loading' \| 'none'` | `Promise<void>` |
+
+### ui — 页面导航
+
+```js
+await __amiba__.navigateTo('/chat')
+await __amiba__.navigateBack()
+```
+
+| 方法 | 参数 | 返回 |
+|------|------|------|
+| `navigateTo(url)` | `url: string` | `Promise<void>` |
+| `navigateBack(delta?)` | `delta?: number` | `Promise<void>` |
+
+### widgets — 悬浮块
+
+编程式注册和控制浮动面板。也支持通过服务目录下 `widget.json` 声明式配置（详见 [服务模型](docs/services.md#悬浮块widget)）。
+
+```js
+await __amiba__.widgets.register({
+  id: 'my-widget',
+  icon: '🔔',
+  page: 'widgets/alert.html',
+  edge: 'right',
+  position: 200,
+  showOn: [],
+  trigger: 'manual'
+})
+await __amiba__.widgets.show('my-widget')
+await __amiba__.widgets.hide('my-widget')
+await __amiba__.widgets.remove('my-widget')
+```
+
+| 方法 | 参数 | 返回 |
+|------|------|------|
+| `register(config)` | `config: FloatingWidgetConfig` | `Promise<void>` |
+| `remove(id)` | `id: string` | `Promise<void>` |
+| `show(id)` | `id: string` | `Promise<void>` |
+| `hide(id)` | `id: string` | `Promise<void>` |
+
+`FloatingWidgetConfig` 字段：
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `id` | `string` | ✅ | 唯一标识，kebab-case |
+| `icon` | `string` | ✅ | emoji 图标，如 `"📝"` |
+| `label` | `string` | — | 悬停提示文字 |
+| `page` | `string` | ✅ | Widget HTML 文件路径 |
+| `edge` | `'left' \| 'right'` | ✅ | 吸附边缘 |
+| `position` | `number` | ✅ | 初始 y 位置（px，距顶部） |
+| `showOn` | `string[]` | ✅ | 生命周期路由名，空数组 = 全局 |
+| `trigger` | `'manual' \| 'page'` | ✅ | `manual` = API 控制（默认），`page` = 进入 showOn 路由时自动显示 |
+
+### network — 局域网/蓝牙通信
+
+设备发现、对等连接和消息收发。详见 [网络互联通信](docs/network.md)。
+
+```js
+// 可见性与发现
+await __amiba__.network.setVisibility({ lan: true, ble: false })
+const vis = await __amiba__.network.getVisibility()
+await __amiba__.network.startDiscovery('lan')
+await __amiba__.network.stopDiscovery('lan')
+const devices = await __amiba__.network.getVisibleDevices()
+__amiba__.network.onPeerDiscovered((peer) => { /* { id, name, transport, address } */ })
+
+// TCP 监听（按需启动，才能接收外来连接）
+await __amiba__.network.startListening('my-service')
+await __amiba__.network.stopListening('my-service')
+
+// 主动连接（含服务匹配）
+const session = await __amiba__.network.connect(peerId, 'my-service')
+await session.send(JSON.stringify({ type: 'chat', text: 'hello' }))
+session.on('message', (msg) => { const data = JSON.parse(msg); /* ... */ })
+session.on('close', (reason) => { /* 对方断开 */ })
+await session.close()
+
+// 接受外来连接
+__amiba__.network.onSession((session) => { /* 同上 */ })
+```
+
+**可见性与发现：**
+
+| 方法 | 参数 | 返回 |
+|------|------|------|
+| `setVisibility(opts)` | `{ lan: boolean, ble: boolean }` | `Promise<void>` |
+| `getVisibility()` | — | `Promise<{ lan: boolean, ble: boolean }>` |
+| `startDiscovery(transport)` | `'lan' \| 'ble' \| 'all'` | `Promise<void>` |
+| `stopDiscovery(transport)` | `'lan' \| 'ble' \| 'all'` | `Promise<void>` |
+| `getVisibleDevices()` | — | `DiscoveredPeer[]` |
+| `onPeerDiscovered(cb)` | `(peer: DiscoveredPeer) => void` | `void` |
+
+**Session 管理：**
+
+| 方法 | 参数 | 返回 |
+|------|------|------|
+| `connect(peerId, serviceKey)` | `peerId: string, serviceKey: string` | `Promise<Session>` |
+| `onSession(cb)` | `(session: Session) => void` | `void` |
+| `startListening(serviceKey)` | `serviceKey: string` | `Promise<void>` |
+| `stopListening(serviceKey)` | `serviceKey: string` | `Promise<void>` |
+
+**Session 对象属性/方法：**
+
+| 属性/方法 | 说明 |
+|-----------|------|
+| `.id` | Session UUID |
+| `.peerId` | 对端设备 ID |
+| `.peerName` | 对端设备名称 |
+| `.send(message)` | 发送 `string` 消息，返回 `Promise<void>` |
+| `.close()` | 关闭会话，返回 `Promise<void>` |
+| `.on('message', cb)` | 监听消息，`cb(message: string)` |
+| `.on('close', cb)` | 监听关闭，`cb(reason?: string)` |
+
+### 服务声明权限
+
+| 权限 | 说明 |
+|------|------|
+| `storage` | 服务专属键值存储 |
+| `notification` | Toast 通知 |
+| `widgets` | 悬浮块功能 |
+| `network` | 局域网/蓝牙互联通信（设备发现、消息收发） |
 
 ## Android 构建
 
@@ -193,6 +351,7 @@ skills/               技能文件目录
 | [需求追踪](./docs/requirement-tracking.md) | 双层需求体系 |
 | [工具系统](./docs/tools.md) | 工具清单 |
 | [JSBridge](./docs/jsbridge.md) | 沙箱通信协议 |
+| [网络互联通信](./docs/network.md) | 局域网/蓝牙设备发现与对等通信 |
 | [服务生成](./docs/services.md) | 服务生成与运行 |
 | [开发指南](./docs/development.md) | 开发规范 |
 
