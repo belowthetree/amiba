@@ -57,6 +57,10 @@ const zhCN: LocalesSchema = {
     },
     errorNoApiKey: '请先在设置中配置 API Key',
     errorPrefix: '错误',
+    stepLimit: '已达 {n} 轮工具调用上限',
+    stepLimitContinue: '继续处理',
+    stepLimitEnd: '结束',
+    stepLimitContinueMsg: '请继续处理未完成的任务。',
   },
   settings: {
     title: '设置',

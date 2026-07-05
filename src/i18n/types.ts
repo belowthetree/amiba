@@ -56,6 +56,10 @@ export interface LocalesSchema {
     }
     errorNoApiKey: string
     errorPrefix: string
+    stepLimit: string
+    stepLimitContinue: string
+    stepLimitEnd: string
+    stepLimitContinueMsg: string
   }
   settings: {
     title: string

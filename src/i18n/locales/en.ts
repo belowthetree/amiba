@@ -57,6 +57,10 @@ const en: LocalesSchema = {
     },
     errorNoApiKey: 'Please configure API Key in Settings first',
     errorPrefix: 'Error',
+    stepLimit: 'Reached {n} tool call limit',
+    stepLimitContinue: 'Continue',
+    stepLimitEnd: 'End',
+    stepLimitContinueMsg: 'Please continue working on the unfinished task.',
   },
   settings: {
     title: 'Settings',

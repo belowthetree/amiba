@@ -85,13 +85,13 @@ toolRegistry.register({
   emoji: '📖',
   description:
     '读取指定服务目录中的某个文件内容。用于查看 HTML/CSS/JS 代码后决定如何修改。',
-  maxResultSizeChars: 8000,
+  maxResultSizeChars: 12000,
   schema: {
     type: 'function',
     function: {
       name: 'service_file_read',
       description:
-        '读取指定服务的某个文件完整内容。在修改文件之前先阅读现有代码。',
+        '读取指定服务的某个文件内容。支持分页（offset/limit），在修改文件之前先阅读现有代码。大文件建议先用 offset=1,limit=80 快速浏览头部，再根据需要翻页。',
       parameters: {
         type: 'object',
         properties: {
@@ -102,6 +102,14 @@ toolRegistry.register({
           file_path: {
             type: 'string',
             description: '文件路径，如 "index.html"、"style.css"、"app.js"',
+          },
+          offset: {
+            type: 'number',
+            description: '可选，起始行号（1-based），默认 1。与 limit 配合实现分页读取。',
+          },
+          limit: {
+            type: 'number',
+            description: '可选，返回的最大行数，默认 200，最大 500。不传则返回完整文件内容。',
           },
         },
         required: ['service_id', 'file_path'],
@@ -124,9 +132,36 @@ toolRegistry.register({
           error: `文件 "${filePath}" 不存在于服务 ${serviceId}`,
         })
       }
+
+      const lines = content.split('\n')
+      const totalLines = lines.length
+
+      // 分页模式：传了 offset 或 limit 时启用
+      const usePagination = args.offset !== undefined || args.limit !== undefined
+      if (usePagination) {
+        const offsetNum = Math.max(1, Math.floor(Number(args.offset ?? 1)))
+        const limitNum = Math.max(1, Math.min(500, Math.floor(Number(args.limit ?? 200))))
+        const startIdx = offsetNum - 1 // 转为 0-based
+        const endIdx = Math.min(startIdx + limitNum, totalLines)
+        const sliced = lines.slice(startIdx, endIdx).join('\n')
+
+        return JSON.stringify({
+          service_id: serviceId,
+          file_path: filePath,
+          total_lines: totalLines,
+          start_line: startIdx + 1,
+          end_line: endIdx,
+          has_more_before: startIdx > 0,
+          has_more_after: endIdx < totalLines,
+          content: sliced,
+        })
+      }
+
+      // 完整读取模式（向后兼容）
       return JSON.stringify({
         service_id: serviceId,
         file_path: filePath,
+        total_lines: totalLines,
         content,
       })
     } catch (e: any) {

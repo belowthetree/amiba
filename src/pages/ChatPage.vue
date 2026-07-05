@@ -126,6 +126,17 @@
         <button class="modal-close" @click="showStats = false">{{ $t('chat.stats.close') }}</button>
       </div>
     </div>
+
+    <!-- 工具调用上限模态框 -->
+    <div v-if="showStepLimit" class="modal-overlay" @click.self="showStepLimit = false">
+      <div class="modal-box">
+        <h3>🔧 {{ $t('chat.stepLimit', { n: stepLimitCount }) }}</h3>
+        <div class="limit-actions">
+          <button class="primary-btn" @click="continueGeneration">{{ $t('chat.stepLimitContinue') }}</button>
+          <button class="secondary-btn" @click="showStepLimit = false">{{ $t('chat.stepLimitEnd') }}</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -174,11 +185,83 @@ const sessionList = ref<SessionMeta[]>([])
 const currentId = ref<string | null>(null)
 const streamingReasoning = ref('')
 let abortController: AbortController | null = null
+const showStepLimit = ref(false)
+const stepLimitCount = ref(0)
 
 function stopStreaming() {
   if (abortController) {
     abortController.abort()
     abortController = null
+  }
+}
+
+function continueGeneration() {
+  showStepLimit.value = false
+  addUserMessage(t('chat.stepLimitContinueMsg'))
+  saveHistory()
+  scrollToBottom()
+  // 复用发送逻辑，但不 reset 用户输入
+  sending.value = true
+  streaming.value = true
+  streamingContent.value = ''
+  streamingReasoning.value = ''
+  abortController = new AbortController()
+  streamContinue()
+}
+
+async function streamContinue() {
+  try {
+    const history = messages.value
+      .filter((m) => !m.hidden && m.role !== 'tool')
+      .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
+    const chatMsgs = buildMessages(history)
+
+    const gen = streamChat(chatMsgs, { turnCount: turnCount.value, abortSignal: abortController!.signal })
+
+    for await (const chunk of gen) {
+      if (chunk.startsWith('\x00REASONING\x00')) {
+        streamingReasoning.value += chunk.slice(11)
+      } else if (chunk.startsWith('\x00TOOL:') && chunk.endsWith('\x00')) {
+        const toolName = chunk.slice(6, -1)
+        console.log('[ChatPage] 🔧', toolName)
+        if (streamingContent.value || streamingReasoning.value) {
+          addAssistantMessage(streamingContent.value, streamingReasoning.value || undefined)
+          streamingContent.value = ''
+          streamingReasoning.value = ''
+        }
+        addToolMessage(toolName)
+        saveHistory()
+      } else if (chunk.startsWith('\x00STEP_LIMIT:')) {
+        const n = parseInt(chunk.split(':')[1])
+        if (streamingContent.value) {
+          addAssistantMessage(streamingContent.value, streamingReasoning.value || undefined)
+          streamingContent.value = ''
+          streamingReasoning.value = ''
+        }
+        stepLimitCount.value = n
+        showStepLimit.value = true
+      } else {
+        streamingContent.value += chunk
+      }
+      scrollToBottom()
+    }
+
+    if (streamingContent.value) {
+      addAssistantMessage(streamingContent.value, streamingReasoning.value || undefined)
+      streamingReasoning.value = ''
+      saveHistory()
+    }
+  } catch (e: any) {
+    if (e.name !== 'AbortError') {
+      errorMsg.value = `${t('chat.errorPrefix')}: ${e.message}`
+    }
+  } finally {
+    abortController = null
+    sending.value = false
+    streaming.value = false
+    streamingContent.value = ''
+    streamingReasoning.value = ''
+    scrollToBottom()
   }
 }
 
@@ -253,6 +336,9 @@ async function send() {
   const text = input.value.trim()
   if (!text || sending.value) return
 
+  // 用户主动发送消息，关闭步数限制弹窗
+  showStepLimit.value = false
+
   const apiKey = await getApiKey()
   if (!apiKey) {
     errorMsg.value = t('chat.errorNoApiKey')
@@ -325,6 +411,15 @@ async function send() {
         }
         addToolMessage(toolName)
         saveHistory()
+      } else if (chunk.startsWith('\x00STEP_LIMIT:')) {
+        const n = parseInt(chunk.split(':')[1])
+        if (streamingContent.value) {
+          addAssistantMessage(streamingContent.value, streamingReasoning.value || undefined)
+          streamingContent.value = ''
+          streamingReasoning.value = ''
+        }
+        stepLimitCount.value = n
+        showStepLimit.value = true
       } else {
         streamingContent.value += chunk
       }
@@ -851,6 +946,42 @@ watch(showStats, async (open) => {
   border-radius: 8px;
   font-size: 14px;
   cursor: pointer;
+}
+
+.limit-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.limit-actions .primary-btn {
+  flex: 1;
+  padding: 10px 16px;
+  background: #1976D2;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.limit-actions .primary-btn:hover {
+  background: #1565C0;
+}
+
+.limit-actions .secondary-btn {
+  flex: 1;
+  padding: 10px 16px;
+  background: #f5f5f5;
+  color: #666;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.limit-actions .secondary-btn:hover {
+  background: #e0e0e0;
 }
 
 /* === 响应式：移动端适配 === */

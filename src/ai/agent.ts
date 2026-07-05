@@ -4,7 +4,7 @@
 // v3 改造：使用 Vercel AI SDK streamText + stopWhen 替代手动 while 循环
 // ============================================================
 
-import { streamText, isStepCount, pruneMessages, tool } from 'ai'
+import { streamText, pruneMessages, tool } from 'ai'
 import type { LanguageModel, ModelMessage } from 'ai'
 import { getSettings, getApiKey } from '../config/config'
 import { memoryStore } from './memory-store'
@@ -132,13 +132,21 @@ export async function* streamChat(
     .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
 
   // === AI SDK streaming ===
+  let hitLimit = false
+
   try {
     const result = streamText({
       model: languageModel,
       messages: modelMessages,
       instructions: systemContent,
       tools: hasTools ? tools : undefined,
-      stopWhen: isStepCount(opts.maxIterations),
+      stopWhen: ({ steps }) => {
+        if (steps.length >= opts.maxIterations) {
+          hitLimit = true
+          return true
+        }
+        return false
+      },
       abortSignal: opts.abortSignal,
       providerOptions: reasoningEffort ? { [providerName]: { reasoningEffort } } as any : undefined,
       prepareStep: async ({ messages: stepMsgs }) => {
@@ -191,6 +199,12 @@ export async function* streamChat(
       } else if (part.type === 'error') {
         console.error('[Agent] 流事件错误:', part.error)
       }
+    }
+
+    // 工具调用轮次达到上限
+    if (hitLimit) {
+      console.log(`[Agent] 已达到 ${opts.maxIterations} 轮工具调用上限`)
+      yield `\x00STEP_LIMIT:${opts.maxIterations}\x00`
     }
 
     // 记录用量
