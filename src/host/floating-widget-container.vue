@@ -20,7 +20,7 @@
         >
           <div class="panel-header">
             <span class="panel-label">{{ state.config.label || state.config.id }}</span>
-            <button class="panel-close" @click.stop="collapse(id)" title="关闭">✕</button>
+            <button class="panel-close" @click.stop="collapse(id)" :title="$t('host.close')">✕</button>
           </div>
           <div class="panel-body">
             <iframe

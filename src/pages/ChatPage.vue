@@ -9,7 +9,7 @@
         <span class="dropdown-arrow">▾</span>
       </div>
       <div class="topbar-actions">
-        <button class="action-btn" title="新会话" @click="doNewSession">＋</button>
+        <button class="action-btn" :title="$t('chat.newSession')" @click="doNewSession">＋</button>
         <button class="stats-btn" @click="showStats = true">📊</button>
       </div>
       <!-- Session 下拉列表 -->
@@ -21,18 +21,18 @@
           @click="switchTo(s.id)"
         >
           <span class="session-item-title">{{ s.title }}</span>
-          <span class="session-item-meta">{{ s.messageCount }} 条 · {{ fmtDate(s.updatedAt) }}</span>
-          <button class="session-del" title="删除" @click.stop="doDeleteSession(s.id)">✕</button>
+          <span class="session-item-meta">{{ s.messageCount }} {{ $t('chat.messageCount') }} · {{ fmtDate(s.updatedAt) }}</span>
+          <button class="session-del" :title="$t('chat.delete')" @click.stop="doDeleteSession(s.id)">✕</button>
         </div>
-        <div v-if="sessionList.length === 0" class="session-empty">暂无历史会话</div>
+        <div v-if="sessionList.length === 0" class="session-empty">{{ $t('chat.noSessions') }}</div>
       </div>
     </div>
 
     <div class="chat-messages" ref="messagesEl">
       <div v-if="visibleMessages.length === 0" class="chat-empty">
         <div class="empty-icon">💬</div>
-        <p>开始与 AI 对话吧</p>
-        <p class="hint">记忆会在对话中自动保存</p>
+        <p>{{ $t('chat.emptyHint') }}</p>
+        <p class="hint">{{ $t('chat.emptySubHint') }}</p>
       </div>
 
       <div
@@ -43,7 +43,7 @@
         <div class="message-content" v-if="msg.role === 'tool'">🔧 {{ msg.content }}</div>
         <div class="message-content" v-else>
           <details v-if="msg.reasoning" class="reasoning-block">
-            <summary>思考过程</summary>
+            <summary>{{ $t('chat.thinking') }}</summary>
             <div class="reasoning-content">{{ msg.reasoning }}</div>
           </details>
           {{ msg.content }}
@@ -53,7 +53,7 @@
       <div v-if="streaming" class="message assistant">
         <div class="message-content streaming">
           <details v-if="streamingReasoning" class="reasoning-block" open>
-            <summary>思考中...</summary>
+            <summary>{{ $t('chat.thinkingProgress') }}</summary>
             <div class="reasoning-content">{{ streamingReasoning }}</div>
           </details>
           {{ streamingContent }}<span v-if="!streamingReasoning || streamingContent" class="cursor">|</span>
@@ -69,7 +69,7 @@
       <textarea
         v-model="input"
         class="chat-input"
-        placeholder="输入消息..."
+        :placeholder="$t('chat.placeholder')"
         rows="2"
         @keydown.enter.exact.prevent="send"
       ></textarea>
@@ -78,32 +78,32 @@
         :disabled="!input.trim() || sending"
         @click="send"
       >
-        {{ sending ? '...' : '发送' }}
+        {{ sending ? $t('chat.sending') : $t('chat.send') }}
       </button>
     </div>
 
     <!-- 统计模态框 -->
     <div v-if="showStats" class="modal-overlay" @click.self="showStats = false">
       <div class="modal-box">
-        <h3>📊 统计</h3>
+        <h3>📊 {{ $t('chat.stats.title') }}</h3>
         <div class="stat-row">
-          <span class="stat-label">距离建议保存记忆</span>
-          <span class="stat-value">还有 {{ nudgeCountdown }} 轮</span>
+          <span class="stat-label">{{ $t('chat.stats.saveMemoryHint') }}</span>
+          <span class="stat-value">{{ $t('chat.stats.roundsLeft', { n: nudgeCountdown }) }}</span>
         </div>
 
-        <div class="stat-divider">🌐 附近设备</div>
+        <div class="stat-divider">🌐 {{ $t('chat.stats.nearbyDevices') }}</div>
 
         <div class="stat-row">
-          <span class="stat-label">局域网 (LAN)</span>
-          <span class="stat-value">{{ lanPeerCount }} 台</span>
+          <span class="stat-label">{{ $t('chat.stats.lanLabel') }}</span>
+          <span class="stat-value">{{ lanPeerCount }} {{ $t('chat.stats.units') }}</span>
         </div>
         <div class="stat-row">
-          <span class="stat-label">蓝牙 (BLE)</span>
-          <span class="stat-value">{{ blePeerCount }} 台</span>
+          <span class="stat-label">{{ $t('chat.stats.bleLabel') }}</span>
+          <span class="stat-value">{{ blePeerCount }} {{ $t('chat.stats.units') }}</span>
         </div>
         <div class="stat-row total">
-          <span class="stat-label">总计</span>
-          <span class="stat-value">{{ totalPeerCount }} 台</span>
+          <span class="stat-label">{{ $t('chat.stats.total') }}</span>
+          <span class="stat-value">{{ totalPeerCount }} {{ $t('chat.stats.units') }}</span>
         </div>
 
         <div v-if="totalPeerCount > 0" class="peer-list">
@@ -113,9 +113,9 @@
             <span class="peer-transport">{{ p.transport.toUpperCase() }}</span>
           </div>
         </div>
-        <div v-else class="no-peers">暂无发现的设备</div>
+        <div v-else class="no-peers">{{ $t('chat.stats.noPeers') }}</div>
 
-        <button class="modal-close" @click="showStats = false">关闭</button>
+        <button class="modal-close" @click="showStats = false">{{ $t('chat.stats.close') }}</button>
       </div>
     </div>
   </div>
@@ -123,8 +123,9 @@
 
 <script setup lang="ts">
 import { ref, nextTick, onMounted, watch, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { streamChat, buildMessages } from '../ai/agent'
-import { getApiKey } from '../config/config'
+import { getApiKey, settings } from '../config/config'
 import { detectSlashCommand, buildSkillInvocationMessage } from '../ai/skill-commands'
 import { matchCommand } from '../ai/commands'
 import {
@@ -152,6 +153,8 @@ import {
   startDiscovery as netStartDiscovery,
 } from '../host/network-bridge'
 
+const { t } = useI18n()
+
 const session = getSession()
 const { messages, turnCount, sending, streaming, streamingContent, errorMessage: errorMsg } = session
 
@@ -167,7 +170,7 @@ const visibleMessages = computed(() => getVisibleMessages())
 
 const currentSessionTitle = computed(() => {
   const s = sessionList.value.find((s) => s.id === currentId.value)
-  return s?.title || 'AI 对话'
+  return s?.title || t('chat.defaultSessionTitle')
 })
 
 const NUDGE_INTERVAL = 10
@@ -185,9 +188,9 @@ function fmtDate(iso: string): string {
   const d = new Date(iso)
   const now = new Date()
   const diff = now.getTime() - d.getTime()
-  if (diff < 86400000) return '今天'
-  if (diff < 172800000) return '昨天'
-  return d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+  if (diff < 86400000) return t('chat.today')
+  if (diff < 172800000) return t('chat.yesterday')
+  return d.toLocaleDateString(settings.language === 'en' ? 'en-US' : 'zh-CN', { month: 'short', day: 'numeric' })
 }
 
 async function refreshSessionList() {
@@ -235,7 +238,7 @@ async function send() {
 
   const apiKey = await getApiKey()
   if (!apiKey) {
-    errorMsg.value = '请先在设置中配置 API Key'
+    errorMsg.value = t('chat.errorNoApiKey')
     return
   }
 
@@ -314,7 +317,7 @@ async function send() {
       saveHistory() // 实时保存 AI 回复
     }
   } catch (e: any) {
-    errorMsg.value = `错误: ${e.message}`
+    errorMsg.value = `${t('chat.errorPrefix')}: ${e.message}`
   } finally {
     sending.value = false
     streaming.value = false

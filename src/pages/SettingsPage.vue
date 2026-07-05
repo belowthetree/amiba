@@ -3,7 +3,7 @@
 ============================================================ -->
 <template>
   <div class="settings-page">
-    <h2 class="page-title">⚙️ 设置</h2>
+    <h2 class="page-title">⚙️ {{ $t('settings.title') }}</h2>
 
     <!-- === 标签栏 === -->
     <div class="tab-bar">
@@ -21,10 +21,10 @@
     <div v-show="activeTab === 'general'">
 
       <div class="settings-section">
-        <h3 class="section-label">API 配置</h3>
+        <h3 class="section-label">{{ $t('settings.general.apiConfig') }}</h3>
 
         <div class="form-group">
-          <label>API Key</label>
+          <label>{{ $t('settings.general.apiKey') }}</label>
           <input
             :type="showKey ? 'text' : 'password'"
             v-model="settings.api_key"
@@ -37,7 +37,7 @@
         </div>
 
         <div class="form-group">
-          <label>Base URL</label>
+          <label>{{ $t('settings.general.baseUrl') }}</label>
           <input
             v-model="settings.ai_base_url"
             class="form-input"
@@ -46,7 +46,7 @@
         </div>
 
         <div class="form-group">
-          <label>对话模型</label>
+          <label>{{ $t('settings.general.model') }}</label>
           <input
             v-model="settings.ai_model"
             class="form-input"
@@ -60,97 +60,97 @@
         </div>
 
         <div class="form-group">
-          <label>思考努力程度</label>
+          <label>{{ $t('settings.general.reasoningEffort') }}</label>
           <select v-model="settings.reasoning_effort" class="form-input">
-            <option :value="undefined">-- 默认（不设置） --</option>
-            <option value="low">低</option>
-            <option value="medium">中（均衡）</option>
-            <option value="high">高（深入）</option>
-            <option value="xhigh">极高</option>
-            <option value="max">最强</option>
+            <option :value="undefined">{{ $t('settings.general.reasoningDefault') }}</option>
+            <option value="low">{{ $t('settings.general.reasoningLow') }}</option>
+            <option value="medium">{{ $t('settings.general.reasoningMedium') }}</option>
+            <option value="high">{{ $t('settings.general.reasoningHigh') }}</option>
+            <option value="xhigh">{{ $t('settings.general.reasoningXhigh') }}</option>
+            <option value="max">{{ $t('settings.general.reasoningMax') }}</option>
           </select>
         </div>
       </div>
 
       <div class="settings-section">
-        <h3 class="section-label">🏭 AI 供应商</h3>
+        <h3 class="section-label">🏭 {{ $t('settings.general.aiProvider') }}</h3>
 
         <div v-if="providerList.length" class="skill-list">
           <div v-for="(p, i) in providerList" :key="p.id" class="skill-item">
             <template v-if="providerEditingIdx === i">
               <div class="skill-edit-form">
-                <input v-model="providerForm.name" class="form-input" placeholder="显示名称" style="margin-bottom:4px" />
-                <input v-model="providerForm.id" class="form-input" placeholder="唯一 ID（英文）" style="margin-bottom:4px" />
-                <input v-model="providerForm.baseUrl" class="form-input" placeholder="Base URL" style="margin-bottom:4px" />
-                <input v-model="providerForm.apiKey" class="form-input" placeholder="API Key" style="margin-bottom:4px" />
-                <textarea v-model="providerForm.modelsStr" class="form-input" placeholder="模型列表（每行一个）" rows="2" style="margin-bottom:6px;resize:vertical" />
+                <input v-model="providerForm.name" class="form-input" :placeholder="$t('settings.general.providerNamePlaceholder')" style="margin-bottom:4px" />
+                <input v-model="providerForm.id" class="form-input" :placeholder="$t('settings.general.providerIdPlaceholder')" style="margin-bottom:4px" />
+                <input v-model="providerForm.baseUrl" class="form-input" :placeholder="$t('settings.general.providerBaseUrlPlaceholder')" style="margin-bottom:4px" />
+                <input v-model="providerForm.apiKey" class="form-input" :placeholder="$t('settings.general.providerApiKeyPlaceholder')" style="margin-bottom:4px" />
+                <textarea v-model="providerForm.modelsStr" class="form-input" :placeholder="$t('settings.general.providerModelsPlaceholder')" rows="2" style="margin-bottom:6px;resize:vertical" />
                 <div class="action-row">
-                  <button class="sib save" @click="saveProviderEdit(i)">💾 保存</button>
-                  <button class="sx" @click="providerEditingIdx = -1">取消</button>
+                  <button class="sib save" @click="saveProviderEdit(i)">💾 {{ $t('settings.general.save') }}</button>
+                  <button class="sx" @click="providerEditingIdx = -1">{{ $t('settings.general.cancel') }}</button>
                 </div>
               </div>
             </template>
             <template v-else>
               <span class="sn">{{ p.name }}</span>
-              <span class="sd">{{ p.baseUrl }} · {{ p.models.length }} 个模型</span>
+              <span class="sd">{{ p.baseUrl }} · {{ p.models.length }} {{ $t('settings.general.modelCount') }}</span>
               <button class="sib" @click="startProviderEdit(i)">✏️</button>
               <button class="sx" @click="removeProvider(i)">✕</button>
             </template>
           </div>
         </div>
-        <p v-else class="skill-empty">暂无自定义供应商（将使用上方 API 配置作为默认）</p>
+        <p v-else class="skill-empty">{{ $t('settings.general.noProviders') }}</p>
 
         <button class="secondary-btn" style="margin-top:4px" @click="addProviderDialog">
-          ➕ 添加供应商
+          ➕ {{ $t('settings.general.addProvider') }}
         </button>
       </div>
 
       <div class="settings-section">
-        <h3 class="section-label">外观</h3>
+        <h3 class="section-label">{{ $t('settings.general.appearance') }}</h3>
 
         <div class="form-group">
-          <label>主题模式</label>
+          <label>{{ $t('settings.general.themeMode') }}</label>
           <select v-model="settings.theme_mode" class="form-input">
-            <option value="system">跟随系统</option>
-            <option value="light">浅色</option>
-            <option value="dark">深色</option>
+            <option value="system">{{ $t('settings.general.themeSystem') }}</option>
+            <option value="light">{{ $t('settings.general.themeLight') }}</option>
+            <option value="dark">{{ $t('settings.general.themeDark') }}</option>
           </select>
         </div>
 
         <div class="form-group">
-          <label>语言</label>
+          <label>{{ $t('settings.general.language') }}</label>
           <select v-model="settings.language" class="form-input">
-            <option value="zh-CN">中文</option>
-            <option value="en">English</option>
+            <option value="zh-CN">{{ $t('settings.general.languageZh') }}</option>
+            <option value="en">{{ $t('settings.general.languageEn') }}</option>
           </select>
         </div>
       </div>
 
       <div class="settings-section">
-        <h3 class="section-label">🌐 网络</h3>
+        <h3 class="section-label">🌐 {{ $t('settings.general.network') }}</h3>
 
         <div class="form-group">
           <div class="toggle-row">
             <div>
-              <label style="margin-bottom:0">局域网发现</label>
-              <span class="toggle-desc">允许其他设备通过局域网发现本设备</span>
+              <label style="margin-bottom:0">{{ $t('settings.general.lanDiscovery') }}</label>
+              <span class="toggle-desc">{{ $t('settings.general.lanDesc') }}</span>
             </div>
             <label class="switch">
               <input type="checkbox" v-model="settings.network_lan_visible" @change="toggleLan" />
               <span class="slider"></span>
             </label>
           </div>
-          <p class="toggle-hint" v-if="settings.network_lan_visible">✅ 本设备在局域网中可见</p>
-          <p class="toggle-hint" v-else>🔒 本设备在局域网中隐藏</p>
+          <p class="toggle-hint" v-if="settings.network_lan_visible">✅ {{ $t('settings.general.lanVisible') }}</p>
+          <p class="toggle-hint" v-else>🔒 {{ $t('settings.general.lanHidden') }}</p>
         </div>
       </div>
 
       <div class="settings-section">
-        <h3 class="section-label">关于</h3>
+        <h3 class="section-label">{{ $t('settings.general.about') }}</h3>
         <div class="about-info">
-          <p><strong>变形虫 Amiba</strong> v{{ appVersion }}</p>
-          <p>AI 驱动的跨平台即时应用平台</p>
-          <p>Vue 3 + TypeScript + Tauri</p>
+          <p><strong>{{ $t('settings.general.aboutTitle') }}</strong> v{{ appVersion }}</p>
+          <p>{{ $t('settings.general.aboutSubtitle') }}</p>
+          <p>{{ $t('settings.general.aboutStack') }}</p>
         </div>
         <div class="update-area">
           <button
@@ -158,31 +158,31 @@
             :disabled="updateStatus.stage === 'checking' || updateStatus.stage === 'downloading' || updateStatus.stage === 'installing'"
             @click="doCheckUpdate"
           >
-            <template v-if="updateStatus.stage === 'checking'">⏳ 检查中…</template>
-            <template v-else>🔍 检查更新</template>
+            <template v-if="updateStatus.stage === 'checking'">⏳ {{ $t('settings.general.checking') }}</template>
+            <template v-else>🔍 {{ $t('settings.general.checkUpdate') }}</template>
           </button>
 
           <p v-if="updateStatus.stage === 'error'" class="update-msg error">{{ updateStatus.message }}</p>
-          <p v-else-if="updateStatus.stage === 'upToDate'" class="update-msg ok">✅ 已是最新版本 (v{{ updateStatus.currentVersion }})</p>
+          <p v-else-if="updateStatus.stage === 'upToDate'" class="update-msg ok">✅ {{ $t('settings.general.upToDate') }} (v{{ updateStatus.currentVersion }})</p>
           <div v-else-if="updateStatus.stage === 'available'" class="update-available">
-            <p class="update-msg available">🆕 发现新版本 <strong>v{{ updateStatus.info.latestVersion }}</strong>（当前 v{{ updateStatus.info.currentVersion }}）</p>
+            <p class="update-msg available">🆕 {{ $t('settings.general.newVersion') }} <strong>v{{ updateStatus.info.latestVersion }}</strong>（当前 v{{ updateStatus.info.currentVersion }}）</p>
             <p v-if="updateStatus.info.body" class="update-notes">{{ updateStatus.info.body }}</p>
-            <button class="primary-btn" @click="doDownload(updateStatus.info)">📥 直接下载</button>
+            <button class="primary-btn" @click="doDownload(updateStatus.info)">📥 {{ $t('settings.general.directDownload') }}</button>
           </div>
           <div v-else-if="updateStatus.stage === 'downloading'" class="download-progress">
-            <p class="update-msg">📥 正在下载… ({{ formatSize(updateStatus.received) }} / {{ formatSize(updateStatus.total) }})</p>
+            <p class="update-msg">📥 {{ $t('settings.general.downloading') }} ({{ formatSize(updateStatus.received) }} / {{ formatSize(updateStatus.total) }})</p>
             <div class="progress-bar">
               <div class="progress-fill" :style="{ width: downloadPercent + '%' }"></div>
             </div>
-            <button class="danger-btn" style="margin-top:8px" @click="doCancelDownload">✕ 取消下载</button>
+            <button class="danger-btn" style="margin-top:8px" @click="doCancelDownload">✕ {{ $t('settings.general.cancelDownload') }}</button>
           </div>
-          <p v-else-if="updateStatus.stage === 'installing'" class="update-msg ok">🔧 正在启动安装程序…</p>
+          <p v-else-if="updateStatus.stage === 'installing'" class="update-msg ok">🔧 {{ $t('settings.general.installing') }}</p>
           <div v-else-if="updateStatus.stage === 'downloaded'" class="update-available">
-            <p class="update-msg ok">✅ 已下载 {{ updateStatus.fileName }}</p>
-            <button class="primary-btn" @click="doInstall(updateStatus.filePath)">📦 立即安装</button>
-            <button class="secondary-btn" style="margin-left:8px" @click="doRedownload">🔄 重新下载</button>
+            <p class="update-msg ok">✅ {{ $t('settings.general.downloaded') }} {{ updateStatus.fileName }}</p>
+            <button class="primary-btn" @click="doInstall(updateStatus.filePath)">📦 {{ $t('settings.general.installNow') }}</button>
+            <button class="secondary-btn" style="margin-left:8px" @click="doRedownload">🔄 {{ $t('settings.general.reDownload') }}</button>
           </div>
-          <p v-else-if="updateStatus.stage === 'cancelled'" class="update-msg" style="color:#f57c00">⚠️ 下载已取消</p>
+          <p v-else-if="updateStatus.stage === 'cancelled'" class="update-msg" style="color:#f57c00">⚠️ {{ $t('settings.general.downloadCancelled') }}</p>
         </div>
       </div>
     </div>
@@ -193,19 +193,19 @@
     <div v-show="activeTab === 'skills'">
 
       <div class="settings-section">
-        <h3 class="section-label">🧩 技能管理</h3>
+        <h3 class="section-label">🧩 {{ $t('settings.skills.skillManagement') }}</h3>
 
         <div v-if="userSkills.length" class="skill-list">
           <div v-for="(skill, i) in userSkills" :key="i" class="skill-item">
             <template v-if="editingIdx === i">
               <div class="skill-edit-form">
-                <input v-model="editForm.name" class="form-input" placeholder="名称" style="margin-bottom:4px" />
-                <input v-model="editForm.desc" class="form-input" placeholder="描述" style="margin-bottom:4px" />
-                <input v-model="editForm.kws" class="form-input" placeholder="关键词（逗号分隔）" style="margin-bottom:4px" />
-                <textarea v-model="editForm.tpl" class="form-input" placeholder="模板（可选）" rows="3" style="margin-bottom:6px;resize:vertical" />
+                <input v-model="editForm.name" class="form-input" :placeholder="$t('settings.skills.skillNamePlaceholder')" style="margin-bottom:4px" />
+                <input v-model="editForm.desc" class="form-input" :placeholder="$t('settings.skills.skillDescPlaceholder')" style="margin-bottom:4px" />
+                <input v-model="editForm.kws" class="form-input" :placeholder="$t('settings.skills.skillKwsPlaceholder')" style="margin-bottom:4px" />
+                <textarea v-model="editForm.tpl" class="form-input" :placeholder="$t('settings.skills.skillTplPlaceholder')" rows="3" style="margin-bottom:6px;resize:vertical" />
                 <div class="action-row">
-                  <button class="sib save" @click="saveEdit(i)">💾 保存</button>
-                  <button class="sx" @click="editingIdx = -1">取消</button>
+                  <button class="sib save" @click="saveEdit(i)">💾 {{ $t('settings.skills.save') }}</button>
+                  <button class="sx" @click="editingIdx = -1">{{ $t('settings.skills.cancel') }}</button>
                 </div>
               </div>
             </template>
@@ -217,35 +217,35 @@
             </template>
           </div>
         </div>
-        <p v-else class="skill-empty">暂无自定义 Skill</p>
+        <p v-else class="skill-empty">{{ $t('settings.skills.noSkills') }}</p>
 
-        <button class="secondary-btn" style="margin-top:4px" @click="importSkillFolder">📁 导入 Skill 文件夹</button>
+        <button class="secondary-btn" style="margin-top:4px" @click="importSkillFolder">📁 {{ $t('settings.skills.importFolder') }}</button>
       </div>
 
       <div class="settings-section">
-        <h3 class="section-label">🤖 自定义 Agent</h3>
+        <h3 class="section-label">🤖 {{ $t('settings.skills.customAgent') }}</h3>
 
         <div v-if="agentList.length" class="skill-list">
           <div v-for="(a, i) in agentList" :key="a.id" class="skill-item" :class="{ active: a.id === settings.active_agent_id }">
             <template v-if="agentEditingIdx === i">
               <div class="skill-edit-form">
-                <input v-model="agentForm.name" class="form-input" placeholder="显示名称" style="margin-bottom:4px" />
-                <input v-model="agentForm.id" class="form-input" placeholder="唯一 ID（英文）" style="margin-bottom:4px" />
+                <input v-model="agentForm.name" class="form-input" :placeholder="$t('settings.skills.agentNamePlaceholder')" style="margin-bottom:4px" />
+                <input v-model="agentForm.id" class="form-input" :placeholder="$t('settings.skills.agentIdPlaceholder')" style="margin-bottom:4px" />
                 <select v-model="agentForm.providerId" class="form-input" style="margin-bottom:4px">
-                  <option value="">-- 选择供应商 --</option>
+                  <option value="">{{ $t('settings.skills.agentProviderDefault') }}</option>
                   <option v-for="p in providerList" :key="p.id" :value="p.id">{{ p.name }}</option>
                 </select>
                 <select v-model="agentForm.model" class="form-input" style="margin-bottom:4px">
-                  <option value="">-- 选择模型 --</option>
+                  <option value="">{{ $t('settings.skills.agentModelDefault') }}</option>
                   <option v-for="m in availableModels" :key="m" :value="m">{{ m }}</option>
                 </select>
                 <select v-model="agentForm.reasoning_effort" class="form-input" style="margin-bottom:4px">
-                  <option :value="undefined">-- 思考努力程度（默认） --</option>
-                  <option value="low">低</option>
-                  <option value="medium">中（均衡）</option>
-                  <option value="high">高（深入）</option>
-                  <option value="xhigh">极高</option>
-                  <option value="max">最强</option>
+                  <option :value="undefined">{{ $t('settings.skills.agentReasoningDefault') }}</option>
+                  <option value="low">{{ $t('settings.general.reasoningLow') }}</option>
+                  <option value="medium">{{ $t('settings.general.reasoningMedium') }}</option>
+                  <option value="high">{{ $t('settings.general.reasoningHigh') }}</option>
+                  <option value="xhigh">{{ $t('settings.general.reasoningXhigh') }}</option>
+                  <option value="max">{{ $t('settings.general.reasoningMax') }}</option>
                 </select>
                 <div class="skill-checkboxes" style="margin-bottom:4px">
                   <label class="skill-cb-label" v-for="s in userSkills" :key="s.name">
@@ -253,26 +253,26 @@
                     {{ s.name }}
                   </label>
                 </div>
-                <textarea v-model="agentForm.systemPrompt" class="form-input" placeholder="自定义 System Prompt（可选）" rows="3" style="margin-bottom:6px;resize:vertical" />
+                <textarea v-model="agentForm.systemPrompt" class="form-input" :placeholder="$t('settings.skills.agentSystemPromptPlaceholder')" rows="3" style="margin-bottom:6px;resize:vertical" />
                 <div class="action-row">
-                  <button class="sib save" @click="saveAgentEdit(i)">💾 保存</button>
-                  <button class="sx" @click="agentEditingIdx = -1">取消</button>
+                  <button class="sib save" @click="saveAgentEdit(i)">💾 {{ $t('settings.skills.save') }}</button>
+                  <button class="sx" @click="agentEditingIdx = -1">{{ $t('settings.skills.cancel') }}</button>
                 </div>
               </div>
             </template>
             <template v-else>
               <span class="sn">{{ a.name }}</span>
               <span class="sd">{{ getAgentProviderName(a) }} · {{ a.model }}{{ a.id === settings.active_agent_id ? ' ✅' : '' }}</span>
-              <button v-if="a.id !== settings.active_agent_id" class="sib" @click="activateAgent(a.id)">启用</button>
+              <button v-if="a.id !== settings.active_agent_id" class="sib" @click="activateAgent(a.id)">{{ $t('settings.skills.activate') }}</button>
               <button class="sib" @click="startAgentEdit(i)">✏️</button>
               <button class="sx" @click="removeAgent(i)">✕</button>
             </template>
           </div>
         </div>
-        <p v-else class="skill-empty">暂无自定义 Agent（将使用默认 API 配置）</p>
+        <p v-else class="skill-empty">{{ $t('settings.skills.noAgents') }}</p>
 
         <button class="secondary-btn" style="margin-top:4px" @click="addAgentDialog">
-          ➕ 添加 Agent
+          ➕ {{ $t('settings.skills.addAgent') }}
         </button>
       </div>
     </div>
@@ -283,42 +283,43 @@
     <div v-show="activeTab === 'data'">
 
       <div class="settings-section">
-        <h3 class="section-label">📦 服务导入</h3>
+        <h3 class="section-label">📦 {{ $t('settings.data.serviceImport') }}</h3>
         <div class="action-row" style="margin-bottom:8px">
-          <button class="secondary-btn" @click="scanForServices">🔍 扫描存储目录</button>
-          <button class="secondary-btn" @click="addSvcFile">📄 选择文件</button>
+          <button class="secondary-btn" @click="scanForServices">🔍 {{ $t('settings.data.scanStorage') }}</button>
+          <button class="secondary-btn" @click="addSvcFile">📄 {{ $t('settings.data.selectFile') }}</button>
         </div>
         <div v-if="pending.length" class="sl" style="margin-bottom:8px">
           <div class="si" v-for="(svc,i) in pending" :key="i">
             <span class="sn">{{ svc.name }}</span>
             <span class="sd">{{ svc.desc }}</span>
-            <button class="sib" @click="installSvc(i)">安装</button>
+            <button class="sib" @click="installSvc(i)">{{ $t('settings.data.install') }}</button>
             <button class="sx" @click="pending.splice(i,1)">✕</button>
           </div>
         </div>
       </div>
 
       <div class="settings-section">
-        <h3 class="section-label">💾 存储</h3>
+        <h3 class="section-label">💾 {{ $t('settings.data.storage') }}</h3>
         <div class="action-row" style="flex-wrap:wrap;gap:8px">
-          <button class="secondary-btn" @click="exportData">📥 导出配置</button>
+          <button class="secondary-btn" @click="exportData">📥 {{ $t('settings.data.exportConfig') }}</button>
           <button
             class="danger-btn"
             :disabled="deletingSessions"
             @click="deleteAllSessions"
-          >{{ deletingSessions ? '删除中…' : '🗑 删除聊天记录' }}</button>
+          >{{ deletingSessions ? $t('settings.data.deleting') : '🗑 ' + $t('settings.data.deleteSessions') }}</button>
         </div>
-        <p class="toggle-desc" style="margin-top:8px">删除聊天记录不影响服务和记忆，清除所有数据不可恢复</p>
-        <button class="danger-btn" style="margin-top:12px;width:100%" @click="clearAllData">⚠️ 清除所有数据</button>
+        <p class="toggle-desc" style="margin-top:8px">{{ $t('settings.data.deleteSessionsHint') }}</p>
+        <button class="danger-btn" style="margin-top:12px;width:100%" @click="clearAllData">⚠️ {{ $t('settings.data.clearAllData') }}</button>
       </div>
     </div>
 
-    <div class="saved-hint" v-if="showSaved">✅ 已保存</div>
+    <div class="saved-hint" v-if="showSaved">✅ {{ $t('settings.confirm.saved') }}</div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { settings } from '../config/config'
 import { storageClear, storageKeys, storageGet, listServiceDirs, readServiceFile } from '../config/storage'
 import { registerService, storeServicePackage, getServicePackage } from '../host/registry'
@@ -331,13 +332,15 @@ import type { AiProvider, CustomAgent } from '../types/service'
 import { getCurrentVersion, checkForUpdate, downloadUpdate, installUpdate, getCachedUpdate, type UpdateStatus, type UpdateInfo } from '../config/updater'
 import { listSessions, deleteSession } from '../ai/session'
 
+const { t } = useI18n()
+
 const appVersion = ref('...')
 const activeTab = ref('general')
-const tabs = [
-  { key: 'general', label: '通用' },
-  { key: 'skills', label: '技能 & Agent' },
-  { key: 'data', label: '数据' },
-]
+const tabs = computed(() => [
+  { key: 'general', label: t('settings.tabs.general') },
+  { key: 'skills', label: t('settings.tabs.skills') },
+  { key: 'data', label: t('settings.tabs.data') },
+])
 const updateStatus = ref<UpdateStatus>({ stage: 'idle' })
 const showKey = ref(false)
 const showSaved = ref(false); const pending = ref<any[]>([])
@@ -388,24 +391,24 @@ function flashSaved() {
 }
 
 async function clearAllData() {
-  if (confirm('确定要清除所有数据吗？这将删除配置、记忆和已安装的服务。此操作不可撤销！')) {
+  if (confirm(t('settings.confirm.clearAllData'))) {
     await storageClear()
     location.reload()
   }
 }
 
 async function deleteAllSessions() {
-  if (!confirm('确定要删除所有聊天记录吗？此操作不可撤销！')) return
+  if (!confirm(t('settings.confirm.deleteSessions'))) return
   deletingSessions.value = true
   try {
     const sessions = await listSessions()
     for (const s of sessions) {
       await deleteSession(s.id)
     }
-    console.log('[Settings] 已删除所有会话记录 —', sessions.length, '个')
+    console.log('[Settings]', t('settings.dialect.deletedAllSessions'), '—', sessions.length, '个')
     flashSaved()
   } catch (e: any) {
-    alert('删除失败: ' + (e.message || String(e)))
+    alert((e.message || String(e)))
   } finally {
     deletingSessions.value = false
   }
@@ -426,9 +429,9 @@ async function exportData() {
 
 async function addSvcFile() { const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".json"; inp.multiple = true; inp.style.display = "none"; document.body.appendChild(inp); inp.onchange = async () => { document.body.removeChild(inp); const svcs: any[] = []; for (const f of Array.from(inp.files || [])) { try { const t = await f.text(); const s = JSON.parse(t); if (s.manifest && s.files && Array.isArray(s.files)) svcs.push({ name: s.manifest.name || f.name, id: s.manifest.id || f.name, desc: s.manifest.description || "", data: s as ServicePackage }) } catch {} } if (svcs.length) { pending.value = [...pending.value, ...svcs]; flashSaved() } }; inp.click() }
 
-async function installSvc(idx: number) { const s: any = pending.value[idx]; if (!s) return; try { const pkg: ServicePackage = s.data; const m: any = { id: pkg.manifest.id || ("user." + s.id), name: pkg.manifest.name || s.name, version: pkg.manifest.version || "1.0.0", description: pkg.manifest.description || "", permissions: pkg.manifest.permissions || [] }; await registerService(m, "ai-generated"); await storeServicePackage(m.id, pkg); pending.value.splice(idx, 1); flashSaved() } catch (e: any) { console.error(e); alert("安装失败: " + e.message) } }
+async function installSvc(idx: number) { const s: any = pending.value[idx]; if (!s) return; try { const pkg: ServicePackage = s.data; const m: any = { id: pkg.manifest.id || ("user." + s.id), name: pkg.manifest.name || s.name, version: pkg.manifest.version || "1.0.0", description: pkg.manifest.description || "", permissions: pkg.manifest.permissions || [] }; await registerService(m, "ai-generated"); await storeServicePackage(m.id, pkg); pending.value.splice(idx, 1); flashSaved() } catch (e: any) { console.error(e); alert(t('settings.confirm.installFailed') + ": " + e.message) } }
 
-async function scanForServices() { let count = 0; const dirs = await listServiceDirs(); console.log("[Scan] service dirs:", dirs); for (const dir of dirs) { try { const raw = await readServiceFile(dir, 'manifest.json'); if (!raw) continue; const manifest: ServiceManifest = JSON.parse(raw); const pkg = await getServicePackage(dir); if (!pkg) continue; await registerService(manifest, 'ai-generated'); await storeServicePackage(manifest.id, pkg); console.log("[Scan] installed:", manifest.name); count++; } catch (e) { console.log("[Scan] skip:", dir, e) } } if (count > 0) { alert("已安装 " + count + " 个服务"); location.reload() } else { alert("未发现可安装的服务") } }
+async function scanForServices() { let count = 0; const dirs = await listServiceDirs(); console.log("[Scan] service dirs:", dirs); for (const dir of dirs) { try { const raw = await readServiceFile(dir, 'manifest.json'); if (!raw) continue; const manifest: ServiceManifest = JSON.parse(raw); const pkg = await getServicePackage(dir); if (!pkg) continue; await registerService(manifest, 'ai-generated'); await storeServicePackage(manifest.id, pkg); console.log("[Scan] installed:", manifest.name); count++; } catch (e) { console.log("[Scan] skip:", dir, e) } } if (count > 0) { alert(t('settings.dialect.installedNServices', { n: count })); location.reload() } else { alert(t('settings.dialect.noServicesFound')) } }
 
 // --- Skill management functions ---
 async function refreshSkills() { userSkills.value = await loadUserSkills() }
@@ -442,7 +445,7 @@ async function importSkillFolder() {
     await refreshSkills()
     flashSaved()
   } catch (e: any) {
-    alert('导入失败: ' + e.message)
+    alert(t('settings.confirm.importFailed') + ': ' + e.message)
   }
 }
 
@@ -452,7 +455,7 @@ function startEdit(idx: number) {
 }
 async function saveEdit(idx: number) {
   const f = editForm.value; const oldName = userSkills.value[idx].name
-  if (!f.name.trim() || !f.desc.trim()) { alert('名称和描述不能为空'); return }
+  if (!f.name.trim() || !f.desc.trim()) { alert(t('settings.confirm.nameDescRequired')); return }
   try {
     await updateUserSkill(oldName, { name: f.name.trim(), description: f.desc.trim(), keywords: f.kws.split(/[,，]/).map(k => k.trim()).filter(Boolean), template: f.tpl })
     await refreshSkills(); editingIdx.value = -1; flashSaved()
@@ -460,7 +463,7 @@ async function saveEdit(idx: number) {
 }
 async function removeSkill(idx: number) {
   const s = userSkills.value[idx]
-  if (!confirm(`确定要删除 Skill "${s.name}" 吗？`)) return
+  if (!confirm(t('settings.confirm.deleteSkill', { name: s.name }))) return
   try {
     await deleteUserSkill(s.name)
     await refreshSkills(); flashSaved()
@@ -475,7 +478,7 @@ const providerForm = ref({ name: '', id: '', baseUrl: '', apiKey: '', modelsStr:
 
 function addProviderDialog() {
   providerForm.value = { name: '', id: '', baseUrl: '', apiKey: '', modelsStr: '' }
-  providerList.push({ id: `provider-${Date.now()}`, name: '新供应商', baseUrl: '', apiKey: '', models: [] })
+  providerList.push({ id: `provider-${Date.now()}`, name: t('settings.skills.newProviderName'), baseUrl: '', apiKey: '', models: [] })
   providerEditingIdx.value = providerList.length - 1
 }
 
@@ -487,7 +490,7 @@ function startProviderEdit(idx: number) {
 
 function saveProviderEdit(idx: number) {
   const f = providerForm.value
-  if (!f.name.trim() || !f.id.trim() || !f.baseUrl.trim()) { alert('名称、ID 和 Base URL 不能为空'); return }
+  if (!f.name.trim() || !f.id.trim() || !f.baseUrl.trim()) { alert(t('settings.confirm.providerFieldsRequired')); return }
   const patch: Partial<AiProvider> = {
     name: f.name.trim(),
     id: f.id.trim(),
@@ -509,7 +512,7 @@ function saveProviderEdit(idx: number) {
 
 function removeProvider(idx: number) {
   const p = providerList[idx]
-  if (!confirm(`确定要删除供应商 "${p.name}" 吗？`)) return
+  if (!confirm(t('settings.confirm.deleteProvider', { name: p.name }))) return
   try {
     deleteProvider(p.id)
     flashSaved()
@@ -554,7 +557,7 @@ const globalModelOptions = computed(() => {
 
 function addAgentDialog() {
   agentForm.value = { name: '', id: '', providerId: providerList[0]?.id || '', model: '', selectedSkills: [], systemPrompt: '', reasoning_effort: '' }
-  agentList.push({ id: `agent-${Date.now()}`, name: '新 Agent', providerId: providerList[0]?.id || '', model: '', skills: [] })
+  agentList.push({ id: `agent-${Date.now()}`, name: t('settings.skills.newAgentName'), providerId: providerList[0]?.id || '', model: '', skills: [] })
   agentEditingIdx.value = agentList.length - 1
 }
 
@@ -566,7 +569,7 @@ function startAgentEdit(idx: number) {
 
 function saveAgentEdit(idx: number) {
   const f = agentForm.value
-  if (!f.name.trim() || !f.id.trim() || !f.providerId || !f.model.trim()) { alert('名称、ID、供应商和模型不能为空'); return }
+  if (!f.name.trim() || !f.id.trim() || !f.providerId || !f.model.trim()) { alert(t('settings.confirm.agentFieldsRequired')); return }
   const patch: Partial<CustomAgent> = {
     name: f.name.trim(),
     id: f.id.trim(),
@@ -590,7 +593,7 @@ function saveAgentEdit(idx: number) {
 
 function removeAgent(idx: number) {
   const a = agentList[idx]
-  if (!confirm(`确定要删除 Agent "${a.name}" 吗？`)) return
+  if (!confirm(t('settings.confirm.deleteAgent', { name: a.name }))) return
   try {
     deleteCustomAgent(a.id)
     flashSaved()
@@ -644,13 +647,13 @@ async function doCheckUpdate() {
     }
   } catch (e: any) {
     console.error('[Settings] 更新检查失败:', e)
-    updateStatus.value = { stage: 'error', message: e.message || '检查更新失败' }
+    updateStatus.value = { stage: 'error', message: e.message || t('settings.general.checkFailed') }
   }
 }
 
 async function doDownload(info: UpdateInfo) {
   if (!info.downloadUrl) {
-    updateStatus.value = { stage: 'error', message: '当前平台没有匹配的安装包' }
+    updateStatus.value = { stage: 'error', message: t('settings.general.noPlatformAsset') }
     return
   }
 
@@ -691,7 +694,7 @@ async function doDownload(info: UpdateInfo) {
     if (e.name === 'AbortError') {
       updateStatus.value = { stage: 'cancelled' }
     } else {
-      updateStatus.value = { stage: 'error', message: e.message || String(e) || '下载失败' }
+      updateStatus.value = { stage: 'error', message: e.message || String(e) || t('settings.general.downloadFailed') }
     }
   } finally {
     downloadAbort = null
@@ -704,7 +707,7 @@ async function doInstall(filePath: string) {
     await installUpdate(filePath)
     updateStatus.value = { stage: 'downloaded', filePath, fileName: filePath.split('/').pop() || filePath }
   } catch (e: any) {
-    updateStatus.value = { stage: 'error', message: e.message || String(e) || '安装启动失败' }
+    updateStatus.value = { stage: 'error', message: e.message || String(e) || t('settings.general.installFailed') }
   }
 }
 
@@ -719,7 +722,7 @@ async function doRedownload() {
       updateStatus.value = { stage: 'upToDate', currentVersion: info.currentVersion, latestVersion: info.latestVersion }
     }
   } catch (e: any) {
-    updateStatus.value = { stage: 'error', message: e.message || '检查更新失败' }
+    updateStatus.value = { stage: 'error', message: e.message || t('settings.general.checkFailed') }
   }
 }
 

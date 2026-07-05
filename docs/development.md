@@ -91,6 +91,12 @@ src/
 ├── config/config.ts     # 统一配置（amiba_settings，reactive + 自动持久化）
 ├── config/storage.ts    # 存储抽象层
 ├── config/updater.ts    # 更新检查 + Rust reqwest 下载
+├── i18n/                 # 多语言 (zh-CN / en)
+│   ├── index.ts          # createI18n + settings.language 同步
+│   ├── types.ts          # LocalesSchema 类型
+│   └── locales/
+│       ├── zh-CN.ts      # 中文语言包
+│       └── en.ts         # 英文语言包
 ├── ai/
 │   ├── agent.ts         # LLM 流式对话 + 多工具循环
 │   ├── system-prompt.ts # System Prompt 两层组装器（stable/volatile）
@@ -177,6 +183,38 @@ src-tauri/
 npm test             # 单元测试（Vitest）
 npm run test:e2e     # 端到端测试（Playwright）
 ```
+
+## 多语言 (i18n)
+
+### 使用方式
+
+**模板中**使用 `$t()` 函数：
+
+```vue
+<template>
+  <p>{{ $t('app.title') }}</p>
+  <p>{{ $t('chat.stats.roundsLeft', { n: 5 }) }}</p>
+</template>
+```
+
+**脚本中**使用 `useI18n()` composable：
+
+```ts
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
+alert(t('settings.confirm.deleteProvider', { name: 'example' }))
+```
+
+### 添加新文本
+
+1. 在 `src/i18n/types.ts` 的 `LocalesSchema` 中添加新 key
+2. 在 `src/i18n/locales/zh-CN.ts` 中添加中文值
+3. 在 `src/i18n/locales/en.ts` 中添加英文值
+4. 两个文件的结构和 key 必须一致
+
+### 语言切换
+
+`settings.language` (`zh-CN` / `en`) 变更会自动同步到 `i18n.global.locale`，无需手动干预。`syncI18nWithSettings()` 在 `main.ts` bootstrap 阶段通过 `watch()` 监听。
 
 ## 命名规范
 

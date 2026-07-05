@@ -5,11 +5,11 @@
   <div class="service-container">
     <div v-if="loading" class="loading-state">
       <div class="spinner"></div>
-      <p>正在加载服务...</p>
+      <p>{{ $t('host.loading') }}</p>
     </div>
     <div v-else-if="error" class="error-state">
       <p>❌ {{ error }}</p>
-      <button class="back-btn" @click="goBack">返回</button>
+      <button class="back-btn" @click="goBack">{{ $t('host.back') }}</button>
     </div>
     <iframe
       v-else

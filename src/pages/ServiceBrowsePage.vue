@@ -4,24 +4,24 @@
 <template>
   <div class="browse-page">
     <div class="header">
-      <h2>📦 服务</h2>
+      <h2>📦 {{ $t('services.title') }}</h2>
       <div class="header-btns">
-        <button class="import-btn" @click="importFromFolder">📂 导入</button>
-        <button class="new-btn" @click="$router.push('/')">💬 新建</button>
+        <button class="import-btn" @click="importFromFolder">📂 {{ $t('services.importFolder') }}</button>
+        <button class="new-btn" @click="$router.push('/')">💬 {{ $t('services.createNew') }}</button>
       </div>
     </div>
 
     <!-- User services -->
     <div class="section">
       <h3 class="section-title">
-        用户服务
+        {{ $t('services.userServices') }}
         <span class="count">{{ userServices.length }}</span>
       </h3>
 
       <div v-if="userServices.length === 0" class="empty">
-        <p>还没有安装用户服务</p>
+        <p>{{ $t('services.noUserServices') }}</p>
         <button class="cta-btn" @click="$router.push('/')">
-          💬 跟 AI 对话生成
+          💬 {{ $t('services.ctaGenerate') }}
         </button>
       </div>
 
@@ -35,7 +35,7 @@
         >
           <div class="card-icon">{{ svcIcon(svc) }}</div>
           <div class="card-name">{{ svc.manifest.name }}</div>
-          <div class="card-desc">{{ svc.manifest.description || '暂无描述' }}</div>
+          <div class="card-desc">{{ svc.manifest.description || $t('services.noDescription') }}</div>
           <div class="card-meta">{{ svc.manifest.id }} · v{{ svc.manifest.version }}</div>
           <div class="card-actions" @click.stop>
             <label class="toggle">
@@ -54,7 +54,7 @@
 
     <!-- System services -->
     <div class="section">
-      <h3 class="section-title">系统服务</h3>
+      <h3 class="section-title">{{ $t('services.systemServices') }}</h3>
       <div class="service-list">
         <div
           class="service-item builtin"
@@ -67,7 +67,7 @@
             <span class="svc-name">{{ svc.manifest.name }}</span>
             <span class="svc-desc">{{ svc.manifest.description }}</span>
           </div>
-          <span class="svc-badge system">内置</span>
+          <span class="svc-badge system">{{ $t('services.builtin') }}</span>
         </div>
       </div>
     </div>
@@ -78,11 +78,11 @@
         <div class="demo-info">
           <span class="demo-icon">🎁</span>
           <div>
-            <strong>Hello World 示例</strong>
-            <p>快速安装一个演示服务体验功能</p>
+            <strong>{{ $t('services.demoTitle') }}</strong>
+            <p>{{ $t('services.demoDesc') }}</p>
           </div>
         </div>
-        <button class="install-btn" @click="installDemo">安装</button>
+        <button class="install-btn" @click="installDemo">{{ $t('services.install') }}</button>
       </div>
     </div>
   </div>
@@ -91,6 +91,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import {
   BUILTIN_SERVICES,
   getUserServices,
@@ -105,6 +106,7 @@ import { DEMO_PACKAGE } from './demo-package'
 import { readDirRecursive } from '../config/storage'
 
 const router = useRouter()
+const { t } = useI18n()
 
 const userServices = computed(() => getUserServices())
 
@@ -151,7 +153,7 @@ async function handleToggle(id: string, enabled: boolean) {
 }
 
 function deleteService(svc: ServiceEntry) {
-  if (confirm(`确定要删除 "${svc.manifest.name}" 吗？此操作不可撤销。`)) {
+  if (confirm(t('services.confirmDelete', { name: svc.manifest.name }))) {
     unregisterService(svc.manifest.id)
     removeServiceStorage(svc.manifest.id)
   }
@@ -180,7 +182,7 @@ async function installDemo() {
 async function importFromFolder() {
   try {
     const { open } = await import('@tauri-apps/plugin-dialog')
-    const dir = await open({ directory: true, multiple: false, title: '选择服务目录' })
+    const dir = await open({ directory: true, multiple: false, title: t('services.dialogTitle') })
     if (!dir || typeof dir !== 'string') return
 
     const { readTextFile } = await import('@tauri-apps/plugin-fs')
@@ -188,13 +190,13 @@ async function importFromFolder() {
     // Read manifest.json
     const manifestRaw = await readTextFile(dir + '/manifest.json').catch(() => null)
     if (!manifestRaw) {
-      alert('所选目录中没有 manifest.json')
+      alert(t('services.noManifestJson'))
       return
     }
 
     const manifest = JSON.parse(manifestRaw)
     if (!manifest.id || !manifest.name) {
-      alert('manifest.json 格式无效：缺少 id 或 name')
+      alert(t('services.invalidManifest'))
       return
     }
 
@@ -202,17 +204,17 @@ async function importFromFolder() {
     const files = await readDirRecursive(dir)
 
     if (!files.some(f => f.path === 'index.html')) {
-      alert('服务包必须包含 index.html')
+      alert(t('services.missingIndexHtml'))
       return
     }
 
     const pkg: ServicePackage = { manifest, files }
     await registerService(manifest, 'downloaded')
     await storeServicePackage(manifest.id, pkg)
-    alert(`服务 "${manifest.name}" 已导入！`)
+    alert(t('services.imported', { name: manifest.name }))
   } catch (e: any) {
     console.error('[Import] 导入失败:', e)
-    alert('导入失败: ' + (e.message || e))
+    alert(t('services.importFailed') + ': ' + (e.message || e))
   }
 }
 </script>

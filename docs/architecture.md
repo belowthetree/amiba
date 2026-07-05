@@ -123,8 +123,14 @@ amiba/
 │   │   ├── config.ts        # 统一配置（amiba_settings，合并所有普通设置项）
 │   │   ├── storage.ts       # 存储抽象
 │   │   └── updater.ts       # 更新检查 + Rust reqwest 下载
-│   └── types/
-│       └── service.ts       # 服务类型定义
+│   ├── types/
+│   │   └── service.ts       # 服务类型定义
+│   ├── i18n/                 # 多语言 (vue-i18n)
+│   │   ├── index.ts          # createI18n + settings.language 同步
+│   │   ├── types.ts          # LocalesSchema 类型约束
+│   │   └── locales/
+│   │       ├── zh-CN.ts      # 中文语言包
+│   │       └── en.ts         # 英文语言包
 ├── public/
 │   └── catalog/
 │       └── builtin_catalog.yaml

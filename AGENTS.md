@@ -31,6 +31,7 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 | **Updater** | `src/config/updater.ts` | 纯前端更新检查：调 GitHub Releases API，semver 比较，Rust reqwest 下载（绕过浏览器 CORS），全平台统一 |
 | **Pages** | `src/pages/` | 6 routes: Chat, Home, Memory, MyServices, ServiceBrowse, Settings |
 | **Config** | `src/config/` | Reactive settings persisted via Tauri FS plugin (`config.ts`), storage abstraction (`storage.ts`: auto-mkdir + pretty-print JSON), session-db wrapper (`session-db.ts`: Tauri invoke → Rust SQLite FTS5) |
+| **i18n** | `src/i18n/` | vue-i18n based internationalization: `locales/zh-CN.ts` + `locales/en.ts`, type-safe via `LocalesSchema`, synced with `settings.language` via `watch()` |
 | **Router** | `src/router/` | `createWebHistory` with lazy-loaded page components |
 | **Types** | `src/types/` | `ServiceManifest`, `ServicePackage`, `ServiceRequest/Response`, `AppSettings`, `MemoryToolParams`, etc. |
 
@@ -97,6 +98,7 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 - **State:** Reactive config via `reactive()` + `watch()` with debounced persistence; Pinia stores for page-level state.
 - **AI:** Multi-tool calling via ToolRegistry + toolsets. System prompt: stable layer (identity+rules+skills, cached) + volatile layer (memory+time+nudge, rebuilt each call). Personality via soul.ts (souls/*.md files, `soul_save` tool). Session: multi-session v2 (create/switch/delete, per-session `sessions/<id>.json`). Memory: real-time cache via memory-store.ts (MEMORY.md/USER.md, §-delimited). Skills: SKILL.md with /skill-name commands; skill evolution via skill-usage telemetry + skill-curator lifecycle + optional LLM consolidation. Requirements: per-service REQUIREMENT.md + global summary, 10-turn nudge triggers both memory and requirement checks. Onboarding: first launch → soul_save tool creates personality.
 - **JSBridge:** iframe `postMessage` protocol — `ServiceRequest` (type: api, module, method, params, requestId) → `ServiceResponse` (type: api-response, requestId, result/error). Permission-checked by module name.
+- **i18n:** `vue-i18n` with Composition API (`useI18n()`). All user-facing strings use `$t('key.path')` in templates or `t('key.path')` in scripts. Locale files in `src/i18n/locales/` with `LocalesSchema` type constraint. Language switching via `settings.language` (reactive, synced to `i18n.global.locale` via `syncI18nWithSettings()` in `main.ts` bootstrap). New translatable strings must be added to both `zh-CN.ts` and `en.ts` simultaneously under matching key paths.
 - **流程日志规范**：
   - **每个模块必须输出关键流程日志**——状态变更（启动/停止）、事件收发、连接建立/断开等，便于问题定位。
   - Rust: `eprintln!("[模块前缀] 日志内容")`，前缀规范命名（如 `[net-session]`、`[net-vis]`）。

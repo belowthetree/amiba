@@ -5,8 +5,8 @@
   <div class="app-shell">
     <!-- TopBar -->
     <header class="topbar">
-      <button class="nav-btn home-btn" @click="$router.push('/services')" title="服务浏览">📱</button>
-      <button class="nav-btn home-btn" @click="$router.push('/')" title="对话">
+      <button class="nav-btn home-btn" @click="$router.push('/services')" :title="$t('app.services')">📱</button>
+      <button class="nav-btn home-btn" @click="$router.push('/')" :title="$t('app.title')">
         🏠
       </button>
 
@@ -14,7 +14,7 @@
         {{ currentTitle }}
       </h1>
 
-      <button class="nav-btn settings-btn" @click="$router.push('/settings')" title="设置">
+      <button class="nav-btn settings-btn" @click="$router.push('/settings')" :title="$t('app.settings')">
         ⚙️
       </button>
     </header>
@@ -36,21 +36,23 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import FloatingWidgetContainer from './host/floating-widget-container.vue'
 
+const { t } = useI18n()
 const route = useRoute()
 
 const routeTitles: Record<string, string> = {
-  chat: '变形虫',
-  home: '主界面',
-  settings: '设置',
-  memory: '记忆管理',
-  service: '服务',
+  chat: t('app.title'),
+  home: t('app.home'),
+  settings: t('app.settings'),
+  memory: t('app.memory'),
+  service: t('app.service'),
 }
 
 const currentTitle = computed(() => {
   const name = route.name as string
-  return routeTitles[name] || '变形虫'
+  return routeTitles[name] || t('app.title')
 })
 </script>
 
@@ -179,6 +181,13 @@ button {
 .page-leave-to {
   opacity: 0;
   transform: translateX(-20px);
+}
+
+/* === 响应式：平板 === */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .topbar {
+    padding: max(var(--safe-top), 8px) 12px 0 12px;
+  }
 }
 
 /* === 响应式：移动端全局 === */

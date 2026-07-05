@@ -3,8 +3,8 @@
 ============================================================ -->
 <template>
   <div class="memory-page">
-    <h2 class="page-title">🧠 记忆管理</h2>
-    <p class="subtitle">AI 自动维护的持久记忆。条目用 § 分隔。</p>
+    <h2 class="page-title">🧠 {{ $t('memory.title') }}</h2>
+    <p class="subtitle">{{ $t('memory.subtitle') }}</p>
 
     <div class="tabs">
       <button
@@ -27,25 +27,25 @@
       <textarea
         v-model="editingContent"
         class="memory-editor"
-        :placeholder="activeTab === 'memory' ? 'AI 的笔记（MEMORY.md）...' : '用户画像（USER.md）...'"
+        :placeholder="activeTab === 'memory' ? $t('memory.memoryPlaceholder') : $t('memory.userPlaceholder')"
         rows="12"
       ></textarea>
 
       <div class="editor-actions">
         <button class="action-btn primary" @click="saveMemory" :disabled="!dirty">
-          💾 保存
+          💾 {{ $t('memory.save') }}
         </button>
         <button class="action-btn" @click="reload" :disabled="!dirty">
-          ↩ 还原
+          ↩ {{ $t('memory.revert') }}
         </button>
         <button class="action-btn danger" @click="clearCurrent">
-          🗑 清空
+          🗑 {{ $t('memory.clear') }}
         </button>
       </div>
     </div>
 
     <div class="preview-section" v-if="entries.length > 0">
-      <h3>条目预览 ({{ entries.length }} 条)</h3>
+      <h3>{{ $t('memory.entriesPreview', { n: entries.length }) }}</h3>
       <div class="entry-list">
         <div
           class="entry-item"
@@ -59,13 +59,16 @@
       </div>
     </div>
 
-    <div class="saved-hint" v-if="showSaved">✅ 已保存</div>
+    <div class="saved-hint" v-if="showSaved">✅ {{ $t('memory.saved') }}</div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { memoryStore } from '../ai/memory-store'
+
+const { t } = useI18n()
 
 const activeTab = ref<'memory' | 'user'>('memory')
 const editingContent = ref('')
@@ -108,7 +111,8 @@ function reload() {
 }
 
 async function clearCurrent() {
-  if (confirm(`确定要清空 ${activeTab.value === 'memory' ? 'MEMORY.md' : 'USER.md'} 吗？`)) {
+  const name = activeTab.value === 'memory' ? 'MEMORY.md' : 'USER.md'
+  if (confirm(t('memory.confirmClear', { name }))) {
     editingContent.value = ''
     await memoryStore.setRaw(activeTab.value, '')
     savedContent.value = ''

@@ -4,12 +4,12 @@
 <template>
   <div class="home-page">
     <div class="welcome-card">
-      <h1 class="app-title">变形虫 Amiba</h1>
-      <p class="app-subtitle">AI 驱动的即时应用平台</p>
+      <h1 class="app-title">{{ $t('home.heading') }}</h1>
+      <p class="app-subtitle">{{ $t('home.subtitle') }}</p>
     </div>
 
     <div class="section">
-      <h2 class="section-title">系统功能</h2>
+      <h2 class="section-title">{{ $t('home.sysFeatures') }}</h2>
       <div class="grid">
         <div
           class="feature-card"
@@ -25,7 +25,7 @@
     </div>
 
     <div class="section" v-if="recentServices.length > 0">
-      <h2 class="section-title">最近使用</h2>
+      <h2 class="section-title">{{ $t('home.recentUse') }}</h2>
       <div class="recent-list">
         <div
           class="recent-item"
@@ -42,9 +42,9 @@
 
     <div class="section" v-else>
       <div class="empty-hint">
-        <p>还没有用户服务</p>
+        <p>{{ $t('home.noUserServices') }}</p>
         <button class="cta-btn" @click="$router.push('/')">
-          💬 跟 AI 对话生成一个
+          💬 {{ $t('home.ctaGenerate') }}
         </button>
       </div>
     </div>
@@ -53,13 +53,16 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { getUserServices } from '../host/registry'
 
+const { t } = useI18n()
+
 const builtinItems = [
-  { id: 'chat', name: 'AI 对话', icon: '💬', desc: '与 AI 助手对话，生成和管理服务', route: '/' },
-  { id: 'services', name: '服务管理', icon: '📦', desc: '管理已安装服务', route: '/services' },
-  { id: 'settings', name: '设置', icon: '⚙️', desc: 'API Key 与配置', route: '/settings' },
-  { id: 'memory', name: '记忆管理', icon: '🧠', desc: 'AI 记忆与画像', route: '/memory' },
+  { id: 'chat', name: t('home.chat.name'), icon: '💬', desc: t('home.chat.desc'), route: '/' },
+  { id: 'services', name: t('home.services.name'), icon: '📦', desc: t('home.services.desc'), route: '/services' },
+  { id: 'settings', name: t('home.settings.name'), icon: '⚙️', desc: t('home.settings.desc'), route: '/settings' },
+  { id: 'memory', name: t('home.memory.name'), icon: '🧠', desc: t('home.memory.desc'), route: '/memory' },
 ]
 
 const recentServices = computed(() => {

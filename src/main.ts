@@ -5,6 +5,7 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
+import { i18n, syncI18nWithSettings } from './i18n'
 import { initConfig, settings } from './config/config'
 import { initStorage } from './config/storage'
 import { initRegistry } from './host/registry'
@@ -55,9 +56,13 @@ async function bootstrap() {
     }
   })
 
+  // 同步 settings.language → i18n locale
+  syncI18nWithSettings()
+
   const app = createApp(App)
   const pinia = createPinia()
 
+  app.use(i18n)
   app.use(pinia)
   app.use(router)
 
