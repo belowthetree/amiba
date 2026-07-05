@@ -20,7 +20,7 @@
         >
           <div class="panel-header">
             <span class="panel-label">{{ state.config.label || state.config.id }}</span>
-            <button class="panel-close" @click.stop="collapse(id)" :title="$t('host.close')">✕</button>
+            <button class="panel-close" @click.stop="collapse(id)" :title="state.config.lifecycle === 'persistent' ? $t('host.close') : ''">✕</button>
           </div>
           <div class="panel-body">
             <iframe
@@ -34,15 +34,23 @@
       </transition>
 
       <!-- 图标按钮 -->
-      <button
-        class="widget-icon-btn"
-        :title="state.config.label || state.config.id"
-        @click="toggle(id)"
-        @mousedown.prevent="startDrag($event, id)"
-        @touchstart.prevent="startDrag($event, id)"
-      >
-        <span class="widget-icon">{{ state.config.icon }}</span>
-      </button>
+      <div class="widget-icon-wrap">
+        <button
+          class="widget-icon-btn"
+          :title="state.config.label || state.config.id"
+          @click="toggle(id)"
+          @mousedown.prevent="startDrag($event, id)"
+          @touchstart.prevent="startDrag($event, id)"
+        >
+          <span class="widget-icon">{{ state.config.icon }}</span>
+        </button>
+        <button
+          v-if="state.config.lifecycle === 'persistent'"
+          class="widget-icon-close"
+          @click.stop="closePersistentWidget(id)"
+          title="移除"
+        >✕</button>
+      </div>
     </div>
   </div>
 </template>
@@ -55,6 +63,7 @@ import {
   setCurrentRoute,
   setWidgetExpanded,
   updateWidgetPosition,
+  closePersistentWidget,
 } from './floating-widget-manager'
 
 const route = useRoute()
@@ -88,7 +97,14 @@ function toggle(id: string) {
 }
 
 function collapse(id: string) {
-  setWidgetExpanded(id, false)
+  const state = widgetStates[id]
+  if (!state) return
+  // persistent widget: 关闭按钮彻底移除
+  if (state.config.lifecycle === 'persistent') {
+    closePersistentWidget(id)
+  } else {
+    setWidgetExpanded(id, false)
+  }
 }
 
 // ---- 拖动 ----
@@ -188,6 +204,37 @@ onUnmounted(() => {
 
 .widget-icon {
   line-height: 1;
+}
+
+.widget-icon-wrap {
+  position: relative;
+}
+
+.widget-icon-close {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid #ddd;
+  background: #fff;
+  color: #999;
+  font-size: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  z-index: 1;
+}
+
+.widget-icon-close:hover {
+  background: #e53935;
+  color: #fff;
+  border-color: #e53935;
 }
 
 /* ---- 展开面板 ---- */

@@ -18,9 +18,11 @@ description: 引导 agent 在任务前后阅读/更新项目开发规范文档�
 | AI 对话/Agent/记忆 | `docs/memory.md` |
 | 服务生成/HTML 渲染 | `docs/ai-generation.md`、`docs/catalog.md` |
 | iframe 沙箱/JSBridge | `docs/jbridge.md` |
-| 服务注册/生命周期 | `docs/services.md` |
+| 服务注册/生命周期/归档 | `docs/services.md` |
+| 服务版本归档 | `docs/development.md`（服务版本归档 节）、`src/host/service-archive.ts` |
+| 局域网服务分享 | `docs/development.md`（局域网服务分享 节）、`src/host/service-share.ts` |
 | 整体架构/模块关系 | `docs/architecture.md` |
-| 开发环境/构建/命名 | `docs/development.md` |
+| 开发环境/构建/命名/多语言 | `docs/development.md` |
 
 如果同时涉及多个方面，先阅读最核心的 1-2 份文档，不要一次性全读。
 

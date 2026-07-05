@@ -259,6 +259,8 @@ Canvas 必须显式设置 width/height。示例：`example/chart-demo/`
 | **编辑** | `service_file_read` | 读取某个文件的完整内容 |
 | **编辑** | `service_file_edit` | 精确查找替换（**首选**，只改目标行） |
 | **编辑** | `service_file_write` | 覆盖式写入文件（仅大范围改动时用） |
+| **归档** | `service_archive` | 保存当前服务状态为版本快照（重大修改前务必归档） |
+| **回退** | `service_rollback` | 回退到之前的归档版本（未指定版本时回退到最新） |
 | **校验** | `service_validate` | 修改后校验代码合法性 |
 
 **推荐工作流：**
@@ -271,13 +273,32 @@ Canvas 必须显式设置 width/height。示例：`example/chart-demo/`
 
 ---
 
-## 12. 多页面服务
+## 12. 服务版本归档与回退
+
+**每次重大修改前务必先归档！** 在调用 `service_file_edit` 或 `service_file_write` 修改已安装服务的代码之前，先调用 `service_archive` 保存当前快照：
+
+```
+1. service_archive({ service_id: "user.xxx" })  → 保存快照
+2. service_file_edit / service_file_write         → 修改代码
+3. service_validate                                → 校验
+
+如果修改后出现问题：
+4. service_rollback({ service_id: "user.xxx" })   → 恢复到最新快照
+```
+
+`service_rollback` 不传 `version` 参数时自动选择最新归档版本。
+
+### 归档存储
+
+归档文件存储在 `services/{id}/.versions/v_{timestamp}/` 下，完整保留所有文件快照。`getServicePackage` 会自动跳过 `.versions/` 目录，不会把历史快照混入服务包。
+
+## 13. 多页面服务
 
 如需多个页面，在 `files` 中添加多个 `.html` 文件，页面间通过 `__amiba__.navigateTo('page2.html')` 跳转。
 
 ---
 
-## 13. 悬浮块（Widget）开发
+## 14. 悬浮块（Widget）开发
 
 当用户需求涉及「快捷入口」「悬浮按钮」「侧边栏小工具」「快速查看」「常驻显示」等场景时，在服务中附带悬浮块。
 
@@ -290,7 +311,7 @@ Canvas 必须显式设置 width/height。示例：`example/chart-demo/`
 
 ---
 
-## 14. 检查清单
+## 15. 检查清单
 
 - [ ] 已用 `service_list` 检查无重复服务
 - [ ] `service_create` 的 `id` 以 `"user."` 开头，无非法字符
@@ -306,3 +327,4 @@ Canvas 必须显式设置 width/height。示例：`example/chart-demo/`
 - [ ] 无外部依赖、无 fetch 外部 API
 - [ ] 代码语法正确、可直接运行
 - [ ] **已调用 `service_validate` 校验通过** ⭐
+- [ ] **重大修改前已调用 `service_archive` 归档当前版本**

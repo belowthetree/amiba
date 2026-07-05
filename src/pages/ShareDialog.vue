@@ -107,7 +107,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { peerList, startDiscovery } from '../host/network-bridge'
+import { peerList, startDiscovery, stopDiscovery } from '../host/network-bridge'
 import { getUserServices } from '../host/registry'
 import {
   sendService,
@@ -150,9 +150,18 @@ function close() {
     listening.value = false
     pendingReq.value = null
   }
+  stopDiscovery('lan').catch(() => {})
+  clearDiscoveryInterval()
   visible.value = false
   statusText.value = ''
   statusPercent.value = -1
+}
+
+function clearDiscoveryInterval() {
+  if (discoveryInterval) {
+    clearInterval(discoveryInterval)
+    discoveryInterval = null
+  }
 }
 
 async function doSend() {
@@ -240,7 +249,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   unsubShare?.()
-  if (discoveryInterval) clearInterval(discoveryInterval)
+  clearDiscoveryInterval()
+  stopDiscovery('lan').catch(() => {})
   if (listening.value) stopReceiving()
 })
 </script>

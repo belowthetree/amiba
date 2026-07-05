@@ -158,7 +158,7 @@ export async function getServicePackage(serviceId: string): Promise<ServicePacka
   // Read each file (skip manifest.json, tasks.json, and data/ directory)
   const files: ServiceFile[] = []
   for (const name of allFiles) {
-    if (name === 'manifest.json' || name === 'tasks.json' || name === 'data') continue
+    if (name === 'manifest.json' || name === 'tasks.json' || name === 'data' || name.startsWith('.versions')) continue
     const content = await readServiceFile(serviceId, name)
     if (content !== null) {
       files.push({ path: name, content })

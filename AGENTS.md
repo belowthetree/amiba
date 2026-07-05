@@ -26,10 +26,10 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 |--------|------|------|
 | **AI Core** | `src/ai/` | LLM agent (multi-tool loop), system prompt assembler (system-prompt.ts: stable/volatile split cache + nudge), personality system (soul.ts), session manager v2 (session.ts: multi-session with create/switch/delete), memory store (memory-store.ts: real-time cache + frozen snapshot + threat scanning + context fencing), skill system (skills.ts + skill-parser + skill-commands + skill-usage + skill-curator + skill-consolidation-prompt), requirement store (requirement-store.ts: per-service + global REQUIREMENT.md), service validator (service-validator.ts: storage API check, sandbox API check, permission consistency), document index (doc-index.ts: builtin + user doc search/read), service packager (packager.ts: inline multi-file package into single HTML), catalog |
 | **Tools** | `src/tools/` | ToolRegistry (deferred-queue), auto-discovery, 4 toolsets (core/service/docs), 25+ tool impls: memory, catalog_search, skill_view/list, skill_manage_*(5 tools), service_list/view/create, service_file_*(4 tools), service_validate, doc_list/read/search, soul_save, requirement_*(3 tools), session_search, web_fetch, web_browse |
-| **Host Runtime** | `src/host/` | iframe sandbox (`service-container.vue`), postMessage JSBridge (`bridge.ts`), service registry (`registry.ts`) |
+| **Host Runtime** | `src/host/` | iframe sandbox (`service-container.vue`), postMessage JSBridge (`bridge.ts`), service registry (`registry.ts`), LAN network bridge (`network-bridge.ts` + `network-session.ts`), service sharing (`service-share.ts`), version archive (`service-archive.ts`), floating widget manager |
 | **Web Bridge** | `src/config/web-bridge.ts` | 封装 Tauri `web_fetch`/`web_click`/`web_input_text`/`web_get_content`/`web_close` 命令，含超时和日志 |
 | **Updater** | `src/config/updater.ts` | 纯前端更新检查：调 GitHub Releases API，semver 比较，Rust reqwest 下载（绕过浏览器 CORS），全平台统一 |
-| **Pages** | `src/pages/` | 6 routes: Chat, Home, Memory, MyServices, ServiceBrowse, Settings |
+| **Pages** | `src/pages/` | 5 routes: Chat, Home, Memory, ServiceBrowse, Settings; ShareDialog (局域网服务分享弹窗) |
 | **Config** | `src/config/` | Reactive settings persisted via Tauri FS plugin (`config.ts`), storage abstraction (`storage.ts`: auto-mkdir + pretty-print JSON), session-db wrapper (`session-db.ts`: Tauri invoke → Rust SQLite FTS5) |
 | **i18n** | `src/i18n/` | vue-i18n based internationalization: `locales/zh-CN.ts` + `locales/en.ts`, type-safe via `LocalesSchema`, synced with `settings.language` via `watch()` |
 | **Router** | `src/router/` | `createWebHistory` with lazy-loaded page components |
@@ -78,6 +78,8 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 | `service_file_list/read/write` | service | File-level editing on generated services (edit category) |
 | `service_file_edit` | service | Targeted find-replace in service files (edit category, preferred) |
 | `service_validate` | service | Validate service code: localStorage, sandbox APIs, permissions (view category) |
+| `service_archive` | service | Save current service state as a versioned snapshot in `.versions/` (manage category) |
+| `service_rollback` | service | Roll back a service to a previous archived version (manage category) |
 | `session_search` | core | Search past sessions via SQLite FTS5 (4 modes: discover/scroll/read/browse) |
 | `doc_list` | docs | List all available documentation (view category) |
 | `doc_read` | docs | Read full content of a documentation file (view category) |
@@ -96,7 +98,7 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 - **Naming:** PascalCase for `.vue` components; kebab-case for directories; camelCase for functions/variables.
 - **Async init:** Entry modules export `initXxx()` called from `bootstrap()` in `main.ts`; each guards with an `initialized` flag.
 - **State:** Reactive config via `reactive()` + `watch()` with debounced persistence; Pinia stores for page-level state.
-- **AI:** Multi-tool calling via ToolRegistry + toolsets. System prompt: stable layer (identity+rules+skills, cached) + volatile layer (memory+time+nudge, rebuilt each call). Personality via soul.ts (souls/*.md files, `soul_save` tool). Session: multi-session v2 (create/switch/delete, per-session `sessions/<id>.json`). Memory: real-time cache via memory-store.ts (MEMORY.md/USER.md, §-delimited). Skills: SKILL.md with /skill-name commands; skill evolution via skill-usage telemetry + skill-curator lifecycle + optional LLM consolidation. Requirements: per-service REQUIREMENT.md + global summary, 10-turn nudge triggers both memory and requirement checks. Onboarding: first launch → soul_save tool creates personality.
+- **AI:** Multi-tool calling via ToolRegistry + toolsets. System prompt: stable layer (identity+rules+skills, cached) + volatile layer (memory+time+nudge, rebuilt each call). Personality via soul.ts (souls/*.md files, `soul_save` tool). Session: multi-session v2 (create/switch/delete, per-session `sessions/<id>.json`). Memory: real-time cache via memory-store.ts (MEMORY.md/USER.md, §-delimited). Skills: SKILL.md with /skill-name commands; skill evolution via skill-usage telemetry + skill-curator lifecycle + optional LLM consolidation. Requirements: per-service REQUIREMENT.md + global summary, 10-turn nudge triggers both memory and requirement checks. Onboarding: first launch → soul_save tool creates personality. Streaming: abortable via AbortController, stop button in ChatPage; 25-round tool call limit triggers confirm-to-continue dialog.
 - **JSBridge:** iframe `postMessage` protocol — `ServiceRequest` (type: api, module, method, params, requestId) → `ServiceResponse` (type: api-response, requestId, result/error). Permission-checked by module name.
 - **i18n:** `vue-i18n` with Composition API (`useI18n()`). All user-facing strings use `$t('key.path')` in templates or `t('key.path')` in scripts. Locale files in `src/i18n/locales/` with `LocalesSchema` type constraint. Language switching via `settings.language` (reactive, synced to `i18n.global.locale` via `syncI18nWithSettings()` in `main.ts` bootstrap). New translatable strings must be added to both `zh-CN.ts` and `en.ts` simultaneously under matching key paths.
 - **流程日志规范**：
@@ -111,7 +113,7 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 - **Storage layout:** `{AppData}/amiba/` →
   - `amiba_settings` — 统一配置（api_key, network_lan_visible, active_agent_id, device_id 等已合并至此）
   - `state.db` — SQLite (WAL mode) with sessions/messages tables + messages_fts FTS5 virtual table
-  - `services/{id}/` — generated app files + `REQUIREMENT.md` (per-service)
+  - `services/{id}/` — generated app files + `REQUIREMENT.md` (per-service) + `.versions/` (version snapshots)
   - `services/REQUIREMENTS.md` — global requirement summary
   - `sessions/_index` — session metadata index
   - `sessions/{id}.json` — per-session chat history

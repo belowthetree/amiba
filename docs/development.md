@@ -126,6 +126,7 @@ src/
 │   ├── requirement.tool.ts
 │   ├── session-search.tool.ts
 │   ├── soul.tool.ts
+│   ├── service-archive.tool.ts  # service_archive / service_rollback
 │   └── web-browser.tool.ts
 ├── host/
 │   ├── service-container.vue  # iframe 沙箱外壳
@@ -133,12 +134,15 @@ src/
 │   ├── registry.ts      # 服务注册表
 │   ├── network-bridge.ts # 网络中枢 + 全局门控
 │   ├── network-session.ts
+│   ├── service-share.ts  # 局域网服务分享引擎
+│   ├── service-archive.ts # 服务版本归档引擎
 │   └── floating-widget-manager.ts
 └── pages/
     ├── HomePage.vue         # 功能入口
     ├── ChatPage.vue         # 流式 AI 对话
     ├── SettingsPage.vue     # 标签页：通用 / 技能 & Agent / 数据
     ├── ServiceBrowsePage.vue # 服务浏览与管理
+    ├── ShareDialog.vue      # 局域网服务分享弹窗
     └── MemoryPage.vue       # MEMORY.md / USER.md 编辑器
 src-tauri/
 ├── Cargo.toml          # Rust 依赖配置
@@ -216,6 +220,83 @@ alert(t('settings.confirm.deleteProvider', { name: 'example' }))
 
 `settings.language` (`zh-CN` / `en`) 变更会自动同步到 `i18n.global.locale`，无需手动干预。`syncI18nWithSettings()` 在 `main.ts` bootstrap 阶段通过 `watch()` 监听。
 
+## 服务版本归档
+
+### 归档（创建快照）
+
+```ts
+import { archiveService, rollbackService, listVersions } from '../host/service-archive'
+
+// 归档当前服务状态
+const result = await archiveService('user.my_service')
+// → { label: 'v_2026-07-05T12-00-00-000Z', fileCount: 4 }
+
+// 存储位置：services/{id}/.versions/{label}/
+```
+
+### 回退
+
+```ts
+// 回退到最新版本
+const result = await rollbackService('user.my_service')
+// 或指定版本
+const result = await rollbackService('user.my_service', 'v_2026-07-01T08-00-00-000Z')
+// → { label: 'v_...', fileCount: 4 }
+```
+
+### 可用归档列表
+
+```ts
+const versions = await listVersions('user.my_service')
+// → [{ label, timestamp, fileCount }, ...]
+```
+
+AI 通过 `service_archive` / `service_rollback` 工具自动调用上述引擎。
+
+## 局域网服务分享
+
+### 发送服务
+
+```ts
+import { sendService } from '../host/service-share'
+
+// 主动发送
+await sendService('user.my_service', peerId)
+```
+
+### 等待接收
+
+```ts
+import { startReceiving, stopReceiving, acceptShare, declineShare, onShareEvent } from '../host/service-share'
+
+// 开始监听（指定 serviceKey = "amiba.service-share"）
+await startReceiving()
+
+// 订阅事件
+onShareEvent((evt) => {
+  if (evt.event === 'request') {
+    // 弹出确认框，用户选择后调用 acceptShare() 或 declineShare()
+  }
+  if (evt.event === 'chunk-progress') {
+    // 显示进度 evt.percent
+  }
+  if (evt.event === 'complete') {
+    // 安装完成
+  }
+})
+
+// 停止监听
+await stopReceiving()
+```
+
+### 协议
+
+通过 `NetworkSession` 发送 JSON 消息，固定 serviceKey `"amiba.service-share"`，大文件按 64KB 分块传输并逐块 ACK 确认。接收端自动调用 `registerService` + `storeServicePackage` 安装。
+
+### 弹窗
+
+`ShareDialog.vue` 提供 UI，挂载于 `ServiceBrowsePage.vue` 头部 📡 按钮。包含"发送"和"等待接收"两个标签页。
+
 ## 命名规范
 
 - **服务 ID**: 内置 `system.xxx`，用户 `user.yyy`
@@ -256,3 +337,7 @@ alert(t('settings.confirm.deleteProvider', { name: 'example' }))
 ## 经验教训
 
 - **2026-07-05**: 更新下载功能中的路径拼接使用了 `${tempDir}amiba-update` 模板字符串，缺少路径分隔符。`@tauri-apps/api/path` 的 `tempDir()` 返回不含尾部斜杠的路径，导致 Windows 上生成 `C:\Users\...\Tempamiba-update` 而非 `C:\Users\...\Temp\amiba-update`。应始终使用 `join()` 函数进行跨平台路径拼接，切勿手动字符串拼接。同时 Rust `download_file` 缺少 HTTP 状态码检查，下载 404/403 错误页会导致假成功——需在流式下载前检查 `response.status().is_success()`。
+- **2026-07-05**: vue-i18n v11 语言切换不生效——`i18n.global.locale` 是 `WritableComputedRef<string>`，必须用 `.value = lang` 赋值，直接对整个 ref 赋值 (`= lang`) 会丢弃 ref 对象，Vue 响应式无法感知变化。
+- **2026-07-05**: `getServicePackage` 会列出服务目录下所有文件（含隐藏目录），归档版本存储在当前服务目录的 `.versions/` 子目录下，需在 `getServicePackage` 的文件过滤中加入 `name.startsWith('.versions')` 避免把历史快照塞入服务包。
+- **2026-07-05**: ChatPage 输入框 `width: 100%` 配合 `margin` 在 flex column 布局中会导致 `overflow: hidden` 裁切右侧边距。使用 `width: calc(100% - Npx)` 配合 `margin: auto` 同时实现居中+间距。
+- **2026-07-05**: 分享弹窗启动设备发现后，关闭弹窗时必须调用 `stopDiscovery('lan')` 并清除定时器。仅清定时器不会停止 Rust 端 UDP 监听，日志将持续输出。

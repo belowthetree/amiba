@@ -69,12 +69,13 @@ amiba/
 │   ├── App.vue              # 根组件 (TopBar + router-view)
 │   ├── router/
 │   │   └── index.ts         # 路由定义
-│   ├── pages/               # 5 个内置服务页面
+│   ├── pages/               # 5 个内置页面 + 分享弹窗
 │   │   ├── HomePage.vue
 │   │   ├── ChatPage.vue
 │   │   ├── SettingsPage.vue
 │   │   ├── ServiceBrowsePage.vue
-│   │   └── MemoryPage.vue
+│   │   ├── MemoryPage.vue
+│   │   └── ShareDialog.vue      # 局域网服务分享弹窗
 │   ├── ai/                  # AI 核心
 │   │   ├── agent.ts           # LLM 对话（多工具循环）
 │   │   ├── system-prompt.ts   # System Prompt 组装器（缓存+分层）
@@ -107,6 +108,7 @@ amiba/
 │   │   ├── service.tool.ts
 │   │   ├── service-file.tool.ts
 │   │   ├── service-validate.tool.ts
+│   │   ├── service-archive.tool.ts  # service_archive / service_rollback
 │   │   ├── doc.tool.ts
 │   │   ├── requirement.tool.ts
 │   │   ├── session-search.tool.ts
@@ -117,7 +119,9 @@ amiba/
 │   │   ├── bridge.ts        # postMessage 通信 + BRIDGE_SCRIPT 注入
 │   │   ├── registry.ts      # 服务注册表
 │   │   ├── network-bridge.ts # UDP 发现 + session 管理中枢 + 全局网络门控
-│   │   ├── network-session.ts # NetworkSession 类（send/on/close）
+│   │   ├── network-session.ts  # NetworkSession 类（send/on/close）
+│   │   ├── service-share.ts    # 局域网服务分享引擎（分块传输+安装）
+│   │   ├── service-archive.ts  # 服务版本归档引擎（archive/rollback/list）
 │   │   └── floating-widget-manager.ts # 悬浮块管理
 │   ├── config/
 │   │   ├── config.ts        # 统一配置（amiba_settings，合并所有普通设置项）
@@ -192,3 +196,6 @@ Tauri Command (web_fetch / web_eval / web_click / web_input_text / web_close)
 ## 经验教训
 
 - **2025-07-01**: Android `ndk_context::android_context()` 在 Tauri setup 阶段 panic 因 OnceLock 未初始化。换用 `libloading` 动态加载 `JNI_GetCreatedJavaVMs` 获取 JVM，通过 `ActivityThread.currentApplication().getClassLoader().loadClass()` 加载 Kotlin 类。`tauri android dev` 会重置 `gen/android` 目录，自定义 Kotlin 代码需放在可能被覆盖的文件（如 `MainActivity.kt`）中或构建后重新注入。
+- **2026-07-05**: vue-i18n v11 的 `i18n.global.locale` 是 `WritableComputedRef<string>`，切换语言需用 `.value = lang` 赋值，直接对整个 ref 对象赋值不会触发 Vue 响应式更新，导致界面不刷新。
+- **2026-07-05**: 服务分享（`service-share.ts`）使用 `NetworkSession.send()` 传输 JSON 消息，大文件需按 64KB 分块传输并逐块等待 ACK 确认。分享弹窗关闭时必须调用 `stopDiscovery('lan')` 停止 Rust 端 UDP 扫描，否则日志会持续输出。
+- **2026-07-05**: AI SDK `streamText` 的 `stopWhen` 回调参数是 `{ steps: StepResult[] }`，用于实现自定义工具调用轮次限制。替换 `isStepCount` 的常用模式：`stopWhen: ({ steps }) => steps.length >= maxIterations`。

@@ -36,6 +36,7 @@ manifest.permissions 必须包含 `"widgets"`。
 | `position` | number | ✅ | 距顶部 y 像素，建议 100–300 |
 | `showOn` | string[] | ✅ | 生命周期路由列表，`[]` = 全局；`trigger: "page"` 时进入显示 |
 | `trigger` | `"manual"` \| `"page"` | ✅ | `"manual"`=API 控制（默认），`"page"`=进入 showOn 自动显示 |
+| `lifecycle` | `"service"` \| `"persistent"` | — | `"service"`=随服务页面卸载销毁（默认）；`"persistent"`=跨路由驻留，直到用户点击关闭按钮 |
 
 ### trigger 模式
 
@@ -43,6 +44,15 @@ manifest.permissions 必须包含 `"widgets"`。
 |------|------|
 | `"manual"` | 注册后隐藏，调用 `__amiba__.widgets.show(id)` 显示 |
 | `"page"` | 进入 `showOn` 路由自动显示，离开自动隐藏并折叠面板。`showOn: []` = 全局生命周期 |
+
+### lifecycle 模式
+
+| 模式 | 行为 | 关闭方式 |
+|------|------|---------|
+| `"service"`（默认） | 随服务页面卸载自动销毁 | 离开服务路由即消失 |
+| `"persistent"` | 跨路由驻留，不随服务页面卸载 | 用户点击图标上 ✕ 或面板内 ✕ 关闭 |
+
+`persistent` 适用于：音乐播放器、快捷笔记、剪贴板等需要跨页面常驻的轻量工具。图标右上角会显示一个小关闭按钮，面板标题栏的 ✕ 也会彻底移除 widget。
 
 ## Widget HTML 模板
 

@@ -190,6 +190,7 @@ export interface FloatingWidgetConfig {
   position: number              // 初始 y 位置（px，距顶部）
   showOn: string[]              // 生命周期：在哪些路由名下存在，空数组 = 全局
   trigger: 'manual' | 'page'   // 触发方式：manual=API 调用 show(), page=进入 showOn 路由时自动显示
+  lifecycle?: 'service' | 'persistent'  // 生命周期：service=随服务页面卸载销毁（默认），persistent=跨路由驻留直到用户主动关闭
 }
 
 export interface FloatingWidgetManifest {

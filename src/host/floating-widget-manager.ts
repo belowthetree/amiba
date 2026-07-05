@@ -19,6 +19,13 @@ export function setCurrentRoute(name: string | null) {
   // 路由变化时，重新计算所有 widget 的 visible
   for (const id of Object.keys(widgetStates)) {
     const state = widgetStates[id]
+
+    // persistent + manual 模式：路由变化不重置 visible
+    if (state.config.lifecycle === 'persistent' && state.config.trigger === 'manual') {
+      // 保持当前 visible 状态不变
+      continue
+    }
+
     const wasVisible = state.visible
     state.visible = computeVisible(state.config)
 
@@ -81,10 +88,11 @@ export function unregisterWidget(id: string): void {
   }
 }
 
-/** 按服务 ID 批量注销 */
+/** 按服务 ID 批量注销（persistent widget 不随服务卸载销毁） */
 export function unregisterServiceWidgets(serviceId: string): void {
   const ids = Object.keys(widgetStates).filter(
     (id) => widgetStates[id].config.serviceId === serviceId
+      && widgetStates[id].config.lifecycle !== 'persistent'
   )
   for (const id of ids) {
     delete widgetStates[id]
@@ -138,4 +146,15 @@ export function updateWidgetPosition(id: string, y: number): void {
 
 export function getWidgetState(id: string): FloatingWidgetState | undefined {
   return widgetStates[id]
+}
+
+/** 关闭 persistent widget（彻底移除，不可恢复） */
+export function closePersistentWidget(id: string): void {
+  const state = widgetStates[id]
+  if (!state) return
+  if (state.config.lifecycle !== 'persistent') {
+    console.warn(`[FloatingWidget] "${id}" 不是 persistent widget，请使用 unregisterWidget`)
+    return
+  }
+  unregisterWidget(id)
 }

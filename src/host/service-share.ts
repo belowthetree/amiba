@@ -6,7 +6,7 @@
 // ============================================================
 
 import { connect, createInboundSession, startListening, stopListening, onEvent, peerList } from './network-bridge'
-import { getServicePackage, getUserServices, storeServicePackage, registerService } from './registry'
+import { getServicePackage, getUserServices, storeServicePackage, registerService, getService } from './registry'
 import { NetworkSession } from './network-session'
 import type { ServiceManifest, ServicePackage } from '../types/service'
 
@@ -299,10 +299,16 @@ async function reassembleAndInstall(chunks: string[]): Promise<void> {
 
     console.log('[ServiceShare] 重组完成，准备安装:', pkg.manifest.name)
 
+    const existing = getService(pkg.manifest.id)
+
     await registerService(pkg.manifest, 'downloaded')
     await storeServicePackage(pkg.manifest.id, pkg)
 
-    emit({ event: 'complete', message: `服务 "${pkg.manifest.name}" 已安装` })
+    if (existing) {
+      emit({ event: 'complete', message: `服务 "${pkg.manifest.name}" 已更新` })
+    } else {
+      emit({ event: 'complete', message: `服务 "${pkg.manifest.name}" 已安装` })
+    }
   } catch (e: any) {
     console.error('[ServiceShare] 安装失败:', e)
     emit({ event: 'error', message: '安装失败: ' + (e.message || String(e)) })
