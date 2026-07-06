@@ -99,24 +99,26 @@ src/
 │   └── locales/
 │       ├── zh-CN.ts      # 中文语言包
 │       └── en.ts         # 英文语言包
-├── ai/
-│   ├── agent.ts         # LLM 流式对话 + 多工具循环
-│   ├── system-prompt.ts # System Prompt 两层组装器（stable/volatile）
-│   ├── soul.ts          # 人格系统
-│   ├── session.ts       # 多会话管理（创建/切换/删除）
-│   ├── memory-store.ts  # MEMORY.md / USER.md 记忆引擎
-│   ├── packager.ts      # 多文件 ServicePackage → 单 HTML 内联
-│   ├── catalog.ts       # YAML 组件目录
-│   ├── skills.ts        # Skill 管理 + 导入
-│   ├── skill-parser.ts  # SKILL.md frontmatter 解析
-│   ├── skill-commands.ts # Skill 扫描 + 斜杠命令检测
-│   ├── skill-usage.ts   # Skill 使用统计
-│   ├── skill-curator.ts # Skill 生命周期管理
-│   ├── service-validator.ts  # 服务代码校验（localStorage/BroadcastChannel/权限一致性）
-│   ├── doc-index.ts     # 文档索引/搜索/读取（内置 + 用户）
-│   ├── requirement-store.ts  # 需求追踪引擎
-│   ├── provider-store.ts   # AI 供应商管理
-│   └── custom-agent-store.ts # 自定义 Agent 管理
+  ├── ai/
+  │   ├── agent.ts         # LLM 流式对话 + 多工具循环
+  │   ├── system-prompt.ts # System Prompt 两层组装器（stable/volatile）
+  │   ├── soul.ts          # 人格系统
+  │   ├── session.ts       # 多会话管理（创建/切换/删除）
+  │   ├── memory-store.ts  # MEMORY.md / USER.md 记忆引擎
+  │   ├── packager.ts      # 多文件 ServicePackage → 单 HTML 内联
+  │   ├── catalog.ts       # YAML 组件目录
+  │   ├── skills.ts        # Skill 管理 + 导入
+  │   ├── skill-parser.ts  # SKILL.md frontmatter 解析
+  │   ├── skill-commands.ts # Skill 扫描 + 斜杠命令检测 + 缓存失效
+  │   ├── skill-packager.ts # SkillPackage 打包/安装引擎
+  │   ├── skill-zip.ts      # Skill ZIP 导入/导出 + URL 导入
+  │   ├── skill-usage.ts   # Skill 使用统计
+  │   ├── skill-curator.ts # Skill 生命周期管理
+  │   ├── service-validator.ts  # 服务代码校验（localStorage/BroadcastChannel/权限一致性）
+  │   ├── doc-index.ts     # 文档索引/搜索/读取（内置 + 用户）
+  │   ├── requirement-store.ts  # 需求追踪引擎
+  │   ├── provider-store.ts   # AI 供应商管理
+  │   └── custom-agent-store.ts # 自定义 Agent 管理
 ├── tools/               # 工具系统（auto-discover via import.meta.glob）
 │   ├── tool-registry.ts # ToolRegistry 核心
 │   ├── toolsets.ts      # 工具集定义（core/service/docs）
@@ -130,27 +132,29 @@ src/
 │   ├── soul.tool.ts
 │   ├── service-archive.tool.ts  # service_archive / service_rollback
 │   └── web-browser.tool.ts
-├── host/
-│   ├── service-container.vue  # iframe 沙箱外壳
-│   ├── bridge.ts        # postMessage JSBridge
-│   ├── registry.ts      # 服务注册表
-│   ├── network-bridge.ts # 网络中枢 + 全局门控
-│   ├── network-session.ts
-│   ├── service-share.ts  # 局域网服务分享引擎
-│   ├── service-archive.ts # 服务版本归档引擎
-│   ├── floating-widget-manager.ts
-│   ├── floating-widget-container.vue
-│   ├── widget-lifecycle.ts
-│   └── webview-overlay-state.ts  # WebView 截图预览状态 + Tauri 事件监听
+  ├── host/
+  │   ├── service-container.vue  # iframe 沙箱外壳
+  │   ├── bridge.ts        # postMessage JSBridge
+  │   ├── registry.ts      # 服务注册表
+  │   ├── network-bridge.ts # 网络中枢 + 全局门控
+  │   ├── network-session.ts
+  │   ├── service-share.ts  # 局域网服务分享引擎
+  │   ├── skill-share.ts    # 局域网技能分享引擎
+  │   ├── service-archive.ts # 服务版本归档引擎
+  │   ├── floating-widget-manager.ts
+  │   ├── floating-widget-container.vue
+  │   ├── widget-lifecycle.ts
+  │   └── webview-overlay-state.ts  # WebView 截图预览状态 + Tauri 事件监听
 ├── components/
 │   └── WebviewOverlay.vue  # 可拖拽 WebView 预览悬浮面板
-└── pages/
-    ├── HomePage.vue         # 功能入口
-    ├── ChatPage.vue         # 流式 AI 对话
-    ├── SettingsPage.vue     # 标签页：通用 / 技能 & Agent / 数据
-    ├── ServiceBrowsePage.vue # 服务浏览与管理
-    ├── ShareDialog.vue      # 局域网服务分享弹窗
-    └── MemoryPage.vue       # MEMORY.md / USER.md 编辑器
+  └── pages/
+      ├── HomePage.vue         # 功能入口
+      ├── ChatPage.vue         # 流式 AI 对话
+      ├── SettingsPage.vue     # 标签页：通用 / 技能 & Agent / 数据
+      ├── ServiceBrowsePage.vue # 服务浏览与管理
+      ├── ShareDialog.vue      # 局域网服务分享弹窗
+      ├── SkillShareDialog.vue # 局域网技能分享弹窗
+      └── MemoryPage.vue       # MEMORY.md / USER.md 编辑器
 src-tauri/
 ├── Cargo.toml          # Rust 依赖配置
 ├── tauri.conf.json     # Tauri 窗口/打包配置
@@ -183,6 +187,71 @@ src-tauri/
   template: `{ "manifest": {...}, "ui": {...}, "logic": "..." }`
 }
 ```
+
+## Skill 分发（ZIP / LAN / URL）
+
+### ZIP 导出
+
+```ts
+import { exportAndSaveZip } from '../ai/skill-zip'
+await exportAndSaveZip('skill-slug')
+// 桌面端弹出保存对话框，移动端/浏览器触发下载
+```
+
+### ZIP 导入
+
+```ts
+import { pickAndImportZip } from '../ai/skill-zip'
+const slug = await pickAndImportZip()
+// 桌面端弹出文件选择器，浏览器通过 <input type="file">
+// ZIP 全程在内存中解析，不落盘
+```
+
+### URL 导入
+
+```ts
+import { importSkillFromUrl } from '../ai/skill-zip'
+const slug = await importSkillFromUrl('https://example.com/skill.zip')
+// fetch → ArrayBuffer → JSZip 解析 → 安装写入
+```
+
+### 局域网技能分享
+
+```ts
+import { sendSkill, startReceivingSkills, stopReceivingSkills, acceptSkillShare, onSkillShareEvent } from '../host/skill-share'
+
+// 发送技能到指定节点
+await sendSkill('skill-slug', peerId)
+
+// 监听接收（复用 service-share 的网络基础设施，service key: "amiba.skill-share"）
+await startReceivingSkills()
+onSkillShareEvent((evt) => {
+  if (evt.event === 'request') { /* 显示确认对话框 */ }
+  if (evt.event === 'chunk-progress') { /* 显示进度 evt.percent */ }
+  if (evt.event === 'complete') { /* 安装完成 */ }
+})
+
+// 停止监听
+await stopReceivingSkills()
+```
+
+协议与局域网服务分享一致：64KB 分块传输，逐块 ACK 确认。接收端自动调用 `installSkillPackage(pkg, 'overwrite')` 安装。
+
+### SkillPackage 格式
+
+```typescript
+interface SkillPackage {
+  formatVersion: 1
+  slug: string
+  manifest: SkillFrontmatter    // name, description, version, keywords, platforms
+  body: string                  // SKILL.md Markdown 正文
+  files: Record<string, string> // 支持文件（相对路径 → 内容）
+  exportedAt: string
+  exportedFrom?: string
+}
+```
+
+ZIP 文件和局域网传输均使用此格式。导入时同名覆盖，不保留旧版本。
 
 ## 添加新 Catalog 组件
 
@@ -343,6 +412,8 @@ await stopReceiving()
 
 ## 经验教训
 
+- **2026-07-07**: `scanSkills()` 在第一次扫描后将结果缓存到模块级变量 `skillCommands`，后续所有调用直接返回缓存而不重新扫描磁盘。导入新技能后调用 `scanSkills()` 会静默返回旧结果，导致 UI 不显示新技能。解决方案：导出 `invalidateSkillCache()` 函数（设置 `skillCommands = null; scanPromise = null`），在 `installSkillPackage()` 和 `loadUserSkills()` 中写入/读取前调用。
+- **2026-07-07**: SettingsPage 的 IIFE 初始化块无条件调用 `setVisibility({ lan: true })`——每次进入设置页都会触发 UDP 广播重启。`initNetworkBridge()` 已在应用启动时处理好 LAN 可见性初始化，设置页只需同步 UI 开关值，不应调 `setVisibility`。
 - **2026-07-05**: 更新下载功能中的路径拼接使用了 `${tempDir}amiba-update` 模板字符串，缺少路径分隔符。`@tauri-apps/api/path` 的 `tempDir()` 返回不含尾部斜杠的路径，导致 Windows 上生成 `C:\Users\...\Tempamiba-update` 而非 `C:\Users\...\Temp\amiba-update`。应始终使用 `join()` 函数进行跨平台路径拼接，切勿手动字符串拼接。同时 Rust `download_file` 缺少 HTTP 状态码检查，下载 404/403 错误页会导致假成功——需在流式下载前检查 `response.status().is_success()`。
 - **2026-07-05**: vue-i18n v11 语言切换不生效——`i18n.global.locale` 是 `WritableComputedRef<string>`，必须用 `.value = lang` 赋值，直接对整个 ref 赋值 (`= lang`) 会丢弃 ref 对象，Vue 响应式无法感知变化。
 - **2026-07-05**: `getServicePackage` 会列出服务目录下所有文件（含隐藏目录），归档版本存储在当前服务目录的 `.versions/` 子目录下，需在 `getServicePackage` 的文件过滤中加入 `name.startsWith('.versions')` 避免把历史快照塞入服务包。
