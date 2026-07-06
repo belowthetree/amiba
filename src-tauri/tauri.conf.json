@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "amiba",
-  "version": "0.5.12",
+  "version": "0.5.13",
   "identifier": "com.amiba.desktop",
   "build": {
     "frontendDist": "../dist",
