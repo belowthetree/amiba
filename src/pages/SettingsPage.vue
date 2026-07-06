@@ -195,8 +195,8 @@
       <div class="settings-section">
         <h3 class="section-label">🧩 {{ $t('settings.skills.skillManagement') }}</h3>
 
-        <div v-if="userSkills.length" class="skill-list">
-          <div v-for="(skill, i) in userSkills" :key="i" class="skill-item">
+        <div v-if="userSkills.length" class="skill-cards">
+          <div v-for="(skill, i) in userSkills" :key="i" class="skill-card">
             <template v-if="editingIdx === i">
               <div class="skill-edit-form">
                 <input v-model="editForm.name" class="form-input" :placeholder="$t('settings.skills.skillNamePlaceholder')" style="margin-bottom:4px" />
@@ -204,22 +204,40 @@
                 <input v-model="editForm.kws" class="form-input" :placeholder="$t('settings.skills.skillKwsPlaceholder')" style="margin-bottom:4px" />
                 <textarea v-model="editForm.tpl" class="form-input" :placeholder="$t('settings.skills.skillTplPlaceholder')" rows="3" style="margin-bottom:6px;resize:vertical" />
                 <div class="action-row">
-                  <button class="sib save" @click="saveEdit(i)">💾 {{ $t('settings.skills.save') }}</button>
-                  <button class="sx" @click="editingIdx = -1">{{ $t('settings.skills.cancel') }}</button>
+                  <button class="primary-btn" @click="saveEdit(i)">{{ $t('settings.skills.save') }}</button>
+                  <button class="secondary-btn" @click="editingIdx = -1">{{ $t('settings.skills.cancel') }}</button>
                 </div>
               </div>
             </template>
             <template v-else>
-              <span class="sn">{{ skill.name }}</span>
-              <span class="sd">{{ skill.description }}</span>
-              <button class="sib" @click="startEdit(i)">✏️</button>
-              <button class="sx" @click="removeSkill(i)">✕</button>
+              <div class="skill-card-body">
+                <div class="skill-card-title">{{ skill.name }}</div>
+                <div class="skill-card-desc">{{ skill.description }}</div>
+              </div>
+              <div class="skill-card-actions">
+                <button class="action-btn" @click="startEdit(i)">✏️ {{ $t('settings.skills.edit') }}</button>
+                <button class="action-btn" @click="exportSkillZip(skill.slug!)">📥 {{ $t('settings.skills.exportZip') }}</button>
+                <button class="action-btn" @click="openSkillShareDialog(skill.slug!)">📡 {{ $t('settings.skills.shareLan') }}</button>
+                <button class="action-btn danger" @click="removeSkill(i)">🗑 {{ $t('app.delete') }}</button>
+              </div>
             </template>
           </div>
         </div>
         <p v-else class="skill-empty">{{ $t('settings.skills.noSkills') }}</p>
 
         <button class="secondary-btn" style="margin-top:4px" @click="importSkillFolder">📁 {{ $t('settings.skills.importFolder') }}</button>
+        <button class="secondary-btn" style="margin-top:4px;margin-left:8px" :disabled="importingSkill" @click="importSkillZip">📦 {{ importingSkill ? '...' : $t('settings.skills.importZip') }}</button>
+        <div class="url-import-row" style="margin-top:8px">
+          <input
+            v-model="importUrl"
+            class="form-input url-input"
+            :placeholder="$t('settings.skills.importUrlPlaceholder')"
+            @keyup.enter="importSkillFromUrl"
+          />
+          <button class="secondary-btn" :disabled="importingSkill || !importUrl.trim()" @click="importSkillFromUrl">
+            🔗 {{ importingSkill ? '...' : $t('settings.skills.importFromUrl') }}
+          </button>
+        </div>
       </div>
 
       <div class="settings-section">
@@ -314,6 +332,7 @@
     </div>
 
     <div class="saved-hint" v-if="showSaved">✅ {{ $t('settings.confirm.saved') }}</div>
+    <SkillShareDialog v-model="shareSkillDialog" :preselect-slug="shareSkillSlug" />
   </div>
 </template>
 
@@ -326,11 +345,13 @@ import { registerService, storeServicePackage, getServicePackage } from '../host
 import { setVisibility, getVisibility } from '../host/network-bridge'
 import type { ServicePackage, ServiceManifest } from '../types/service'
 import { loadUserSkills, addUserSkill, updateUserSkill, deleteUserSkill, importSkillFromFolder, type Skill } from '../ai/skills'
+import { pickAndImportZip, exportAndSaveZip, importSkillFromUrl as fetchImportUrl } from '../ai/skill-zip'
 import { providers, addProvider, updateProvider, deleteProvider, initProviderStore } from '../ai/provider-store'
 import { customAgents, addCustomAgent, updateCustomAgent, deleteCustomAgent, setActiveAgent, initCustomAgentStore } from '../ai/custom-agent-store'
 import type { AiProvider, CustomAgent } from '../types/service'
 import { getCurrentVersion, checkForUpdate, downloadUpdate, installUpdate, getCachedUpdate, type UpdateStatus, type UpdateInfo } from '../config/updater'
 import { listSessions, deleteSession } from '../ai/session'
+import SkillShareDialog from './SkillShareDialog.vue'
 
 const { t } = useI18n()
 
@@ -356,14 +377,11 @@ async function toggleLan() {
   } catch { /* non-Tauri env */ }
 }
 
-// Init network toggle state — 若默认可见，必须调用 setVisibility 启动 TCP 监听
+// Init network toggle state — 仅同步 UI，setVisibility 已由 initNetworkBridge 处理
 ;(async () => {
   try {
     const vis = await getVisibility()
     settings.network_lan_visible = vis.lan
-    if (vis.lan) {
-      await setVisibility({ lan: true, ble: false })
-    }
   } catch { /* use default */ }
 })()
 
@@ -371,6 +389,10 @@ async function toggleLan() {
 const userSkills = ref<Skill[]>([])
 const editingIdx = ref(-1)
 const editForm = ref({ name: '', desc: '', kws: '', tpl: '' })
+const shareSkillDialog = ref(false)
+const shareSkillSlug = ref('')
+const importingSkill = ref(false)
+const importUrl = ref('')
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -446,6 +468,53 @@ async function importSkillFolder() {
     flashSaved()
   } catch (e: any) {
     alert(t('settings.confirm.importFailed') + ': ' + e.message)
+  }
+}
+
+async function importSkillZip() {
+  importingSkill.value = true
+  try {
+    const slug = await pickAndImportZip()
+    await refreshSkills()
+    flashSaved()
+    console.log('[Settings] ZIP 导入完成:', slug)
+  } catch (e: any) {
+    if (e.message !== '用户取消') {
+      alert(t('settings.confirm.importZipFailed', { reason: e.message }))
+    }
+  } finally {
+    importingSkill.value = false
+  }
+}
+
+async function exportSkillZip(slug: string) {
+  try {
+    await exportAndSaveZip(slug)
+    flashSaved()
+  } catch (e: any) {
+    alert(t('settings.confirm.importZipFailed', { reason: e.message }))
+  }
+}
+
+function openSkillShareDialog(slug: string) {
+  shareSkillSlug.value = slug
+  shareSkillDialog.value = true
+}
+
+async function importSkillFromUrl() {
+  const url = importUrl.value.trim()
+  if (!url) return
+  importingSkill.value = true
+  try {
+    const slug = await fetchImportUrl(url)
+    importUrl.value = ''
+    await refreshSkills()
+    flashSaved()
+    console.log('[Settings] URL 导入完成:', slug)
+  } catch (e: any) {
+    alert(t('settings.confirm.importZipFailed', { reason: e.message }))
+  } finally {
+    importingSkill.value = false
   }
 }
 
@@ -870,6 +939,9 @@ onMounted(async () => {
   font-size: 13px;
   cursor: pointer;
 }
+.secondary-btn:hover {
+  background: #E3F2FD;
+}
 
 .about-info {
   font-size: 13px;
@@ -900,13 +972,26 @@ onMounted(async () => {
 .sl{display:flex;flex-direction:column;gap:4px}.si{display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f9f9f9;border-radius:6px;font-size:13px}.sn{font-weight:600;color:#333;white-space:nowrap}.sd{flex:1;color:#999;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sx{border:none;background:none;color:#e53935;cursor:pointer;font-size:14px;padding:2px 6px}.sib{border:1px solid #4CAF50;color:#4CAF50;background:white;border-radius:4px;cursor:pointer;font-size:12px;padding:2px 8px;white-space:nowrap}.sib:hover{background:#E8F5E9}
 .skill-list{display:flex;flex-direction:column;gap:6px;margin-bottom:4px}
 .skill-item{display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f9f9f9;border-radius:6px;font-size:13px}
-.skill-edit-form{background:#f5f5f5;border-radius:8px;padding:10px}
-.skill-empty{font-size:13px;color:#bbb;text-align:center;margin:8px 0}
+.skill-edit-form{padding:10px}.skill-empty{font-size:13px;color:#bbb;text-align:center;margin:8px 0}
 .sib.save{border-color:#1976D2;color:#1976D2}.sib.save:hover{background:#E3F2FD}
 .skill-item.active{background:#E3F2FD;border:1px solid #1976D2}
 .skill-checkboxes{display:flex;flex-wrap:wrap;gap:6px}
 .skill-cb-label{font-size:12px;display:flex;align-items:center;gap:3px;cursor:pointer;padding:2px 6px;border-radius:4px;background:#f0f0f0}
 .skill-cb-label:hover{background:#e0e0e0}
+
+/* ---- Skill cards ---- */
+.skill-cards{display:flex;flex-direction:column;gap:8px;margin-bottom:8px}
+.skill-card{background:white;border:1px solid #e8e8e8;border-radius:10px;padding:14px 16px;transition:box-shadow 0.2s}
+.skill-card:hover{box-shadow:0 2px 8px rgba(0,0,0,0.06)}
+.skill-card-body{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
+.skill-card-title{font-size:14px;font-weight:600;color:#333}
+.skill-card-desc{font-size:12px;color:#999;line-height:1.5}
+.skill-card-actions{display:flex;gap:6px;flex-wrap:wrap}
+.action-btn{padding:5px 10px;border:1px solid #d0d0d0;background:white;color:#555;border-radius:6px;font-size:12px;cursor:pointer;white-space:nowrap;transition:all 0.15s}
+.action-btn:hover{background:#f5f5f5;border-color:#1976D2;color:#1976D2}
+.action-btn.danger:hover{background:#FFF3E0;border-color:#e53935;color:#e53935}
+.url-import-row{display:flex;gap:6px;align-items:center}
+.url-import-row .url-input{flex:1}
 
 /* ---- Network toggle ---- */
 .toggle-row{display:flex;align-items:center;justify-content:space-between}

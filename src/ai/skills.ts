@@ -9,7 +9,7 @@ import {
   copySkillFolder,
 } from '../config/storage'
 import { parseSkillMd, toSkillSlug } from './skill-parser'
-import { getSkillCommands, getSkillContent } from './skill-commands'
+import { getSkillCommands, getSkillContent, invalidateSkillCache } from './skill-commands'
 
 export interface Skill {
   name: string
@@ -36,6 +36,7 @@ const BUILTIN_SLUG_MAP: Record<string, string> = {
 let userSkills: Skill[] = []
 
 export async function loadUserSkills(): Promise<Skill[]> {
+  invalidateSkillCache()
   const commands = await getSkillCommands()
   const skills: Skill[] = []
 

@@ -131,6 +131,13 @@ export interface LocalesSchema {
       cancel: string
       noSkills: string
       importFolder: string
+      importZip: string
+      exportZip: string
+      shareLan: string
+      exporting: string
+      edit: string
+      importFromUrl: string
+      importUrlPlaceholder: string
       customAgent: string
       agentNamePlaceholder: string
       agentIdPlaceholder: string
@@ -160,6 +167,7 @@ export interface LocalesSchema {
       clearAllData: string
       deleteSessions: string
       importFailed: string
+      importZipFailed: string
       nameDescRequired: string
       providerFieldsRequired: string
       agentFieldsRequired: string
@@ -234,6 +242,31 @@ export interface LocalesSchema {
     accepted: string
     declined: string
     installing: string
+  }
+  skillShare: {
+    title: string
+    sendTab: string
+    receiveTab: string
+    selectSkill: string
+    selectPeer: string
+    send: string
+    waitForShare: string
+    waiting: string
+    noPeers: string
+    noUserSkills: string
+    progress: string
+    complete: string
+    error: string
+    requestFrom: string
+    confirm: string
+    decline: string
+    accepted: string
+    declined: string
+    installing: string
+    exportSuccess: string
+    importZipFailed: string
+    listenForSkill: string
+    skillFrom: string
   }
   webview: {
     browsing: string

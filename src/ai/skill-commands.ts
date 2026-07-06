@@ -277,3 +277,12 @@ export async function buildSkillIndex(): Promise<string> {
 
   return entries.join('\n')
 }
+
+/**
+ * 使技能扫描缓存失效（下次调用 scanSkills 会重新扫描磁盘）
+ */
+export function invalidateSkillCache(): void {
+  skillCommands = null
+  scanPromise = null
+  console.log('[SkillCommands] 缓存已失效')
+}
