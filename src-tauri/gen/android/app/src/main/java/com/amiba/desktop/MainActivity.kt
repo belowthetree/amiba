@@ -140,6 +140,7 @@ object WebViewHelper {
     @JvmStatic fun isInitialized(): Boolean = webView != null
 
     // ---- 文件打开（安装 APK 等） ----
+    // FLAG_ACTIVITY_NEW_TASK 允许在任意线程调用 startActivity，无需切主线程
     @JvmStatic fun openFile(path: String, mimeType: String): Boolean {
         android.util.Log.d("Amiba", "openFile called: path=$path mime=$mimeType")
         val ctx = appContext
@@ -148,43 +149,41 @@ object WebViewHelper {
             return false
         }
         android.util.Log.d("Amiba", "openFile: got context from appContext (not dependent on WebView)")
-        val ok = runOnMain(10000) {
+        try {
+            val file = java.io.File(path)
+            if (!file.exists()) {
+                android.util.Log.e("Amiba", "openFile: file not found: $path")
+                throw java.io.IOException("file not found: $path")
+            }
+            android.util.Log.d("Amiba", "openFile: file exists, size=${file.length()}")
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                ctx,
+                "${ctx.packageName}.fileprovider",
+                file
+            )
+            android.util.Log.d("Amiba", "openFile: FileProvider URI: $uri")
+            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, mimeType)
+                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            ctx.startActivity(intent)
+            android.util.Log.d("Amiba", "openFile: ✓ startActivity succeeded")
+            return true
+        } catch (e: java.lang.Exception) {
+            android.util.Log.e("Amiba", "openFile: FileProvider failed, trying file:// fallback", e)
             try {
-                val file = java.io.File(path)
-                if (!file.exists()) {
-                    android.util.Log.e("Amiba", "openFile: file not found: $path")
-                    throw java.io.IOException("file not found: $path")
-                }
-                android.util.Log.d("Amiba", "openFile: file exists, size=${file.length()}")
-                val uri = androidx.core.content.FileProvider.getUriForFile(
-                    ctx,
-                    "${ctx.packageName}.fileprovider",
-                    file
-                )
-                android.util.Log.d("Amiba", "openFile: FileProvider URI: $uri")
                 val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-                    setDataAndType(uri, mimeType)
+                    setDataAndType(android.net.Uri.parse("file://$path"), mimeType)
                     addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
                 ctx.startActivity(intent)
-                android.util.Log.d("Amiba", "openFile: startActivity succeeded")
-            } catch (e: java.lang.Exception) {
-                android.util.Log.e("Amiba", "openFile: FileProvider failed, trying file:// fallback", e)
-                try {
-                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-                        setDataAndType(android.net.Uri.parse("file://$path"), mimeType)
-                        addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                    ctx.startActivity(intent)
-                    android.util.Log.d("Amiba", "openFile: file:// fallback succeeded")
-                } catch (e2: java.lang.Exception) {
-                    android.util.Log.e("Amiba", "openFile: both methods failed", e2)
-                    throw e2
-                }
+                android.util.Log.d("Amiba", "openFile: ✓ file:// fallback succeeded")
+                return true
+            } catch (e2: java.lang.Exception) {
+                android.util.Log.e("Amiba", "openFile: ✗ both methods failed", e2)
+                return false
             }
         }
-        android.util.Log.d("Amiba", "openFile: returning $ok")
-        return ok
     }
 }

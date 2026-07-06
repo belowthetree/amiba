@@ -257,7 +257,7 @@ fn find_app_class_android<'a>(
         .map_err(|e| format!("cls_loader.l(): {e}"))?;
     let loader = unsafe { JObject::from_raw(loader_raw.cast()) };
     let jname = env
-        .new_string(name.replace('.', "/"))
+        .new_string(name)
         .map_err(|e| format!("newString: {e}"))?;
     let cls_obj = env
         .call_method(
