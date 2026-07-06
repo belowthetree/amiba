@@ -274,15 +274,13 @@ async function doDownloadWithPaths(
 export async function installUpdate(filePath: string): Promise<void> {
   console.log('[Updater] 准备安装:', filePath)
 
-  // Android: 使用专用插件
-  try {
+  // Android: 使用专用插件（userAgent 检测，不依赖 Tauri Rust plugin）
+  if (typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent)) {
     const { install } = await import('tauri-plugin-android-installer-api')
     console.log('[Updater] Android install 插件:', filePath)
     await install(filePath)
     console.log('[Updater] ✓ Android 安装已启动')
     return
-  } catch {
-    // 桌面或 Web 回退到 opener.openPath
   }
 
   const { openPath } = await import('@tauri-apps/plugin-opener')
