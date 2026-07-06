@@ -48,6 +48,7 @@ class JsCallback : ValueCallback<String> {
 object WebViewHelper {
     private val handler = Handler(Looper.getMainLooper())
     @Volatile private var webView: WebView? = null
+    @Volatile private var appContext: android.content.Context? = null
 
     private fun runOnMain(timeoutMs: Long, block: () -> Unit): Boolean {
         if (Looper.myLooper() == Looper.getMainLooper()) {
@@ -55,23 +56,44 @@ object WebViewHelper {
             return true
         }
         val latch = CountDownLatch(1)
+        var thrown: Exception? = null
         handler.post {
-            try { block() } finally { latch.countDown() }
+            try {
+                block()
+            } catch (e: Exception) {
+                thrown = e
+            } finally {
+                latch.countDown()
+            }
         }
-        return try {
+        val ok = try {
             latch.await(timeoutMs, TimeUnit.MILLISECONDS)
         } catch (_: InterruptedException) { false }
+        if (thrown != null) throw RuntimeException(thrown)
+        return ok
     }
 
     @JvmStatic fun init(context: android.content.Context): Boolean {
+        // 始终保存 ApplicationContext（不依赖 WebView 生命周期）
+        appContext = context.applicationContext ?: context
         if (webView != null) return true
+        android.util.Log.d("Amiba", "WebViewHelper.init: creating WebView...")
         val ok = runOnMain(5000) {
             if (webView != null) return@runOnMain
-            webView = WebView(context.applicationContext ?: context).apply {
-                settings.javaScriptEnabled = true
-                settings.domStorageEnabled = true
+            try {
+                webView = WebView(context.applicationContext ?: context).apply {
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                }
+                android.util.Log.d("Amiba", "WebViewHelper.init: WebView created OK")
+            } catch (e: Exception) {
+                android.util.Log.e("Amiba", "WebViewHelper.init: WebView creation failed", e)
+                webView = null // 确保为 null
             }
         }
+        val okMsg = if (webView != null) "OK" else "WebView creation failed (may be OK if only using openFile)"
+        android.util.Log.d("Amiba", "WebViewHelper.init result: $okMsg")
+        // openFile 只需要 appContext，不依赖 WebView，所以即使 WebView 创建失败也不影响安装功能
         return ok && webView != null
     }
 
@@ -112,6 +134,7 @@ object WebViewHelper {
             webView?.destroy()
             webView = null
         }
+        // 注意：不清理 appContext，以便后续 openFile 仍可使用
     }
 
     @JvmStatic fun isInitialized(): Boolean = webView != null
@@ -119,12 +142,12 @@ object WebViewHelper {
     // ---- 文件打开（安装 APK 等） ----
     @JvmStatic fun openFile(path: String, mimeType: String): Boolean {
         android.util.Log.d("Amiba", "openFile called: path=$path mime=$mimeType")
-        val ctx = webView?.context?.applicationContext
+        val ctx = appContext
         if (ctx == null) {
-            android.util.Log.e("Amiba", "openFile: webView not initialized, call init() first")
+            android.util.Log.e("Amiba", "openFile: appContext not set, call init() first")
             return false
         }
-        android.util.Log.d("Amiba", "openFile: got context, posting to main thread")
+        android.util.Log.d("Amiba", "openFile: got context from appContext (not dependent on WebView)")
         val ok = runOnMain(10000) {
             try {
                 val file = java.io.File(path)

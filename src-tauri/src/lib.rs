@@ -142,8 +142,9 @@ fn open_downloaded_file(app: tauri::AppHandle, file_path: String) -> Result<(), 
         let helper_cls = find_app_class_android(&mut env, "com.amiba.desktop.WebViewHelper")
             .map_err(|e| format!("找不到 WebViewHelper: {}", e))?;
 
-        // 确保 WebViewHelper 已初始化（内部创建隐藏 WebView，供 openFile 使用）
-        let init_ok: bool = env
+        // 确保 WebViewHelper 已初始化（保存 appContext，供 openFile 使用）
+        // 注意：即使 init 返回 false（WebView 创建失败），appContext 也已保存，openFile 仍可工作
+        let _init_ok: bool = env
             .call_static_method(
                 &helper_cls,
                 "init",
@@ -153,9 +154,6 @@ fn open_downloaded_file(app: tauri::AppHandle, file_path: String) -> Result<(), 
             .map_err(|e| format!("调用 init 失败: {}", e))?
             .z()
             .map_err(|e| format!("解析 init 返回值: {}", e))?;
-        if !init_ok {
-            return Err("WebViewHelper.init 失败".into());
-        }
 
         let path_jstr = env
             .new_string(&file_path)
