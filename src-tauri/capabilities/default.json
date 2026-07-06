@@ -21,6 +21,7 @@
     {
       "identifier": "opener:allow-open-path",
       "allow": [{ "path": "$APPDATA/**" }, { "path": "$HOME/**" }, { "path": "$TEMP/**" }]
-    }
+    },
+    "android-installer:default"
   ]
 }

@@ -268,11 +268,25 @@ async function doDownloadWithPaths(
 
 // ---- 拉起安装 ----
 
-/** 用系统默认程序打开下载好的文件（安装包） */
+/** 用系统默认程序打开下载好的文件（安装包）。
+ *  Android: tauri-plugin-android-installer（FileProvider + Intent）
+ *  桌面: @tauri-apps/plugin-opener.openPath */
 export async function installUpdate(filePath: string): Promise<void> {
   console.log('[Updater] 准备安装:', filePath)
-  const { invoke } = await import('@tauri-apps/api/core')
-  await invoke('open_downloaded_file', { filePath })
+
+  // Android: 使用专用插件
+  try {
+    const { install } = await import('tauri-plugin-android-installer-api')
+    console.log('[Updater] Android install 插件:', filePath)
+    await install(filePath)
+    console.log('[Updater] ✓ Android 安装已启动')
+    return
+  } catch {
+    // 桌面或 Web 回退到 opener.openPath
+  }
+
+  const { openPath } = await import('@tauri-apps/plugin-opener')
+  await openPath(filePath)
   console.log('[Updater] ✓ 已启动安装程序')
 }
 
