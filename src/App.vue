@@ -217,7 +217,7 @@ button {
 /* === 响应式：平板 === */
 @media (min-width: 769px) and (max-width: 1024px) {
   .topbar {
-    padding: max(var(--safe-top), 8px) 12px 0 12px;
+    padding: calc(max(var(--safe-top), 8px) + 6px) 12px 0 12px;
   }
 }
 
