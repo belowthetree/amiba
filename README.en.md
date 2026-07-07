@@ -49,6 +49,16 @@ cargo tauri build     # Tauri desktop (package EXE/DMG/deb)
 - All data stored locally under `{AppData}/amiba/`
 - Config, memory, history, services, skills, souls — all local
 
+## Built-in Services
+
+The app ships with 6 built-in services covering system pages and a demo mini-app:
+
+| ID | Name | Description |
+|---|---|---|
+| `user.pet_world` | Pet World | LAN-based pet raising, battle & trading (JSBridge demo) |
+
+System services (`system.*`) are implemented as Vue Router page routes, source-protected and undeletable. Prebuilt user services (`user.*`) are automatically installed on first launch, demonstrating full usage of JSBridge storage / notification / network.
+
 ## Service API (JSBridge)
 
 Generated services run inside `<iframe sandbox>` and call host capabilities via the `window.__amiba__` global object. Each API method requires the corresponding permission declared in the service manifest.

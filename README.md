@@ -50,6 +50,16 @@ cargo tauri build     # Tauri 桌面应用（打包 EXE/DMG/deb）
 - 所有数据本地存储在 `{AppData}/amiba/`
 - 配置、记忆、对话历史、服务文件、技能、人格文件全部本地化
 
+## 内置服务
+
+应用预置了 6 个内置服务，涵盖系统功能页面和演示小程序：
+
+| ID | 名称 | 说明 |
+|---|---|---|
+| `user.pet_world` | 宠物世界 | 局域网宠物养成、对战、交易（JSBridge 演示） |
+
+系统服务（`system.*`）通过 Vue Router 页面路由实现，源头保护不可删除。预置用户服务（`user.*`）在首次启动时自动安装，展示 JSBridge storage / notification / network 的完整用法。
+
 ## 服务 API (JSBridge)
 
 AI 生成的服务运行在 `<iframe sandbox>` 中，通过 `window.__amiba__` 全局对象调用宿主能力。所有 API 均需在服务 manifest 中声明对应权限。
