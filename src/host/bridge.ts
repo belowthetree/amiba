@@ -171,7 +171,7 @@ export const BRIDGE_SCRIPT = `
       start: function(opts) { return callHost('background', 'start', { opts: opts || {} }); },
       stop: function() { return callHost('background', 'stop', {}); },
       getState: function() { return callHost('background', 'getState', {}); },
-      postMessage: function(message) { return callHost('background', 'postMessage', { message: message }); },
+      postMessage: function(message) { return callHost('background', 'postMessage', { message: message, serviceId: window.__amiba_service_id__ || undefined }); },
       onMessage: function(callback) {
         window.addEventListener('message', function handler(e) {
           if (e.data && e.data.type === 'event' && e.data.name === 'bg-message') {
@@ -187,10 +187,43 @@ export const BRIDGE_SCRIPT = `
         });
       }
     },
+    fileAccess: {
+      requestAccess: function(opts) { return callHost('fileAccess', 'requestAccess', { opts: opts || {} }); },
+      listFiles: function(token) { return callHost('fileAccess', 'listFiles', { token: token }); },
+      readText: function(token, path) { return callHost('fileAccess', 'readText', { token: token, path: path }); },
+      readBinary: function(token, path) { return callHost('fileAccess', 'readBinary', { token: token, path: path }); },
+    },
   };
-})();
-`
 
+  // ---- 悬浮块自动适应大小 ----
+  if (window.__widget_id__) {
+    var _lastH = 0, _lastW = 0;
+    var _sendSize = function() {
+      var b = document.body;
+      if (!b) return;
+      var d = document.documentElement;
+      var w = Math.max(b.scrollWidth || 0, d.scrollWidth || 0, b.offsetWidth || 0, d.offsetWidth || 0);
+      var h = Math.max(b.scrollHeight || 0, d.scrollHeight || 0, b.offsetHeight || 0, d.offsetHeight || 0);
+      if ((h > 10 && h !== _lastH) || (w > 10 && w !== _lastW)) {
+        _lastH = h;
+        _lastW = w;
+        window.parent.postMessage({ type: 'widget-resize', widgetId: window.__widget_id__, width: w, height: h }, '*');
+      }
+    };
+    var _startObserve = function() {
+      if (!document.body) { requestAnimationFrame(_startObserve); return; }
+      _sendSize();
+      setTimeout(_sendSize, 200);
+      setTimeout(_sendSize, 800);
+      if (window.ResizeObserver) {
+        new ResizeObserver(function() { _sendSize(); }).observe(document.body);
+      }
+    };
+    _startObserve();
+  }
+})();
+
+`
 export function createBridge(
   iframe: HTMLIFrameElement,
   allowedPermissions: string[],
@@ -226,6 +259,10 @@ export function createBridge(
     }
     if (req.module === 'background' && !allowedPermissions.includes('background')) {
       sendResponse(req.requestId, undefined, 'Permission denied: background')
+      return
+    }
+    if (req.module === 'fileAccess' && !allowedPermissions.includes('fileAccess')) {
+      sendResponse(req.requestId, undefined, 'Permission denied: fileAccess')
       return
     }
 

@@ -26,6 +26,7 @@
             <iframe
               class="widget-iframe"
               :srcdoc="state.htmlContent"
+              :data-widget-id="id"
               sandbox="allow-scripts"
               allow="clipboard-write"
             ></iframe>
@@ -80,6 +81,27 @@ watch(
     onRouteChange((name as string) || null)
   }
 )
+
+// ---- 悬浮块自动适应高度 ----
+
+function handleWidgetResize(event: MessageEvent) {
+  const data = event.data
+  if (!data || data.type !== 'widget-resize') return
+  const { widgetId, height } = data
+  if (!widgetId || !height) return
+  const iframe = document.querySelector('iframe[data-widget-id="' + widgetId + '"]') as HTMLIFrameElement | null
+  if (iframe) {
+    iframe.style.height = Math.min(Math.max(height, 80), 480) + 'px'
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('message', handleWidgetResize)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('message', handleWidgetResize)
+})
 
 // ---- 计算 ----
 
@@ -235,74 +257,76 @@ onUnmounted(() => {
   position: absolute;
   top: 0;
   width: 280px;
-  max-height: 400px;
+  max-height: 480px;
   background: var(--color-surface, #fff);
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  border-radius: 14px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.08);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   z-index: 9500;
+  border: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .panel-right {
-  left: 52px; /* 图标右侧展开 */
+  left: 52px;
 }
 
 .panel-left {
-  right: 52px; /* 图标左侧展开 */
+  right: 52px;
 }
 
 .panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
-  border-bottom: 1px solid #eee;
+  padding: 6px 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   flex-shrink: 0;
+  background: var(--color-surface, #fff);
 }
 
 .panel-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--color-text, #333);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-secondary, #999);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .panel-close {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   border: none;
-  background: #f5f5f5;
+  background: transparent;
   border-radius: 50%;
-  font-size: 14px;
+  font-size: 13px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #666;
+  color: #999;
   flex-shrink: 0;
   transition: background 0.15s;
 }
 
 .panel-close:hover {
-  background: #e0e0e0;
+  background: rgba(0, 0, 0, 0.06);
+  color: #666;
 }
 
 .panel-body {
   flex: 1;
   overflow: hidden;
-  min-height: 120px;
 }
 
 .widget-iframe {
   width: 100%;
-  height: 100%;
-  min-height: 200px;
+  height: 200px;
   border: none;
-  background: #fff;
+  background: transparent;
+  transition: height 0.15s ease;
 }
 
 /* ---- 面板动画 ---- */

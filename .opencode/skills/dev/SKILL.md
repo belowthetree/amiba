@@ -75,7 +75,7 @@ description: 引导 agent 在任务前后阅读/更新项目开发规范文档�
 
 ### 添加流程
 
-1. 在 `public/services/{serviceId}/` 创建服务文件（`serviceId` 即 manifest 中的 `id` 字段，如 `user.pet_world`）。**目录名必须与 serviceId 完全一致。**
+1. 在 `public/services/{serviceId}/` 创建服务文件和 `manifest.json`（不用把 manifest 写到 index.json 里）。
 
 2. 在 `public/services/index.json` 中注册：
    ```json
@@ -83,30 +83,84 @@ description: 引导 agent 在任务前后阅读/更新项目开发规范文档�
      "services": [
        {
          "id": "user.xxx",
-         "manifest": { "name": "名称", "version": "1.0.0", "description": "描述", "permissions": [...] },
-         "files": ["index.html", "style.css", "app.js", "utils/helper.js", "components/foo.js"]
+         "files": ["manifest.json", "index.html", "style.css", "app.js"]
        }
      ]
    }
    ```
    - `id` — 服务唯一标识，与目录名一致
-   - `manifest` — 服务元数据（无需写 `id` 字段，由安装器自动填入）
-   - `files` — 服务所有文件的相对路径列表（支持子目录如 `utils/xxx.js`）
-
-3. 服务文件按前端服务的标准结构编写：`index.html` 为入口，通过 `<link href="...">` 和 `<script src="...">` 引用其他文件。packager 在渲染时自动内联。
-
-4. 无需在服务目录中放置 `manifest.json` — manifest 由 `installPrebuiltServices()` 根据 `index.json` 中的定义自动生成并写入。
+   - `files` — 服务所有文件的相对路径列表（第一个必须是 `manifest.json`）
 
 ### 自动安装机制
 
 - `src/host/registry.ts` 中的 `installPrebuiltServices()` 在 bootstrap 阶段被调用
-- 下载 `public/services/index.json` → 逐个 fetch 文件 → `registerService()` + `storeServicePackage()`
+- 下载 `public/services/index.json` → 逐个 fetch 文件 → 从 `manifest.json` 解析元数据 → `registerService()` + `storeServicePackage()`
 - 已注册的服务检查 `getServicePackage()` 文件是否完整（files 非空）→ 不完整则自动重装
 - `source` 字段标记为 `'builtin'`（区别于 `ai-generated` / `downloaded`）
 
 ### 关键约束
 
-- **目录名 = serviceId**：fetch URL 路径 `/services/{serviceId}/{file}` 必须命中文件，目录名不匹配会导致 404
-- **不放置 manifest.json**：manifest 由 index.json 统一定义，避免两份定义不一致
-- **文件路径与 HTML 引用一致**：`index.html` 中 `<script src="utils/xxx.js">` 的路径必须与 `files` 数组中的路径完全匹配
-- **遵循 sandbox 约束**：不使用 `localStorage`/`alert()`/`confirm()`/外部 CDN，持久化用 `__amiba__.storage`，弹窗用 `__amiba__.showToast()` 或自定义 modal
+- **目录名 = serviceId**：fetch URL 路径 `/services/{serviceId}/{file}` 必须命中文件
+- **manifest.json 与目录同级**：放在 `public/services/{serviceId}/manifest.json`，内容与标准导入包一致（含 `id`、`name`、`version`、`description`、`permissions`）
+- **files 数组首项为 manifest.json**：确保安装器优先解析元数据
+- **遵循 sandbox 约束**：不使用 `localStorage`/`alert()`/`confirm()`/外部 CDN
+
+## 悬浮块 (Widget) UI 规范
+
+生成或修改悬浮块 HTML 时，必须遵循以下约定：
+
+### 结构
+
+```html
+<!-- AMIBA_BRIDGE -->
+<style>
+  .widget-root { /* 根容器，不要设固定高度 */ }
+</style>
+<div class="widget-root">
+  <!-- 内容 -->
+</div>
+<script>
+  // 逻辑
+</script>
+```
+
+### 样式约束
+
+| 规则 | 说明 |
+|------|------|
+| **不要设固定高度** | 面板自动适应内容高度（ResizeObserver），设 `height: xxx` 会导致留白或裁剪 |
+| **不要设 `body` 样式** | `body` 的 margin/padding 由宿主 iframe 控制，在 `.widget-root` 上设置 |
+| **背景色自管理** | 宿主面板背景透明，widget 必须设置自己的背景色 |
+| **字体** | 使用系统栈：`-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif` |
+| **颜色变量** | 推荐使用宿主 CSS 变量：`var(--color-text)`、`var(--color-surface)` |
+| **面板宽 280px** | 展开面板固定 280px 宽，内容自适应 |
+
+### 自动高度
+
+宿主通过 `ResizeObserver` 自动监测内容高度并通过 `postMessage` 同步，无需手动调用。需要触发重新测量时改变 DOM 即可。
+
+### 示例 (音乐播放器控件)
+
+```html
+<!-- AMIBA_BRIDGE -->
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  .widget-root {
+    padding: 10px 12px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #16213e;
+    color: #eee;
+    border-radius: 8px;
+  }
+  .track-info { font-size: 12px; color: #ccc; }
+</style>
+<div class="widget-root">
+  <div class="track-info">未在播放</div>
+  <!-- 内容 -->
+</div>
+<script>
+  (function() {
+    // 使用 __amiba__ API 与宿主/后台通信
+  })();
+</script>
+```

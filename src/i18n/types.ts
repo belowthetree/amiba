@@ -220,6 +220,7 @@ export interface LocalesSchema {
     imported: string
     importFailed: string
     widgetToggle: string
+    serviceToggle: string
     backgroundToggle: string
     backgroundRunning: string
     backgroundStopped: string

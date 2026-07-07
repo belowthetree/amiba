@@ -41,20 +41,14 @@
           <div class="card-desc">{{ svc.manifest.description || $t('services.noDescription') }}</div>
           <div class="card-meta">{{ svc.manifest.id }} · v{{ svc.manifest.version }}</div>
           <div class="card-actions" @click.stop>
-            <label v-if="hasWidgetConfig(svc.manifest.id)" class="toggle" :title="$t('services.widgetToggle')">
+            <label v-if="svc.manifest.permissions.includes('widgets') || svc.backgroundConfig" class="toggle" :title="$t('services.serviceToggle')">
               <input
                 type="checkbox"
-                :checked="hasServiceWidgetVisible(svc.manifest.id)"
-                @change="handleWidgetToggle(svc.manifest.id)"
+                :checked="isServiceActive(svc.manifest.id)"
+                @change="handleServiceToggle(svc)"
               />
               <span class="toggle-slider"></span>
             </label>
-            <button
-              v-if="svc.backgroundConfig"
-              class="action-icon"
-              :title="isRunning(svc.manifest.id) ? $t('services.backgroundRunning') : $t('services.backgroundStart')"
-              @click="handleBackgroundToggle(svc)"
-            >{{ isRunning(svc.manifest.id) ? '⏹' : '▶️' }}</button>
             <button class="action-icon" @click="deleteService(svc)" title="删除">🗑</button>
           </div>
         </div>
@@ -159,19 +153,27 @@ function hasServiceWidgetVisible(serviceId: string): boolean {
   return getService(serviceId)?.widgetsVisible === true
 }
 
-function handleWidgetToggle(serviceId: string) {
-  const currentlyVisible = hasServiceWidgetVisible(serviceId)
-  setServiceWidgetsVisible(serviceId, !currentlyVisible)
+function isServiceActive(serviceId: string): boolean {
+  return hasServiceWidgetVisible(serviceId) || isRunning(serviceId)
 }
 
-async function handleBackgroundToggle(svc: ServiceEntry) {
-  if (isRunning(svc.manifest.id)) {
-    await stopService(svc.manifest.id)
+async function handleServiceToggle(svc: ServiceEntry) {
+  const active = isServiceActive(svc.manifest.id)
+  if (active) {
+    setServiceWidgetsVisible(svc.manifest.id, false)
+    if (isRunning(svc.manifest.id)) {
+      await stopService(svc.manifest.id)
+    }
   } else {
-    try {
-      await startService(svc.manifest.id)
-    } catch (e: any) {
-      alert(e?.message || String(e))
+    setServiceWidgetsVisible(svc.manifest.id, true)
+    if (svc.backgroundConfig) {
+      try {
+        await startService(svc.manifest.id)
+      } catch (e: any) {
+        alert(e?.message || String(e))
+        // 回滚 widget 可见性
+        setServiceWidgetsVisible(svc.manifest.id, false)
+      }
     }
   }
 }

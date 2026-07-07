@@ -9,15 +9,15 @@
     "core:default",
     "fs:default",
     "fs:allow-appdata-write-recursive",
+    "fs:allow-read",
+    "fs:allow-read-text-file",
+    "fs:allow-read-file",
     {
       "identifier": "fs:scope",
-      "allow": [{ "path": "$TEMP/**" }]
-    },
-    {
-      "identifier": "fs:allow-read-text-file",
-      "allow": [{ "path": "**" }]
+      "allow": [{ "path": "$HOME/**" }, { "path": "$TEMP/**" }]
     },
     "dialog:default",
+    "dialog:allow-open",
     {
       "identifier": "opener:allow-open-path",
       "allow": [{ "path": "$APPDATA/**" }, { "path": "$HOME/**" }, { "path": "$TEMP/**" }]

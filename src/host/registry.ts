@@ -155,8 +155,9 @@ export async function storeServicePackage(serviceId: string, pkg: ServicePackage
   // Write manifest.json
   await writeServiceFile(serviceId, 'manifest.json', JSON.stringify(pkg.manifest, null, 2))
 
-  // Write each file
+  // Write each file (skip manifest.json — already written above)
   for (const f of pkg.files) {
+    if (f.path === 'manifest.json') continue
     await writeServiceFile(serviceId, f.path, f.content)
   }
 
@@ -268,13 +269,7 @@ export async function installPrebuiltServices(): Promise<number> {
   const serviceList = indexData?.services ?? []
   for (const entry of serviceList) {
     const serviceId = entry.id
-    const manifest: ServiceManifest = {
-      id: serviceId,
-      name: entry.manifest.name,
-      version: entry.manifest.version,
-      description: entry.manifest.description,
-      permissions: entry.manifest.permissions,
-    }
+    const fileList: string[] = entry.files ?? []
 
     // 已注册则检查文件是否完整
     if (getService(serviceId)) {
@@ -286,15 +281,33 @@ export async function installPrebuiltServices(): Promise<number> {
       console.log('[Registry] 预置服务文件损坏，重新安装:', serviceId)
     }
 
-    const fileList: string[] = entry.files ?? []
+    // 获取所有文件
     const files: ServiceFile[] = []
+    let manifest: ServiceManifest | null = null
     let fetchFailed = false
 
     for (const fp of fileList) {
       try {
         const res = await fetch(`/services/${serviceId}/${fp}`)
         if (!res.ok) { fetchFailed = true; break }
-        files.push({ path: fp, content: await res.text() })
+        const content = await res.text()
+        files.push({ path: fp, content })
+
+        // 解析 manifest.json
+        if (fp === 'manifest.json') {
+          try {
+            const parsed = JSON.parse(content)
+            manifest = {
+              id: serviceId,
+              name: parsed.name,
+              version: parsed.version,
+              description: parsed.description || '',
+              permissions: parsed.permissions || [],
+            }
+          } catch {
+            console.warn('[Registry] 预置服务 manifest.json 解析失败:', serviceId)
+          }
+        }
       } catch {
         fetchFailed = true
         break
@@ -303,6 +316,11 @@ export async function installPrebuiltServices(): Promise<number> {
 
     if (fetchFailed) {
       console.log('[Registry] 预置服务文件下载失败，跳过:', serviceId)
+      continue
+    }
+
+    if (!manifest) {
+      console.log('[Registry] 预置服务缺少 manifest.json，跳过:', serviceId)
       continue
     }
 

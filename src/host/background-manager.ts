@@ -9,6 +9,12 @@ import { getService, setServiceData, getServiceData, removeServiceData } from '.
 import { readServiceFile } from '../config/storage'
 import { onEvent as onNetworkEvent, setVisibility, getVisibility, startDiscovery, stopDiscovery, getVisibleDevices, connect, sessions, startListening, stopListening } from './network-bridge'
 import { BRIDGE_SCRIPT } from './bridge'
+import {
+  requestAccess,
+  listFiles,
+  readTextFile,
+  readBinaryFile,
+} from './file-access-grants'
 import type { BackgroundConfig } from '../types/service'
 
 // ---- 类型 ----
@@ -30,6 +36,47 @@ interface BackgroundWorker {
 const _workers = new Map<string, BackgroundWorker>()
 let _hiddenContainer: HTMLDivElement | null = null
 
+// ---- 全局监听：接收 widget 等非标准 iframe 的 background API 调用 ----
+
+window.addEventListener('message', (event: MessageEvent) => {
+  const data = event.data
+  if (!data || data.type !== 'api' || data.module !== 'background') return
+  const svcId = data.params?.serviceId
+  if (!svcId) return
+
+  const { method, params, requestId } = data
+  const worker = _workers.get(svcId)
+  const reply = (result?: any, error?: string) => {
+    try { (event.source as WindowProxy)?.postMessage({ type: 'api-response', requestId, result, error }, '*') } catch { /* ignore */ }
+  }
+
+  switch (method) {
+    case 'postMessage': {
+      if (worker && worker.state === 'running') {
+        try {
+          worker.iframe.contentWindow?.postMessage({
+            type: 'event', name: 'bg-message', data: params.message,
+          }, '*')
+        } catch { /* ignore */ }
+      }
+      reply(undefined)
+      return
+    }
+    case 'getState': {
+      reply(getBackgroundState(svcId))
+      return
+    }
+    case 'start': {
+      startService(svcId).then(() => reply(undefined)).catch((e: any) => reply(undefined, e?.message || String(e)))
+      return
+    }
+    case 'stop': {
+      stopService(svcId).then(() => reply(undefined))
+      return
+    }
+  }
+})
+
 function getHiddenContainer(): HTMLDivElement {
   if (!_hiddenContainer) {
     _hiddenContainer = document.createElement('div')
@@ -46,6 +93,21 @@ const _foregroundHandlers = new Map<string, ((msg: any) => void) | null>()
 
 export function registerForegroundHandler(serviceId: string, handler: ((msg: any) => void) | null) {
   _foregroundHandlers.set(serviceId, handler)
+}
+
+/** 前台 → 后台：向指定服务的后台 iframe 发送消息 */
+export function sendToBackground(serviceId: string, message: any): void {
+  const worker = _workers.get(serviceId)
+  if (!worker || worker.state !== 'running') {
+    throw new Error('后台服务未运行')
+  }
+  try {
+    worker.iframe.contentWindow?.postMessage({
+      type: 'event',
+      name: 'bg-message',
+      data: message,
+    }, '*')
+  } catch { /* ignore */ }
 }
 
 // ---- Public API ----
@@ -185,6 +247,33 @@ async function handleBgAPI(req: { module: string; method: string; params: Record
           case 'startListening': await startListening(params.serviceKey); _sendResponse(worker, requestId); return
           case 'stopListening': await stopListening(params.serviceKey); _sendResponse(worker, requestId); return
           default: _sendResponse(worker, requestId, undefined, 'Unknown network method: ' + method); return
+        }
+      } catch (e: any) { _sendResponse(worker, requestId, undefined, e?.message || String(e)); return }
+    }
+    case 'fileAccess': {
+      try {
+        switch (method) {
+          case 'requestAccess': {
+            const result = await requestAccess(svcId, params.opts || {})
+            _sendResponse(worker, requestId, result)
+            return
+          }
+          case 'listFiles': {
+            const result = await listFiles(svcId, params.token)
+            _sendResponse(worker, requestId, result)
+            return
+          }
+          case 'readText': {
+            const result = await readTextFile(svcId, params.token, params.path)
+            _sendResponse(worker, requestId, result)
+            return
+          }
+          case 'readBinary': {
+            const result = await readBinaryFile(svcId, params.token, params.path)
+            _sendResponse(worker, requestId, result)
+            return
+          }
+          default: _sendResponse(worker, requestId, undefined, 'Unknown fileAccess method: ' + method); return
         }
       } catch (e: any) { _sendResponse(worker, requestId, undefined, e?.message || String(e)); return }
     }

@@ -221,6 +221,7 @@ const en: LocalesSchema = {
     imported: 'Service "{name}" imported!',
     importFailed: 'Import failed',
     widgetToggle: 'Show widgets',
+    serviceToggle: 'Enable service',
     backgroundToggle: 'Background',
     backgroundRunning: 'Running in background',
     backgroundStopped: 'Background stopped',

@@ -221,6 +221,7 @@ const zhCN: LocalesSchema = {
     imported: '服务 "{name}" 已导入！',
     importFailed: '导入失败',
     widgetToggle: '显示悬浮块',
+    serviceToggle: '启用服务',
     backgroundToggle: '后台运行',
     backgroundRunning: '后台运行中',
     backgroundStopped: '后台已停止',

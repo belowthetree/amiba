@@ -54,7 +54,14 @@ import {
   stopService,
   getBackgroundState,
   registerForegroundHandler,
+  sendToBackground,
 } from './background-manager'
+import {
+  requestAccess,
+  listFiles,
+  readTextFile,
+  readBinaryFile,
+} from './file-access-grants'
 import type { ApiHandler } from './bridge'
 import type { ServicePackage, FloatingWidgetManifest } from '../types/service'
 
@@ -124,9 +131,10 @@ function loadWidgetsFromPackage(pkg: ServicePackage, permissions: string[]) {
       continue
     }
 
-    // 注入 bridge 脚本
+    // 注入 bridge 脚本 + serviceId + widgetId
     const processed = widgetFile.content.replace(
       '<!-- AMIBA_BRIDGE -->',
+      '<script>window.__amiba_service_id__ = "' + serviceId.value + '";window.__widget_id__ = "' + config.id + '"</' + 'script>' +
       '<script>' + BRIDGE_SCRIPT + '<\/script>'
     )
 
@@ -189,9 +197,10 @@ function makeApiHandler(): ApiHandler {
             if (!widgetHtml) {
               throw new Error(`Widget page not found: ${config.page}`)
             }
-            // 注入 bridge 脚本
+            // 注入 bridge 脚本 + serviceId + widgetId
             const processed = widgetHtml.replace(
               '<!-- AMIBA_BRIDGE -->',
+              '<script>window.__amiba_service_id__ = "' + serviceId.value + '";window.__widget_id__ = "' + config.id + '"</' + 'script>' +
               '<script>' + BRIDGE_SCRIPT + '<\/script>'
             )
             registerWidget(
@@ -287,15 +296,26 @@ function makeApiHandler(): ApiHandler {
           case 'getState':
             return getBackgroundState(serviceId.value)
           case 'postMessage': {
-            // 前台 → 后台：通过 BackgroundServiceManager 转发
-            // postMessage 由 background-manager 的 registerForegroundHandler 通道处理
-            // 前台调用 postMessage 实际上是通过 start/stop 之外的 API
-            // 后台 → 前台的 postMessage 在 onMounted 中通过 registerForegroundHandler 注册处理器
-            console.log('[SvcContainer] 前台 postMessage 不支持直接调用，请使用 onMessage 接收后台消息')
+            // 前台 → 后台
+            sendToBackground(serviceId.value, params.message)
             return
           }
           default:
             throw new Error(`Unknown background method: ${method}`)
+        }
+      }
+      case 'fileAccess': {
+        switch (method) {
+          case 'requestAccess':
+            return await requestAccess(serviceId.value, params.opts || {})
+          case 'listFiles':
+            return await listFiles(serviceId.value, params.token)
+          case 'readText':
+            return await readTextFile(serviceId.value, params.token, params.path)
+          case 'readBinary':
+            return await readBinaryFile(serviceId.value, params.token, params.path)
+          default:
+            throw new Error(`Unknown fileAccess method: ${method}`)
         }
       }
       default:

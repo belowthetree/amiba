@@ -1,0 +1,7 @@
+{
+  "id": "user.pet_world",
+  "name": "宠物世界",
+  "version": "1.0.0",
+  "description": "局域网宠物养成、对战、交易",
+  "permissions": ["storage", "notification", "network"]
+}
