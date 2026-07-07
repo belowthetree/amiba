@@ -1,0 +1,1 @@
+{"widgets":[{"id":"music-controls","icon":"🎵","label":"音乐播放器","page":"widgets/controls.html","edge":"right","position":60,"showOn":[],"trigger":"manual","lifecycle":"*","width":240,"height":240}]}

@@ -58,6 +58,8 @@ window.addEventListener('message', (event: MessageEvent) => {
             type: 'event', name: 'bg-message', data: params.message,
           }, '*')
         } catch { /* ignore */ }
+      } else {
+        console.log('[BgManager] 忽略 postMessage: ' + svcId + ' worker=' + !!worker + ' running=' + (worker ? worker.state : 'null'))
       }
       reply(undefined)
       return

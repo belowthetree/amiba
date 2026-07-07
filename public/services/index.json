@@ -2,13 +2,8 @@
   "services": [
     {
       "id": "user.pet_world",
-      "manifest": {
-        "name": "宠物世界",
-        "version": "1.0.0",
-        "description": "局域网宠物养成、对战、交易",
-        "permissions": ["storage", "notification", "network"]
-      },
       "files": [
+        "manifest.json",
         "index.html",
         "style.css",
         "app.js",
@@ -18,6 +13,19 @@
         "components/battle.js",
         "components/trade.js",
         "components/player-list.js"
+      ]
+    },
+    {
+      "id": "user.music_player",
+      "files": [
+        "manifest.json",
+        "index.html",
+        "style.css",
+        "app.js",
+        "background.js",
+        "background.json",
+        "widget.json",
+        "widgets/controls.html"
       ]
     }
   ]

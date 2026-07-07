@@ -1,0 +1,57 @@
+<!-- AMIBA_BRIDGE -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>音乐播放器</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app" id="app">
+
+  <div class="header">
+    <h1>🎵 音乐播放器</h1>
+  </div>
+
+  <!-- 文件夹选择 -->
+  <div class="section" id="folder-section">
+    <p class="hint">首次使用请选择音乐文件夹</p>
+    <button class="btn btn-primary" id="btn-pick-folder">📁 选择音乐文件夹</button>
+    <span class="folder-path" id="folder-path"></span>
+  </div>
+
+  <!-- 曲库 -->
+  <div class="section" id="library-section" style="display:none">
+    <div class="lib-header">
+      <span class="track-count" id="track-count"></span>
+      <button class="btn btn-sm" id="btn-rescan">🔄 重新扫描</button>
+    </div>
+    <div class="track-list" id="track-list"></div>
+  </div>
+
+  <!-- 播放器 -->
+  <div class="player" id="player" style="display:none">
+    <div class="now-playing" id="now-playing">未在播放</div>
+    <div class="progress-bar" id="progress-bar">
+      <div class="progress-fill" id="progress-fill"></div>
+    </div>
+    <div class="time-row">
+      <span id="time-current">0:00</span>
+      <span id="time-duration">0:00</span>
+    </div>
+    <div class="controls">
+      <button class="btn-ctrl" id="btn-prev">⏮</button>
+      <button class="btn-ctrl btn-play" id="btn-play">▶️</button>
+      <button class="btn-ctrl" id="btn-next">⏭</button>
+    </div>
+    <div class="volume-row">
+      <span>🔊</span>
+      <input type="range" id="volume-slider" min="0" max="100" value="80">
+    </div>
+  </div>
+
+</div>
+<script src="app.js"></script>
+</body>
+</html>

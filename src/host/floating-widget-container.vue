@@ -305,6 +305,7 @@ onUnmounted(() => {
   width: 100%;
   border: none;
   background: transparent;
+  overflow: hidden;
 }
 
 /* ---- 面板动画 ---- */

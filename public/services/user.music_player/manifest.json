@@ -1,0 +1,7 @@
+{
+  "id": "user.music_player",
+  "name": "音乐播放器",
+  "version": "1.0.0",
+  "description": "扫描本地音乐文件夹，支持后台播放和悬浮块快捷控制",
+  "permissions": ["storage", "notification", "widgets", "background", "fileAccess"]
+}

@@ -271,14 +271,28 @@ export async function installPrebuiltServices(): Promise<number> {
     const serviceId = entry.id
     const fileList: string[] = entry.files ?? []
 
-    // 已注册则检查文件是否完整
+    // 已注册则比较版本，版本一致才跳过
     if (getService(serviceId)) {
       const existingPkg = await getServicePackage(serviceId)
-      if (existingPkg && existingPkg.files.length > 0) {
-        console.log('[Registry] 预置服务已存在，跳过:', serviceId)
-        continue
+      // 先获取最新 manifest 做版本对比
+      if (fileList.includes('manifest.json')) {
+        try {
+          const manifestRes = await fetch(`/services/${serviceId}/manifest.json`)
+          if (manifestRes.ok) {
+            const parsed = await manifestRes.json()
+            const svc = getService(serviceId)
+            if (svc && svc.manifest.version === parsed.version && existingPkg && existingPkg.files.length > 0) {
+              console.log('[Registry] 预置服务已存在，版本相同，跳过:', serviceId)
+              continue
+            }
+          }
+        } catch { /* fall through to reinstall */ }
       }
-      console.log('[Registry] 预置服务文件损坏，重新安装:', serviceId)
+      if (!existingPkg || existingPkg.files.length === 0) {
+        console.log('[Registry] 预置服务文件损坏，重新安装:', serviceId)
+      } else {
+        console.log('[Registry] 预置服务版本变更，重新安装:', serviceId)
+      }
     }
 
     // 获取所有文件
