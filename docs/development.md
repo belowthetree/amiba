@@ -144,6 +144,7 @@ src/
   │   ├── floating-widget-manager.ts
   │   ├── floating-widget-container.vue
   │   ├── widget-lifecycle.ts
+  │   ├── background-manager.ts  # 后台服务运行时管理
   │   └── webview-overlay-state.ts  # WebView 截图预览状态 + Tauri 事件监听
 ├── components/
 │   └── WebviewOverlay.vue  # 可拖拽 WebView 预览悬浮面板
@@ -419,3 +420,4 @@ await stopReceiving()
 - **2026-07-05**: `getServicePackage` 会列出服务目录下所有文件（含隐藏目录），归档版本存储在当前服务目录的 `.versions/` 子目录下，需在 `getServicePackage` 的文件过滤中加入 `name.startsWith('.versions')` 避免把历史快照塞入服务包。
 - **2026-07-05**: ChatPage 输入框 `width: 100%` 配合 `margin` 在 flex column 布局中会导致 `overflow: hidden` 裁切右侧边距。使用 `width: calc(100% - Npx)` 配合 `margin: auto` 同时实现居中+间距。
 - **2026-07-05**: 分享弹窗启动设备发现后，关闭弹窗时必须调用 `stopDiscovery('lan')` 并清除定时器。仅清定时器不会停止 Rust 端 UDP 监听，日志将持续输出。
+- **2026-07-07**: 后台服务运行时采用隐藏 iframe 模式，复用已有 JSBridge 基础设施。隐藏 iframe 的 `postMessage` 目标为 `window.parent`（即主 window），而非 service-container。为防止后台 iframe 的 API 消息被前台 service-container 错误处理，`bridge.ts` 的 `createBridge()` 中增加了 `event.source !== iframe.contentWindow` 检查。后台 iframe 的所有 API 调用（storage/notification/network/background）均由 `BackgroundServiceManager` 统一处理，使用 `worker.serviceId` 而非当前路由的 `serviceId` 确定调用上下文。

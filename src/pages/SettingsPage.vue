@@ -146,6 +146,29 @@
       </div>
 
       <div class="settings-section">
+        <h3 class="section-label">🔄 {{ $t('settings.general.backgroundServices') }}</h3>
+
+        <div class="form-group">
+          <div class="toggle-row">
+            <div>
+              <label style="margin-bottom:0">{{ $t('settings.general.backgroundServices') }}</label>
+              <span class="toggle-desc">{{ $t('settings.general.backgroundDesc') }}</span>
+            </div>
+            <label class="switch">
+              <input type="checkbox" v-model="settings.background_services_enabled" />
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group" v-if="settings.background_services_enabled">
+          <label>{{ $t('settings.general.backgroundMax') }}</label>
+          <input type="number" v-model.number="settings.max_background_services" class="form-input" min="1" max="10" style="width:80px" />
+          <span class="toggle-hint">{{ $t('settings.general.backgroundMaxHint') }}</span>
+        </div>
+      </div>
+
+      <div class="settings-section">
         <h3 class="section-label">{{ $t('settings.general.about') }}</h3>
         <div class="about-info">
           <p><strong>{{ $t('settings.general.aboutTitle') }}</strong> v{{ appVersion }}</p>

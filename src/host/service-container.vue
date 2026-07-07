@@ -49,6 +49,12 @@ import {
   onEvent,
 } from './network-bridge'
 import { onServiceLoaded, onServiceUnloaded } from './widget-lifecycle'
+import {
+  startService,
+  stopService,
+  getBackgroundState,
+  registerForegroundHandler,
+} from './background-manager'
 import type { ApiHandler } from './bridge'
 import type { ServicePackage, FloatingWidgetManifest } from '../types/service'
 
@@ -270,6 +276,28 @@ function makeApiHandler(): ApiHandler {
             throw new Error(`Unknown network method: ${method}`)
         }
       }
+      case 'background': {
+        switch (method) {
+          case 'start':
+            await startService(serviceId.value)
+            return
+          case 'stop':
+            await stopService(serviceId.value)
+            return
+          case 'getState':
+            return getBackgroundState(serviceId.value)
+          case 'postMessage': {
+            // 前台 → 后台：通过 BackgroundServiceManager 转发
+            // postMessage 由 background-manager 的 registerForegroundHandler 通道处理
+            // 前台调用 postMessage 实际上是通过 start/stop 之外的 API
+            // 后台 → 前台的 postMessage 在 onMounted 中通过 registerForegroundHandler 注册处理器
+            console.log('[SvcContainer] 前台 postMessage 不支持直接调用，请使用 onMessage 接收后台消息')
+            return
+          }
+          default:
+            throw new Error(`Unknown background method: ${method}`)
+        }
+      }
       default:
         throw new Error(`Unknown module: ${module}`)
     }
@@ -306,6 +334,11 @@ onMounted(async () => {
   console.log("[Container] loading service:", serviceId.value);
   onServiceLoaded(serviceId.value)
   ctx = new ServiceContext(serviceId.value)
+
+  // 注册前台消息处理器（接收后台 worker 发来的消息）
+  registerForegroundHandler(serviceId.value, (msg: any) => {
+    ctx?.sendEvent('bg-message', msg)
+  })
   const svc = getService(serviceId.value)
   if (!svc) {
     error.value = `服务 "${serviceId.value}" 未找到`
@@ -386,6 +419,8 @@ onUnmounted(() => {
   if (listeningServiceKey.value) {
     stopListening(listeningServiceKey.value).catch(() => {})
   }
+  // 注销前台消息处理器
+  registerForegroundHandler(serviceId.value, null)
   ctx?.destroy()
   ctx = null
 })

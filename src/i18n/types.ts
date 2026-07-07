@@ -120,6 +120,10 @@ export interface LocalesSchema {
       noPlatformAsset: string
       downloadFailed: string
       installFailed: string
+      backgroundServices: string
+      backgroundDesc: string
+      backgroundMax: string
+      backgroundMaxHint: string
     }
     skills: {
       skillManagement: string
@@ -216,6 +220,10 @@ export interface LocalesSchema {
     imported: string
     importFailed: string
     widgetToggle: string
+    backgroundToggle: string
+    backgroundRunning: string
+    backgroundStopped: string
+    backgroundStart: string
   }
   host: {
     loading: string

@@ -50,6 +50,7 @@ interface ServiceFile {
 | `notification` | 允许服务弹出 Toast 通知 |
 | `widgets` | 允许服务使用悬浮块功能 |
 | `network` | 允许服务使用局域网/蓝牙互联通信，包括设备发现、原始消息收发和结构化协议（protocol）层。详见 [JSBridge 通信协议](jsbridge.md#network) |
+| `background` | 允许服务在后台持续运行（隐藏 iframe），支持定时调度、事件驱动、与前台 IPC 通信。详见 [后台服务](#后台服务) |
 
 ## 服务注册
 
@@ -190,3 +191,51 @@ __amiba__.widgets.remove('dynamic-widget')
 - **服务 ID**: 内置 `system.xxx`，用户 `user.yyy`
 - **配置键**: 全小写下划线 `ai_base_url`, `ai_model`
 - **API 方法**: camelCase `setStorage`, `navigateTo`
+
+## 后台服务
+
+服务可声明 `background` 权限 + `background.json` 配置文件，注册后台运行能力。后台入口 JS 运行在隐藏 `<iframe>` 中，由 `BackgroundServiceManager` 统一管理。
+
+### background.json 格式
+
+```json
+{
+  "entry": "background.js",
+  "schedule": {
+    "type": "interval",
+    "intervalMs": 60000
+  },
+  "onEvents": ["peer-discovered", "session-created"]
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `entry` | string | ✅ | 后台入口 JS 文件（相对于服务根目录） |
+| `schedule.type` | `"interval" \| "cron" \| "none"` | — | 调度类型 |
+| `schedule.intervalMs` | number | — | interval 类型的毫秒数 |
+| `schedule.cron` | string | — | cron 表达式 |
+| `onEvents` | string[] | — | 订阅的主机事件名（network-bridge 事件） |
+
+### 约束
+
+- **最多 3 个**后台服务并发运行（可通过 `settings.max_background_services` 调整）
+- 后台服务只能与**同服务的前台 iframe**通过 `postMessage`/`onMessage` 通信
+- 必须通过 `start()` 显式调用才会启动，禁止自动运行
+- 崩溃静默重启，不通知用户
+
+### 使用示例
+
+```js
+// 后台入口 background.js
+__amiba__.background.on('tick', async (data) => {
+  const last = await __amiba__.storage.get('last_check')
+  // 检查并通知前台
+  __amiba__.background.postMessage({ type: 'check', time: Date.now() })
+})
+
+// 前台接收后台消息
+__amiba__.background.onMessage((msg) => {
+  if (msg.type === 'check') updateUI()
+})
+```

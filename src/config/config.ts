@@ -19,6 +19,8 @@ const defaults: AppSettings = {
   device_id: '',
   network_lan_visible: true,
   active_agent_id: '',
+  background_services_enabled: true,
+  max_background_services: 3,
 }
 
 export const settings = reactive<AppSettings>({ ...defaults })

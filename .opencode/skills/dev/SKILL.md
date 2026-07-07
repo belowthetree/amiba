@@ -21,8 +21,10 @@ description: 引导 agent 在任务前后阅读/更新项目开发规范文档�
 | 服务注册/生命周期/归档 | `docs/services.md` |
 | 服务版本归档 | `docs/development.md`（服务版本归档 节）、`src/host/service-archive.ts` |
 | 局域网服务分享 | `docs/development.md`（局域网服务分享 节）、`src/host/service-share.ts` |
+| 后台服务/BackgroundServiceManager | `docs/services.md`（后台服务 节）、`docs/jbridge.md`（background 模块）、`docs/development.md`（后台服务 节） |
 | 整体架构/模块关系 | `docs/architecture.md` |
 | 开发环境/构建/命名/多语言 | `docs/development.md` |
+| 预置服务（public/services/） | 见下方「预置用户服务」节 |
 
 如果同时涉及多个方面，先阅读最核心的 1-2 份文档，不要一次性全读。
 
@@ -66,3 +68,45 @@ description: 引导 agent 在任务前后阅读/更新项目开发规范文档�
 - **最小更新**：只更新真正变化的部分，不为了更新而更新。
 - **具体 > 抽象**：记录具体的命令、路径、字段名，而非泛泛而谈。
 - **中文为主**：与项目现有文档风格保持一致。
+
+## 预置用户服务
+
+当需要添加一个**应用安装后自动可用的用户服务**（如示例游戏、工具等），使用 `public/services/` 目录。
+
+### 添加流程
+
+1. 在 `public/services/{serviceId}/` 创建服务文件（`serviceId` 即 manifest 中的 `id` 字段，如 `user.pet_world`）。**目录名必须与 serviceId 完全一致。**
+
+2. 在 `public/services/index.json` 中注册：
+   ```json
+   {
+     "services": [
+       {
+         "id": "user.xxx",
+         "manifest": { "name": "名称", "version": "1.0.0", "description": "描述", "permissions": [...] },
+         "files": ["index.html", "style.css", "app.js", "utils/helper.js", "components/foo.js"]
+       }
+     ]
+   }
+   ```
+   - `id` — 服务唯一标识，与目录名一致
+   - `manifest` — 服务元数据（无需写 `id` 字段，由安装器自动填入）
+   - `files` — 服务所有文件的相对路径列表（支持子目录如 `utils/xxx.js`）
+
+3. 服务文件按前端服务的标准结构编写：`index.html` 为入口，通过 `<link href="...">` 和 `<script src="...">` 引用其他文件。packager 在渲染时自动内联。
+
+4. 无需在服务目录中放置 `manifest.json` — manifest 由 `installPrebuiltServices()` 根据 `index.json` 中的定义自动生成并写入。
+
+### 自动安装机制
+
+- `src/host/registry.ts` 中的 `installPrebuiltServices()` 在 bootstrap 阶段被调用
+- 下载 `public/services/index.json` → 逐个 fetch 文件 → `registerService()` + `storeServicePackage()`
+- 已注册的服务检查 `getServicePackage()` 文件是否完整（files 非空）→ 不完整则自动重装
+- `source` 字段标记为 `'builtin'`（区别于 `ai-generated` / `downloaded`）
+
+### 关键约束
+
+- **目录名 = serviceId**：fetch URL 路径 `/services/{serviceId}/{file}` 必须命中文件，目录名不匹配会导致 404
+- **不放置 manifest.json**：manifest 由 index.json 统一定义，避免两份定义不一致
+- **文件路径与 HTML 引用一致**：`index.html` 中 `<script src="utils/xxx.js">` 的路径必须与 `files` 数组中的路径完全匹配
+- **遵循 sandbox 约束**：不使用 `localStorage`/`alert()`/`confirm()`/外部 CDN，持久化用 `__amiba__.storage`，弹窗用 `__amiba__.showToast()` 或自定义 modal

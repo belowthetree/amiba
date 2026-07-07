@@ -167,6 +167,26 @@ export const BRIDGE_SCRIPT = `
         return callHost('network', 'stopListening', { serviceKey: serviceKey });
       }
     },
+    background: {
+      start: function(opts) { return callHost('background', 'start', { opts: opts || {} }); },
+      stop: function() { return callHost('background', 'stop', {}); },
+      getState: function() { return callHost('background', 'getState', {}); },
+      postMessage: function(message) { return callHost('background', 'postMessage', { message: message }); },
+      onMessage: function(callback) {
+        window.addEventListener('message', function handler(e) {
+          if (e.data && e.data.type === 'event' && e.data.name === 'bg-message') {
+            callback(e.data.data);
+          }
+        });
+      },
+      on: function(eventName, callback) {
+        window.addEventListener('message', function handler(e) {
+          if (e.data && e.data.type === 'event' && e.data.name === eventName) {
+            callback(e.data.data);
+          }
+        });
+      }
+    },
   };
 })();
 `
@@ -177,6 +197,7 @@ export function createBridge(
   handler: ApiHandler
 ) {
   function handleMessage(event: MessageEvent) {
+    if (event.source !== iframe.contentWindow) return // 只处理来自自身 iframe 的消息
     // Verify origin — in production, check against known origins
     const data = event.data
 
@@ -201,6 +222,10 @@ export function createBridge(
     }
     if (req.module === 'network' && !allowedPermissions.includes('network')) {
       sendResponse(req.requestId, undefined, 'Permission denied: network')
+      return
+    }
+    if (req.module === 'background' && !allowedPermissions.includes('background')) {
+      sendResponse(req.requestId, undefined, 'Permission denied: background')
       return
     }
 

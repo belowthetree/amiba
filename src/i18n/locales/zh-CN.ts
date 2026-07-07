@@ -121,6 +121,10 @@ const zhCN: LocalesSchema = {
       noPlatformAsset: '当前平台没有匹配的安装包',
       downloadFailed: '下载失败',
       installFailed: '安装启动失败',
+      backgroundServices: '后台服务',
+      backgroundDesc: '允许服务在后台持续运行（如定时提醒、设备监听等）',
+      backgroundMax: '最大并发数',
+      backgroundMaxHint: '控制同时运行的后台服务数量',
     },
     skills: {
       skillManagement: '技能管理',
@@ -217,6 +221,10 @@ const zhCN: LocalesSchema = {
     imported: '服务 "{name}" 已导入！',
     importFailed: '导入失败',
     widgetToggle: '显示悬浮块',
+    backgroundToggle: '后台运行',
+    backgroundRunning: '后台运行中',
+    backgroundStopped: '后台已停止',
+    backgroundStart: '启动后台',
   },
   host: {
     loading: '正在加载服务...',

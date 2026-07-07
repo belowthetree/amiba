@@ -89,6 +89,31 @@ __amiba__.widgets.show('quick-note')
 | `connect(peerId, serviceKey)` | 连接设备，返回 session |
 | `onSession(cb)` | 监听外来会话 |
 
+## 后台服务 (background)
+
+**权限**: `"background"`
+
+需要服务目录下配置 `background.json`（声明 entry 和 schedule/onEvents），通过 `start()` 显式启动。
+
+| 方法 | 参数 | 返回 | 说明 |
+|------|------|------|------|
+| `start(opts?)` | 可选配置覆盖 | `Promise<void>` | 启动后台 worker（隐藏 iframe） |
+| `stop()` | — | `Promise<void>` | 停止后台 worker |
+| `getState()` | — | `Promise<{running, startCount}>` | 查询运行状态 |
+| `postMessage(msg)` | msg: any | `Promise<void>` | 向同服务前台 iframe 发消息 |
+| `onMessage(cb)` | cb: (msg) => void | — | 接收前台发来的消息 |
+| `on(event, cb)` | event: 'tick'\|host事件 | — | 监听定时/主机事件 |
+
+```js
+// 后台入口 background.js
+__amiba__.background.on('tick', async () => {
+  const count = await __amiba__.storage.get('counter') || 0
+  await __amiba__.storage.set('counter', count + 1)
+})
+```
+
+**约束**：最多 3 个后台服务并发，必须显式 start()，崩溃静默重启。
+
 ## 禁止事项
 
 - ❌ 不要用 `localStorage` / `sessionStorage`

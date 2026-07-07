@@ -14,7 +14,7 @@ import {
   serviceDataRemove,
   serviceDataKeys,
 } from '../config/storage'
-import type { ServiceEntry, ServiceManifest, ServicePackage, ServiceFile } from '../types/service'
+import type { ServiceEntry, ServiceManifest, ServicePackage, ServiceFile, BackgroundConfig } from '../types/service'
 
 const REGISTRY_KEY = 'amiba_service_registry'
 
@@ -52,6 +52,12 @@ export async function initRegistry(): Promise<void> {
   const saved = await storageGetJSON<Record<string, ServiceEntry>>(REGISTRY_KEY)
   if (saved) {
     Object.assign(userServices, saved)
+  }
+  // 扫描已有服务的 background.json
+  for (const svc of Object.values(userServices)) {
+    if (svc.manifest.permissions.includes('background')) {
+      await cacheBackgroundConfig(svc.manifest.id)
+    }
   }
 }
 
@@ -158,6 +164,44 @@ export async function storeServicePackage(serviceId: string, pkg: ServicePackage
   if (pkg.tasks && pkg.tasks.length > 0) {
     await writeServiceFile(serviceId, 'tasks.json', JSON.stringify(pkg.tasks, null, 2))
   }
+
+  // Parse and cache background.json if present
+  await cacheBackgroundConfig(serviceId, pkg.files)
+}
+
+/** 从服务文件中读取并缓存 background.json 配置到 ServiceEntry */
+export async function cacheBackgroundConfig(serviceId: string, files?: ServiceFile[]): Promise<BackgroundConfig | null> {
+  const svc = getService(serviceId)
+  if (!svc) return null
+
+  let raw: string | null = null
+  if (files) {
+    const bgFile = files.find(f => f.path === 'background.json')
+    if (bgFile) raw = bgFile.content
+  } else {
+    raw = await readServiceFile(serviceId, 'background.json')
+  }
+
+  if (!raw) {
+    svc.backgroundConfig = null
+    return null
+  }
+
+  try {
+    const config = JSON.parse(raw) as BackgroundConfig
+    if (!config.entry) {
+      console.warn('[Registry] background.json 缺少 entry 字段:', serviceId)
+      svc.backgroundConfig = null
+      return null
+    }
+    svc.backgroundConfig = config
+    console.log('[Registry] background.json 已解析:', serviceId, 'entry=', config.entry)
+    return config
+  } catch {
+    console.warn('[Registry] background.json 解析失败:', serviceId)
+    svc.backgroundConfig = null
+    return null
+  }
 }
 
 export async function getServicePackage(serviceId: string): Promise<ServicePackage | null> {
@@ -175,7 +219,7 @@ export async function getServicePackage(serviceId: string): Promise<ServicePacka
   // Read each file (skip manifest.json, tasks.json, and data/ directory)
   const files: ServiceFile[] = []
   for (const name of allFiles) {
-    if (name === 'manifest.json' || name === 'tasks.json' || name === 'data' || name.startsWith('.versions')) continue
+    if (name === 'manifest.json' || name === 'tasks.json' || name === 'data' || name === 'background.json' || name.startsWith('.versions')) continue
     const content = await readServiceFile(serviceId, name)
     if (content !== null) {
       files.push({ path: name, content })

@@ -118,6 +118,30 @@ Widget 也可以通过服务目录下的 `widget.json` 声明式配置，服务�
 | `session-created` | 外来连接建立 | `{ sessionId, peerId, peerName }` — iframe 内构造 session 代理 |
 | `session-event` | session 消息/关闭 | `{ sessionId, event, data }` — 内部路由到对应 session 的 on() 回调 |
 
+### background
+
+| 方法 | 参数 | 返回 | 权限 |
+|------|------|------|------|
+| `start` | `{ opts?: object }` | `void` — Promise | background |
+| `stop` | — | `void` | background |
+| `getState` | — | `{ running, startCount, lastRun, state }` | background |
+| `postMessage` | `{ message: any }` | `void` | background |
+| `onMessage` | `(msg: any) => void` | —（事件监听） | background |
+| `on` | `(eventName, callback)` | —（事件监听） | background |
+
+**事件**（通过 `HostEvent` 推送到后台 iframe）：
+
+| 事件名 | 触发时机 | data |
+|--------|----------|------|
+| `tick` | 定时器触发（interval/cron） | `{ trigger, at }` |
+| `bg-message` | 后台发消息到前台 | 消息体 |
+
+**约束**：
+- 后台服务只能与同服务的前台 iframe 通信（`postMessage` → 后台发前台，`onMessage` → 前台发后台）
+- 必须显式调用 `start()` 才会启动，无 autoStart
+- 崩溃静默重启，不通知用户
+- 后台 iframe 内可正常使用 `storage`、`network`、`notification` 等模块
+
 ## 服务内全局注入
 
 宿主在 iframe 加载完成后注入 `window.__amiba__` 对象，封装 postMessage 为 Promise 风格：

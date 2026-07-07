@@ -13,7 +13,21 @@ export interface ServiceManifest {
   permissions: Permission[]
 }
 
-export type Permission = 'storage' | 'notification' | 'widgets' | 'network'
+export type Permission = 'storage' | 'notification' | 'widgets' | 'network' | 'background' | 'fileAccess'
+
+// --- Background Service Config ---
+
+export type ScheduleType = 'interval' | 'cron' | 'none'
+
+export interface BackgroundConfig {
+  entry: string                   // 后台入口文件，如 "background.js"
+  schedule?: {
+    type: ScheduleType
+    intervalMs?: number           // interval 类型时的毫秒数
+    cron?: string                 // cron 类型时的表达式
+  }
+  onEvents?: string[]             // 监听的主机事件名
+}
 
 // --- Service Registry Entry ---
 export interface ServiceEntry {
@@ -23,6 +37,9 @@ export interface ServiceEntry {
   source: 'builtin' | 'ai-generated' | 'downloaded'
   hasWidgets?: boolean      // 是否有悬浮块配置（首次注册 widget 时标记）
   widgetsVisible?: boolean   // 悬浮块可见性开关
+  backgroundEnabled?: boolean    // 用户是否启用了后台运行
+  backgroundConfig?: BackgroundConfig | null  // 来自 background.json 的配置
+  backgroundState?: 'running' | 'stopped' | 'error'  // 当前后台运行状态
 }
 
 // --- Catalog Types ---
@@ -85,7 +102,7 @@ export interface ServicePackage {
 
 export interface ServiceRequest {
   type: 'api'
-  module: 'storage' | 'notification' | 'ui' | 'task' | 'widgets' | 'network'
+  module: 'storage' | 'notification' | 'ui' | 'task' | 'widgets' | 'network' | 'background'
   method: string
   params: Record<string, any>
   requestId: string
@@ -139,6 +156,10 @@ export interface AppSettings {
   curator_consolidate_enabled?: boolean
   /** Skill 自动审查（会话结束时后台 fork 审查 Agent） */
   skill_auto_review_enabled?: boolean
+  /** 后台服务全局开关 */
+  background_services_enabled?: boolean
+  /** 后台服务最大并发数 */
+  max_background_services?: number
 }
 
 // --- AI Provider ---
@@ -178,6 +199,29 @@ export interface MemoryToolParams {
   content?: string
   old_text?: string
   operations?: MemoryOperation[]
+}
+
+// --- File Access ---
+
+export interface FileInfo {
+  name: string
+  path: string    // 相对于授权根目录的路径
+  size: number
+  isDir: boolean
+  modified?: string
+}
+
+export interface FileAccessRequest {
+  path?: string     // 不传则弹出系统文件夹选择器
+  pattern?: string  // 文件过滤，如 "*.mp3" / "**/*.json"
+  purpose?: string  // 用途说明，显示在 confirm 中
+}
+
+export interface FileAccessGrant {
+  token: string
+  path: string       // 授权的文件夹绝对路径
+  pattern: string    // 文件过滤模式
+  createdAt: string
 }
 
 // --- Floating Widget ---

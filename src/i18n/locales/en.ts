@@ -121,6 +121,10 @@ const en: LocalesSchema = {
       noPlatformAsset: 'No matching package for current platform',
       downloadFailed: 'Download failed',
       installFailed: 'Install failed',
+      backgroundServices: 'Background Services',
+      backgroundDesc: 'Allow services to run in background (e.g. timers, device monitoring)',
+      backgroundMax: 'Maximum concurrent',
+      backgroundMaxHint: 'Controls how many background services can run simultaneously',
     },
     skills: {
       skillManagement: 'Skill Management',
@@ -217,6 +221,10 @@ const en: LocalesSchema = {
     imported: 'Service "{name}" imported!',
     importFailed: 'Import failed',
     widgetToggle: 'Show widgets',
+    backgroundToggle: 'Background',
+    backgroundRunning: 'Running in background',
+    backgroundStopped: 'Background stopped',
+    backgroundStart: 'Start background',
   },
   host: {
     loading: 'Loading service...',

@@ -49,6 +49,12 @@
               />
               <span class="toggle-slider"></span>
             </label>
+            <button
+              v-if="svc.backgroundConfig"
+              class="action-icon"
+              :title="isRunning(svc.manifest.id) ? $t('services.backgroundRunning') : $t('services.backgroundStart')"
+              @click="handleBackgroundToggle(svc)"
+            >{{ isRunning(svc.manifest.id) ? '⏹' : '▶️' }}</button>
             <button class="action-icon" @click="deleteService(svc)" title="删除">🗑</button>
           </div>
         </div>
@@ -96,6 +102,8 @@ import {
 import type { ServiceEntry, ServicePackage } from '../types/service'
 import { readDirRecursive } from '../config/storage'
 import { widgetStates, setServiceWidgetsVisible, hasWidgetConfig } from '../host/floating-widget-manager'
+import { isRunning, startService, stopService } from '../host/background-manager'
+import { settings } from '../config/config'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -154,6 +162,18 @@ function hasServiceWidgetVisible(serviceId: string): boolean {
 function handleWidgetToggle(serviceId: string) {
   const currentlyVisible = hasServiceWidgetVisible(serviceId)
   setServiceWidgetsVisible(serviceId, !currentlyVisible)
+}
+
+async function handleBackgroundToggle(svc: ServiceEntry) {
+  if (isRunning(svc.manifest.id)) {
+    await stopService(svc.manifest.id)
+  } else {
+    try {
+      await startService(svc.manifest.id)
+    } catch (e: any) {
+      alert(e?.message || String(e))
+    }
+  }
 }
 
 function deleteService(svc: ServiceEntry) {

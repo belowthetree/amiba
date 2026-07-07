@@ -123,6 +123,7 @@ amiba/
 │   │   ├── service-share.ts    # 局域网服务分享引擎（分块传输+安装）
 │   │   ├── service-archive.ts  # 服务版本归档引擎（archive/rollback/list）
 │   │   └── floating-widget-manager.ts # 悬浮块管理
+│   │   └── background-manager.ts # 后台服务运行时管理
 │   ├── config/
 │   │   ├── config.ts        # 统一配置（amiba_settings，合并所有普通设置项）
 │   │   ├── storage.ts       # 存储抽象
