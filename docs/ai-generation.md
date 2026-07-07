@@ -77,16 +77,35 @@ services/user.xxx/
 - `index.html` 通过 `<link href="style.css">` 和 `<script src="app.js">` 引用
 - CSS 和 JS 不要内联在 HTML 中
 
+**多文件组件结构（可选）**：复杂服务可拆分 CSS 和 JS 到子目录：
+
+```
+services/user.xxx/
+├── manifest.json
+├── index.html             # 入口，显式引用所有子文件
+├── styles/
+│   ├── base.css           # <link href="styles/base.css">
+│   └── theme.css          # <link href="styles/theme.css">
+├── components/
+│   ├── TodoItem.js        # <script src="components/TodoItem.js">
+│   └── TodoList.js        # <script src="components/TodoList.js">
+├── utils/
+│   └── helpers.js         # <script src="utils/helpers.js">
+└── app.js                 # <script src="app.js">
+```
+
+所有子文件在 `index.html` 中通过 `<link>` / `<script>` 显式声明，packager 按文件路径内联。不支持隐式 `import` / `require`。
+
 ## Sandbox 约束
 
-服务运行在 `<iframe sandbox="allow-scripts">` 中，以下 API 不可用：
+服务运行在 `<iframe sandbox="allow-scripts allow-same-origin">` 中，以下 API 不可用：
 
 | 禁止 | 替代 |
 |------|------|
 | `localStorage` / `sessionStorage` | `__amiba__.storage` |
 | `BroadcastChannel` / `SharedWorker` | `network` 权限 + `__amiba__.network.*` P2P |
 | `alert()` / `confirm()` / `prompt()` | `__amiba__.showToast()` |
-| 外部 CDN / `fetch()` 外部 URL | 预置库 `/libs/chart.umd.min.js` |
+| 外部 CDN / `fetch()` 外部 URL | 预置库 `/libs/chart.umd.min.js`、`/libs/vue.global.prod.js` |
 | 多窗口/多标签页 | 局域网 P2P 实现多设备通信 |
 
 完整 sandbox 规范见 `public/docs/sandbox.md`（AI 可通过 `doc_read("sandbox.md")` 查阅）。
@@ -111,9 +130,12 @@ services/user.xxx/
 
 1. 以 `index.html` 为骨架
 2. `<link href="style.css">` → 内联为 `<style>...</style>`
-3. `<script src="app.js">` → 内联为 `<script>...</script>`
-4. 注入 `<!-- AMIBA_BRIDGE -->` 占位符
-5. 宿主通过 `injectBridge()` 覆写为真实 JSBridge
+3. `<link href="styles/*.css">` → 内联（支持多文件目录结构）
+4. `<script src="app.js">` → 内联为 `<script>...</script>`
+5. `<script src="components/*.js">` → 内联（支持多文件组件结构）
+6. `<script src="/libs/vue.global.prod.js">` → 透传不内联（预置库）
+7. 注入 `<!-- AMIBA_BRIDGE -->` 占位符
+8. 宿主通过 `injectBridge()` 覆写为真实 JSBridge
 
 ## 文档系统
 
@@ -135,3 +157,4 @@ AI 可通过工具查询平台知识库（`public/docs/` + 用户自定义 `{App
 
 - **2025-07-05**: 旧 `generateService()` 单片生成器使用独立 LLM 调用，缺少主 system prompt 的完整上下文，导致 AI 无视 sandbox 约束（用 localStorage/BroadcastChannel）。改为 Chat AI 工具链分步创建：AI 通过 `skill_view` 和 `doc_read` 主动加载规范，在完整上下文中生成代码。
 - **2025-07-05**: 服务校验模块 (`service-validator.ts`) 可在生成后自动检测 10 种常见错误（localStorage 使用、BroadcastChannel 使用、权限不一致等），应该作为生成流程的收尾步骤强制执行。
+- **2025-07-07**: 新增 Vue 3 预置库支持 (`public/libs/vue.global.prod.js`)，服务可通过 `<script src="/libs/vue.global.prod.js">` 使用 Vue 3 的 Options API 构建响应式 UI。同时支持多文件组件目录结构（`components/*.js`、`styles/*.css`），所有引用文件通过 packager 自动内联。

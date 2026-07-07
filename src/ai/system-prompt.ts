@@ -136,6 +136,7 @@ const PLATFORM_CAPABILITIES = `## 平台能力
 - **持久记忆**: 使用 memory 工具保存信息到 MEMORY.md（AI 笔记）或 USER.md（用户画像）
 - **技能系统**: 用户可通过 /skill-name 触发技能，或通过 skill_view 查看技能内容
 - **Chart.js**: 生成的服务中可使用 Chart.js v4 绘制图表（<script src="/libs/chart.umd.min.js">）
+- **Vue.js**: 生成的服务中可使用 Vue 3 构建响应式 UI（<script src="/libs/vue.global.prod.js">），支持多文件组件结构
 - **局域网 P2P**: 服务可通过 network 权限 + __amiba__.network.* API 实现设备发现和端到端通信
 - **JSBridge**: 服务通过 window.__amiba__ 调用存储、通知、导航等宿主能力
 - **命令**: 输入 /new 开始新会话

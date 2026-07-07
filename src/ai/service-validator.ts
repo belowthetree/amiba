@@ -297,6 +297,21 @@ const checkIndexHtml: CheckFn = (filePath, content) => {
     })
   }
 
+  // Vue 脚本顺序检查：app.js 应在 Vue 库之后
+  if (/\/libs\/vue\.global\.prod\.js/.test(content)) {
+    const vuePos = content.search(/<script\s[^>]*src\s*=\s*["']\/libs\/vue\.global\.prod\.js["']/)
+    const appPos = content.search(/<script\s[^>]*src\s*=\s*["']app\.js["']/)
+    if (vuePos >= 0 && appPos >= 0 && appPos < vuePos) {
+      results.push({
+        check: 'Vue 脚本顺序',
+        status: 'warn',
+        message: 'app.js 的引用位置在 Vue 库之前，会报 Vue 未定义错误',
+        file: filePath,
+        suggestion: '将 <script src="/libs/vue.global.prod.js"> 放在 <script src="app.js"> 之前',
+      })
+    }
+  }
+
   return results
 }
 
@@ -324,6 +339,111 @@ const checkAmibaApiUsage: CheckFn = (filePath, content) => {
 }
 
 // ================================================================
+// 规则 11–15: Vue.js 专项校验
+// ================================================================
+
+// 规则 11: Vue 库引用检查
+const checkVueLibMissing: CheckFn = (filePath, content) => {
+  const results: ValidationCheck[] = []
+  if (filePath !== 'index.html') return results
+
+  if (/createApp\s*\(/.test(content) && !/\/libs\/vue\.global\.prod\.js/.test(content)) {
+    results.push({
+      check: 'Vue 库引用',
+      status: 'fail',
+      message: '代码中使用 Vue.createApp() 但未引用 Vue 库',
+      file: filePath,
+      suggestion: '在 app.js 前添加 <script src="/libs/vue.global.prod.js"></script>',
+    })
+  }
+
+  return results
+}
+
+// 规则 12: 模板中禁止调异步 API
+const checkVueTemplateAmiba: CheckFn = (filePath, content) => {
+  const results: ValidationCheck[] = []
+  if (!filePath.endsWith('.html')) return results
+
+  const templateAmiba = /\{\{\s*__amiba__\./g
+  if (templateAmiba.test(content)) {
+    results.push({
+      check: 'Vue 模板异步 API',
+      status: 'fail',
+      message: '在 {{ }} 中调用了 __amiba__ 方法，会显示 [object Promise]',
+      file: filePath,
+      suggestion: '在 mounted() 中 await API 后赋值到 data，模板中只渲染 data 属性',
+    })
+  }
+
+  return results
+}
+
+// 规则 13: data() 中不允许异步调用（跨行匹配）
+const checkVueDataAsync: CheckFn = (filePath, content) => {
+  const results: ValidationCheck[] = []
+  if (!filePath.endsWith('.js')) return results
+
+  const dataPattern = /data\s*\(\s*\)\s*\{[\s\S]*?__amiba__\./g
+  if (dataPattern.test(content)) {
+    results.push({
+      check: 'Vue data() 异步调用',
+      status: 'fail',
+      message: 'data() 中直接调用了 __amiba__ 方法，返回 Promise 而非值',
+      file: filePath,
+      suggestion: '在 mounted() 中 await __amiba__ API 后再通过 this.xxx = value 赋值',
+    })
+  }
+
+  return results
+}
+
+// 规则 14: v-html 安全警告
+const checkVueVHtmlSecurity: CheckFn = (filePath, content) => {
+  const results: ValidationCheck[] = []
+  if (!filePath.endsWith('.html') && filePath !== 'index.html') return results
+
+  const vHtmlMatch = content.match(/v-html\s*=\s*["']([^"']+)["']/g)
+  if (vHtmlMatch) {
+    const riskyPattern = /user|input|message|content|text|data|name/i
+    for (const match of vHtmlMatch) {
+      if (riskyPattern.test(match)) {
+        results.push({
+          check: 'v-html 安全隐患',
+          status: 'warn',
+          message: `检测到 v-html="${match.split('=')[1]}"，可能渲染用户输入导致 XSS`,
+          file: filePath,
+          suggestion: '仅用于受信任的静态 HTML。用户输入内容用 {{ }} 插值或 v-text 替代',
+        })
+        break
+      }
+    }
+  }
+
+  return results
+}
+
+// 规则 15: 不使用 Vue 时误加载
+const checkVueUnnecessaryLoad: CheckFn = (filePath, content) => {
+  const results: ValidationCheck[] = []
+  if (filePath !== 'index.html') return results
+
+  const hasVueScript = /\/libs\/vue\.global\.prod\.js/.test(content)
+  const hasCreateApp = /createApp\s*\(/.test(content)
+  if (hasVueScript && !hasCreateApp && !/app\.js/.test(content)) {
+    results.push({
+      check: 'Vue 不必要加载',
+      status: 'warn',
+      message: '引用了 Vue 库但未使用 Vue.createApp，130KB 资源浪费',
+      file: filePath,
+      suggestion: '简单服务用原生 JS 即可，只有需要响应式数据绑定时才用 Vue',
+    })
+  }
+
+  return results
+}
+
+// ================================================================
 // 所有规则列表
 // ================================================================
 
@@ -338,6 +458,11 @@ const ALL_CHECKS: CheckFn[] = [
   checkNotificationPermissionConsistency,
   checkIndexHtml,
   checkAmibaApiUsage,
+  checkVueLibMissing,
+  checkVueTemplateAmiba,
+  checkVueDataAsync,
+  checkVueVHtmlSecurity,
+  checkVueUnnecessaryLoad,
 ]
 
 // ================================================================

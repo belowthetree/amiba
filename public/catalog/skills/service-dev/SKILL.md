@@ -85,6 +85,12 @@ keywords:
 - 必须包含 `{ "path": "index.html", "content": "..." }`
 - CSS 放在 `style.css`，JS 放在 `app.js`（**不要内联在 HTML 中**）
 - `index.html` 中通过 `<link href="style.css">` 和 `<script src="app.js">` 引用
+- **多文件组件结构**（可选，仅复杂服务使用）：
+  - CSS 可用 `styles/*.css` 拆分，`<link href="styles/theme.css">` 引用
+  - JS 组件可用 `components/*.js` 拆分，`<script src="components/TodoItem.js">` 引用
+  - 所有被引用的文件都由 packager 自动内联到单个 HTML 中
+  - 文件路径可包含目录前缀（如 `"utils/format.js"`），不限于扁平结构
+  - `service_file_write` 的 `file_path` 参数直接写入对应路径
 - 所有 `content` 中的代码必须语法正确、可直接运行
 
 ---
@@ -183,7 +189,7 @@ init();
 
 ---
 
-## 8. 常见错误
+## 8. 常见错误（含 Vue 专项）
 
 - ❌ 在 HTML 中内联 `<script>` 和 `<style>` → 必须用独立文件
 - ❌ `manifest.id` 不以 `"user."` 开头
@@ -199,6 +205,14 @@ init();
 - ❌ 目录导入时 manifest.json 包含外层 `files` 包裹 → 目录导入 manifest.json 只含 id/name/version/description/permissions
 - ❌ P2P 服务未调用 `startListening(SERVICE_KEY)` → 无法被其他设备连接
 - ❌ P2P 服务使用旧 API `connect(peerId)` 而非 `connect(peerId, SERVICE_KEY)` → hello 缺少 service 字段，连接被拒绝
+
+**Vue 专项：**
+- ❌ Vue 模板中使用 `__amiba__.storage.get('key')` 返回值 → 会返回 Promise 对象，显示 `[object Promise]` → 必须在 `mounted()` 中 `await` 后再赋值到 data
+- ❌ 使用 Composition API `setup()` / `ref()` 而非 Options API → 增加 AI 生成错误概率，统一用 `data()` + `methods` + `mounted()`
+- ❌ `data()` 函数中直接调异步方法 → `__amiba__` 方法返回 Promise，不能同步赋值
+- ❌ 未加载 Vue 库就用 `Vue.createApp` → 必须在 Vue 脚本之后加载 `app.js`
+- ❌ `v-html` 绑定用户输入 → 存在 XSS 风险，仅用于可信静态内容
+- ❌ 不使用 Vue 时也加了 Vue 脚本 → 简单服务用原生 JS，避免 130KB 不必要加载
 
 ---
 
@@ -247,7 +261,184 @@ Canvas 必须显式设置 width/height。示例：`example/chart-demo/`
 
 ---
 
-## 11. 迭代修改已安装服务
+## 11. Vue 3 使用（响应式 UI 框架）
+
+当服务需要复杂的数据绑定、列表渲染、表单交互或仪表盘时，可使用 Vue 3（预置在平台中）。
+
+### 引入方式
+
+```html
+<script src="/libs/vue.global.prod.js"></script>
+```
+
+Packager 会透传该脚本引用（不内联），与 Chart.js 的加载方式相同。
+
+### 何时用 Vue vs 原生 JS
+
+| 场景 | 推荐 | 理由 |
+|------|------|------|
+| 计数器、单按钮、纯展示 | **原生 JS** | 杀鸡不用牛刀，Vue 130KB 不值得 |
+| 表单、列表、数据绑定多 | **Vue** | `v-model`、`v-for` 大幅减少代码量 |
+| 仪表盘、统计面板 | **Vue** | 多数据区响应式联动 |
+| 聊天室、实时消息流 | **Vue** | 消息列表自动更新，无需手动操作 DOM |
+| 仅用 Chart.js 图表 | **原生 JS** | Chart.js 自身无 Reactivity 需求 |
+
+### 文件结构（可选分层）
+
+简单 Vue 服务可用扁平结构（`index.html` + `style.css` + `app.js`）。复杂服务推荐：
+
+```
+services/user.xxx/
+├── manifest.json
+├── index.html             ← 入口，显式引用所有子文件
+├── styles/
+│   ├── base.css           ← <link href="styles/base.css">
+│   └── theme.css          ← <link href="styles/theme.css">
+├── components/
+│   ├── TodoItem.js        ← <script src="components/TodoItem.js">
+│   └── TodoList.js        ← <script src="components/TodoList.js">
+├── utils/
+│   └── helpers.js         ← <script src="utils/helpers.js">
+└── app.js                 ← <script src="app.js">
+```
+
+**硬约束：**
+- 所有子文件必须在 `index.html` 中用 `<link>` 或 `<script>` **显式声明**（按依赖顺序）
+- 不支持的隐式 `import` / `require` — 打包器不做模块解析
+
+### app.js 编码规范
+
+**统一用 Options API**（`data()` + `methods` + `mounted()`），不用 Composition API `setup()` / `ref()`：
+
+```js
+const { createApp } = Vue
+
+createApp({
+  data() {
+    return {
+      title: '我的应用',
+      items: [],
+      input: ''
+    }
+  },
+  async mounted() {
+    // ✅ 异步获取数据
+    const saved = await __amiba__.storage.get('items')
+    if (saved) this.items = saved
+  },
+  methods: {
+    async addItem() {
+      if (!this.input.trim()) return
+      this.items.push({ id: Date.now(), text: this.input })
+      await __amiba__.storage.set('items', this.items)
+      this.input = ''
+    }
+  }
+}).mount('#app')
+```
+
+**核心约束：**
+| 规则 | 说明 |
+|------|------|
+| ✅ Options API 优先 | `data()` + `methods` + `mounted()`，AI 生成稳定性高 |
+| ✅ `__amiba__` 只在 `methods` / `mounted` 中调用 | 不要在 `data()` 中直接调用异步方法 |
+| ✅ 解构 `const { createApp } = Vue` | 避免重复 `Vue.` 前缀 |
+| ❌ 禁止 `{{ }}` 中调 `__amiba__` | 模板插值同步，`__amiba__` 返回 Promise 会显示 `[object Promise]` |
+| ⚠️ `v-html` 仅用于静态内容 | 渲染用户输入存在 XSS 风险 |
+
+### 组件定义模式
+
+组件定义在独立 `.js` 文件中，全局注册或局部注册：
+
+```js
+// components/TodoItem.js
+const TodoItem = {
+  template: `
+    <div class="todo-item" @click="$emit('toggle')">
+      <span class="check">{{ item.done ? '✓' : '○' }}</span>
+      <span class="text">{{ item.text }}</span>
+    </div>
+  `,
+  props: { item: Object },
+  emits: ['toggle']
+}
+```
+
+```js
+// app.js — 注册并使用
+const { createApp } = Vue
+createApp({
+  components: { TodoItem, TodoList },
+  // ...
+}).mount('#app')
+```
+
+不在模板中存放大量 HTML — 推荐使用模板字符串 `template: \`...\`` 或 HTML 中的 `<template id="x">` 标签。
+
+### v-cloak 防闪烁
+
+Vue 未加载时模板插值会暴露 `{{ }}`，必须加防闪烁样式：
+
+```css
+[v-cloak] { display: none; }
+```
+
+```html
+<div id="app" v-cloak>
+```
+
+### index.html 完整示例
+
+```html
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Vue 计数器</title>
+  <link href="style.css" rel="stylesheet">
+</head>
+<body>
+  <div id="app" v-cloak>
+    <h1>{{ title }}</h1>
+    <p>计数: {{ count }}</p>
+    <button @click="add">+1</button>
+    <button @click="sub">-1</button>
+  </div>
+  <script src="/libs/vue.global.prod.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
+```
+
+```js
+// app.js
+const { createApp } = Vue
+
+createApp({
+  data() {
+    return { title: 'Vue 计数器', count: 0 }
+  },
+  async mounted() {
+    const saved = await __amiba__.storage.get('count')
+    if (saved != null) this.count = saved
+  },
+  methods: {
+    async add() {
+      this.count++
+      await __amiba__.storage.set('count', this.count)
+    },
+    async sub() {
+      this.count--
+      await __amiba__.storage.set('count', this.count)
+    }
+  }
+}).mount('#app')
+```
+
+---
+
+## 12. 迭代修改已安装服务
 
 生成服务后如需修改，**不要重新生成整个服务**。使用服务工具按类型分步操作：
 
@@ -273,7 +464,7 @@ Canvas 必须显式设置 width/height。示例：`example/chart-demo/`
 
 ---
 
-## 12. 服务版本归档与回退
+## 13. 服务版本归档与回退
 
 **每次重大修改前务必先归档！** 在调用 `service_file_edit` 或 `service_file_write` 修改已安装服务的代码之前，先调用 `service_archive` 保存当前快照：
 
@@ -292,13 +483,13 @@ Canvas 必须显式设置 width/height。示例：`example/chart-demo/`
 
 归档文件存储在 `services/{id}/.versions/v_{timestamp}/` 下，完整保留所有文件快照。`getServicePackage` 会自动跳过 `.versions/` 目录，不会把历史快照混入服务包。
 
-## 13. 多页面服务
+## 14. 多页面服务
 
 如需多个页面，在 `files` 中添加多个 `.html` 文件，页面间通过 `__amiba__.navigateTo('page2.html')` 跳转。
 
 ---
 
-## 14. 悬浮块（Widget）开发
+## 15. 悬浮块（Widget）开发
 
 当用户需求涉及「快捷入口」「悬浮按钮」「侧边栏小工具」「快速查看」「常驻显示」等场景时，在服务中附带悬浮块。
 
@@ -311,7 +502,7 @@ Canvas 必须显式设置 width/height。示例：`example/chart-demo/`
 
 ---
 
-## 15. 检查清单
+## 16. 检查清单
 
 - [ ] 已用 `service_list` 检查无重复服务
 - [ ] `service_create` 的 `id` 以 `"user."` 开头，无非法字符
@@ -325,6 +516,10 @@ Canvas 必须显式设置 width/height。示例：`example/chart-demo/`
 - [ ] 如含网络功能，`manifest.permissions` 包含 `"network"`，且 `app.js` 调用了 `startListening(SERVICE_KEY)` + `connect(peerId, SERVICE_KEY)`
 - [ ] widget.json 格式正确，引用路径与 files 一致
 - [ ] 无外部依赖、无 fetch 外部 API
+- [ ] 如果使用 Vue：已正确引用 `/libs/vue.global.prod.js`，Options API 正确
+- [ ] 如果使用 Vue：模板在 HTML 中或 `template` 字符串中，未在 `{{ }}` 中调用异步 API
+- [ ] 如果使用 Vue：`app.js` 的 `index.html` 引用位置在 `<script src="/libs/vue.global.prod.js">` 之后
 - [ ] 代码语法正确、可直接运行
 - [ ] **已调用 `service_validate` 校验通过** ⭐
 - [ ] **重大修改前已调用 `service_archive` 归档当前版本**
+- [ ] 如果使用多文件组件结构：所有子文件在 `index.html` 中有显式引用

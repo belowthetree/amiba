@@ -7,27 +7,28 @@ category: platform
 
 # Sandbox 约束
 
-服务运行在 `<iframe sandbox="allow-scripts">` 中。以下 API 和功能受沙箱限制而**不可用**，必须使用替代方案。
+服务运行在 `<iframe sandbox="allow-scripts allow-same-origin">` 中。以下 API 和功能受沙箱限制而**不可用**，必须使用替代方案。
 
 ## 禁止的 API 及替代方案
 
 | 禁止使用 | 原因 | 替代方案 |
 |----------|------|----------|
-| `localStorage.setItem()` / `getItem()` | 沙箱不含 `allow-same-origin`，localStorage 不可用 | `__amiba__.storage.set(key, data)` / `get(key)` / `remove(key)` |
+| `localStorage.setItem()` / `getItem()` | 沙箱内同一标签页只有一个 iframe 实例，localStorage 不可靠 | `__amiba__.storage.set(key, data)` / `get(key)` / `remove(key)` |
 | `sessionStorage` | 同上 | 同上 |
 | `BroadcastChannel` | 沙箱内只有一个 iframe 实例，无法多窗口 | `network` 权限 + `__amiba__.network.*` P2P API |
 | `SharedWorker` | 沙箱不支持 SharedWorker | 同上 |
 | `alert()` / `confirm()` / `prompt()` | 沙箱阻止弹窗 | `__amiba__.showToast(title, icon)` 或自定义模态框 |
 | `window.open()` | 沙箱禁止开新窗口 | `__amiba__.navigateTo(url)` |
 | `fetch()` 访问外部 URL | CORS + 沙箱双重限制 | 避免使用；同源静态资源可内联 |
-| 外部 CDN `<script src="https://...">` | 可能被 CSP 阻止 | 预置库：`/libs/chart.umd.min.js` |
+| 外部 CDN `<script src="https://...">` | 可能被 CSP 阻止 | 预置库：`/libs/chart.umd.min.js`、`/libs/vue.global.prod.js` |
 
 ## 沙箱属性
 
-- 当前 sandbox 属性: `allow-scripts`
+- 当前 sandbox 属性: `allow-scripts allow-same-origin`
+- `allow-same-origin` 使 iframe 可加载同源脚本（如 `/libs/vue.global.prod.js`、`/libs/chart.umd.min.js`）
 - 服务运行在**单个 iframe 实例**中
 - 无法多开标签页/窗口
-- 无 `allow-same-origin`，无 `allow-popups`，无 `allow-top-navigation`
+- 无 `allow-popups`，无 `allow-top-navigation`
 
 ## 关键原则
 

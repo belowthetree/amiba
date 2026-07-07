@@ -112,6 +112,7 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 
 ## Notes
 
+- **Vue 预置库:** 服务可加载 `/libs/vue.global.prod.js`（Vue 3 全局构建），实现响应式 UI；支持多文件组件目录结构（`components/*.js`、`styles/*.css`），所有引用文件由 packager 自动内联
 - **Storage layout:** `{AppData}/amiba/` →
   - `amiba_settings` — 统一配置（api_key, network_lan_visible, active_agent_id, device_id 等已合并至此）
   - `state.db` — SQLite (WAL mode) with sessions/messages tables + messages_fts FTS5 virtual table
