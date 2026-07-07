@@ -232,10 +232,14 @@ export async function installPrebuiltServices(): Promise<number> {
       permissions: entry.manifest.permissions,
     }
 
-    // 已注册则跳过
+    // 已注册则检查文件是否完整
     if (getService(serviceId)) {
-      console.log('[Registry] 预置服务已存在，跳过:', serviceId)
-      continue
+      const existingPkg = await getServicePackage(serviceId)
+      if (existingPkg && existingPkg.files.length > 0) {
+        console.log('[Registry] 预置服务已存在，跳过:', serviceId)
+        continue
+      }
+      console.log('[Registry] 预置服务文件损坏，重新安装:', serviceId)
     }
 
     const fileList: string[] = entry.files ?? []
@@ -261,10 +265,14 @@ export async function installPrebuiltServices(): Promise<number> {
     if (files.length === 0) continue
 
     const pkg: ServicePackage = { manifest, files }
-    await registerService(manifest, 'builtin')
+    // 如果已注册但文件损坏，只更新文件，不重复注册
+    const alreadyRegistered = !!getService(serviceId)
+    if (!alreadyRegistered) {
+      await registerService(manifest, 'builtin')
+    }
     await storeServicePackage(serviceId, pkg)
     installed++
-    console.log(`[Registry] ✓ 预置服务已安装: ${serviceId} (${files.length} 个文件)`)
+    console.log(`[Registry] ✓ 预置服务${alreadyRegistered ? '已修复' : '已安装'}: ${serviceId} (${files.length} 个文件)`)
   }
 
   return installed
