@@ -1,0 +1,424 @@
+/* ============================================================
+   宠物世界 — 样式
+   ============================================================ */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #333;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 12px;
+}
+
+/* ============================================================
+   主容器
+   ============================================================ */
+
+#main-app {
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+}
+
+/* ---- 顶栏 ---- */
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+}
+.topbar-title { font-size: 17px; font-weight: 700; }
+.topbar-gold { font-size: 15px; font-weight: 600; background:rgba(255,255,255,0.2); padding:4px 12px; border-radius:20px; }
+
+/* ---- Tab 栏 ---- */
+.tabbar {
+  display: flex;
+  background: #f8f9ff;
+  border-bottom: 1px solid #eee;
+}
+.tabbar .tab {
+  flex: 1;
+  padding: 12px 0;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 600;
+  color: #888;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+.tabbar .tab.active {
+  color: #667eea;
+}
+.tabbar .tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 20%;
+  width: 60%;
+  height: 3px;
+  background: #667eea;
+  border-radius: 3px 3px 0 0;
+}
+.tabbar .tab:active { opacity: 0.7; }
+
+/* ---- 内容区 ---- */
+.content { padding: 16px; min-height: 420px; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* ============================================================
+   遮罩
+   ============================================================ */
+
+.overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+}
+.select-panel, .evo-panel {
+  background: #fff;
+  border-radius: 18px;
+  padding: 28px 24px;
+  max-width: 380px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+  animation: popIn 0.3s ease;
+}
+@keyframes popIn {
+  from { transform: scale(0.85); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* ============================================================
+   物种选择
+   ============================================================ */
+
+.select-panel h2 { font-size: 20px; margin-bottom: 18px; }
+.species-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.species-card {
+  padding: 16px 10px;
+  border-radius: 14px;
+  border: 2px solid #eee;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+.species-card:hover { border-color: #667eea; background: #f8f9ff; }
+.species-card.selected { border-color: #667eea; background: #eef0ff; }
+.species-card .s-emoji { font-size: 36px; display: block; margin-bottom: 4px; }
+.species-card .s-name { font-weight: 700; font-size: 15px; }
+.species-card .s-desc { font-size: 11px; color: #999; margin-top: 2px; }
+
+.species-preview {
+  background: #f8f9ff;
+  border-radius: 12px;
+  padding: 14px;
+  margin-top: 12px;
+  font-size: 13px;
+  text-align: left;
+}
+.species-preview .stat-row { display: flex; justify-content: space-between; margin: 3px 0; }
+.species-preview .stat-row span:last-child { font-weight: 600; }
+
+.select-form {
+  margin-top: 14px;
+  display: flex;
+  gap: 8px;
+}
+.select-form input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  font-size: 14px;
+  outline: none;
+}
+.select-form input:focus { border-color: #667eea; }
+
+/* ============================================================
+   按钮
+   ============================================================ */
+
+.btn {
+  padding: 10px 22px;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.btn:active { opacity: 0.8; }
+.btn.primary { background: #667eea; color: #fff; }
+.btn.success { background: #2ecc71; color: #fff; }
+.btn.danger { background: #e74c3c; color: #fff; }
+.btn.ghost { background: transparent; color: #667eea; border: 1px solid #667eea; }
+.btn.small { padding: 6px 14px; font-size: 12px; }
+.btn.block { width: 100%; }
+.btn:disabled { opacity: 0.4; cursor: default; }
+
+/* ============================================================
+   宠物面板
+   ============================================================ */
+
+.pet-header {
+  text-align: center;
+  padding: 8px 0 12px;
+}
+.pet-emoji { font-size: 64px; display: block; line-height: 1.2; }
+.pet-name-level { font-size: 18px; font-weight: 700; margin-top: 4px; }
+.pet-species-label { font-size: 12px; color: #999; }
+
+/* ---- 进度条 ---- */
+.stat-bar { margin: 8px 0; }
+.stat-bar .bar-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 3px;
+}
+.stat-bar .bar-track {
+  height: 10px;
+  background: #f0f0f0;
+  border-radius: 5px;
+  overflow: hidden;
+}
+.stat-bar .bar-fill {
+  height: 100%;
+  border-radius: 5px;
+  transition: width 0.5s ease;
+}
+.bar-hp .bar-fill { background: linear-gradient(90deg, #2ecc71, #27ae60); }
+.bar-hunger .bar-fill { background: linear-gradient(90deg, #f39c12, #e67e22); }
+.bar-happy .bar-fill { background: linear-gradient(90deg, #e91e63, #c2185b); }
+.bar-energy .bar-fill { background: linear-gradient(90deg, #2196f3, #1976d2); }
+.bar-exp .bar-fill { background: linear-gradient(90deg, #9b59b6, #8e44ad); }
+
+/* ---- 操作按钮 ---- */
+.action-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.action-row .btn { flex: 1; min-width: 70px; }
+
+/* ---- 属性面板 ---- */
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 12px;
+  background: #f8f9ff;
+  border-radius: 12px;
+  padding: 12px;
+}
+.stats-grid .stat-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+.stats-grid .stat-item .stat-val { font-weight: 600; }
+.stat-att { color: #e74c3c; }
+.stat-def { color: #3498db; }
+.stat-spd { color: #2ecc71; }
+
+/* ---- 技能栏 ---- */
+.skill-section { margin-top: 12px; }
+.skill-section h4 { font-size: 13px; color: #666; margin-bottom: 6px; }
+.skill-grid { display: flex; gap: 6px; flex-wrap: wrap; }
+.skill-badge {
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  background: #eef0ff;
+  color: #667eea;
+  border: 1px solid #d0d4f0;
+}
+
+/* ---- 商店面板 ---- */
+.shop-section { margin-top: 14px; }
+.shop-section h4 { font-size: 14px; margin-bottom: 8px; }
+.shop-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 13px;
+}
+.shop-item:last-child { border-bottom: none; }
+.shop-item .si-info { flex: 1; }
+.shop-item .si-name { font-weight: 600; }
+.shop-item .si-desc { font-size: 11px; color: #999; }
+.shop-item .si-price { font-size: 12px; color: #f39c12; margin-right: 8px; }
+
+/* ============================================================
+   玩家列表（对战/交易通用）
+   ============================================================ */
+
+.player-section { }
+.player-section h3 { font-size: 14px; margin-bottom: 8px; }
+.player-list { }
+.player-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+.player-item:last-child { border-bottom: none; }
+.player-info { display: flex; align-items: center; gap: 6px; }
+.player-icon { font-size: 20px; }
+.player-name { font-weight: 600; font-size: 14px; }
+.player-addr { font-size: 11px; color: #bbb; }
+.player-actions { display: flex; gap: 6px; }
+.player-actions .btn { font-size: 11px; padding: 4px 10px; }
+.hint-text { color: #ccc; font-size: 12px; text-align: center; padding: 20px 0; }
+
+/* ============================================================
+   对战 UI
+   ============================================================ */
+
+.battle-arena { display: none; }
+.battle-arena.active { display: block; }
+.player-list-area { display: block; }
+.player-list-area.hidden { display: none; }
+
+.battle-top {
+  text-align: center;
+  margin-bottom: 10px;
+}
+.battle-top .battle-title { font-size: 16px; font-weight: 700; color: #e74c3c; }
+
+.battle-field {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+}
+.battle-pet { text-align: center; flex: 1; }
+.battle-pet .bp-emoji { font-size: 44px; display: block; }
+.battle-pet .bp-name { font-size: 13px; font-weight: 600; margin: 2px 0; }
+.battle-pet .bp-hp-bar {
+  height: 8px;
+  background: #eee;
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 2px 10px;
+}
+.battle-pet .bp-hp-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #2ecc71, #27ae60);
+  transition: width 0.4s ease;
+}
+.battle-pet .bp-hp-fill.low { background: linear-gradient(90deg, #e74c3c, #c0392b); }
+.battle-pet .bp-hp-text { font-size: 11px; color: #999; }
+.battle-vs { font-size: 24px; font-weight: 900; color: #e74c3c; padding: 0 8px; }
+
+.battle-log {
+  background: #1a1a2e;
+  color: #eee;
+  border-radius: 10px;
+  padding: 10px;
+  height: 100px;
+  overflow-y: auto;
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+.battle-log .log-entry { margin: 2px 0; }
+.battle-log .log-dmg { color: #e74c3c; }
+.battle-log .log-heal { color: #2ecc71; }
+.battle-log .log-info { color: #f39c12; }
+.battle-log .log-system { color: #9b59b6; }
+
+.battle-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.battle-actions .btn { flex: 1; min-width: 70px; font-size: 12px; padding: 8px 0; }
+
+/* ============================================================
+   交易 UI
+   ============================================================ */
+
+.trade-arena { display: none; }
+.trade-arena.active { display: block; }
+
+.trade-panel {
+  background: #f8f9ff;
+  border-radius: 12px;
+  padding: 14px;
+}
+.trade-side {
+  margin-bottom: 10px;
+}
+.trade-side h4 { font-size: 13px; margin-bottom: 6px; }
+.trade-offer-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  font-size: 13px;
+}
+.trade-offer-row .to-actions .btn { font-size: 11px; padding: 2px 8px; }
+
+.trade-status {
+  text-align: center;
+  font-size: 13px;
+  color: #666;
+  padding: 8px;
+}
+.trade-status .ts-confirmed { color: #2ecc71; font-weight: 600; }
+
+/* ============================================================
+   通知 Toast
+   ============================================================ */
+
+.toast {
+  position: fixed;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #333;
+  color: #fff;
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-size: 14px;
+  z-index: 200;
+  animation: toastIn 0.3s ease, toastOut 0.3s ease 2.2s forwards;
+}
+@keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(20px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+@keyframes toastOut { from { opacity: 1; } to { opacity: 0; transform: translateX(-50%) translateY(-10px); } }
+
+/* ============================================================
+   滚动条（战斗日志）
+   ============================================================ */
+
+.battle-log::-webkit-scrollbar { width: 4px; }
+.battle-log::-webkit-scrollbar-thumb { background: #444; border-radius: 2px; }

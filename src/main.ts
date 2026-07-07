@@ -8,7 +8,7 @@ import router from './router'
 import { i18n, syncI18nWithSettings } from './i18n'
 import { initConfig, settings } from './config/config'
 import { initStorage } from './config/storage'
-import { initRegistry } from './host/registry'
+import { initRegistry, installPrebuiltServices } from './host/registry'
 import { memoryStore } from './ai/memory-store'
 import { loadUserSkills } from './ai/skills'
 import { discoverTools } from './tools/discover'
@@ -31,6 +31,10 @@ async function bootstrap() {
   ])
   // 网络互联桥初始化（非 Tauri 环境静默跳过）
   initNetworkBridge()
+
+  // 安装预置服务（public/services/，仅首次运行）
+  const prebuiltCount = await installPrebuiltServices()
+  if (prebuiltCount > 0) console.log(`[Bootstrap] 安装了 ${prebuiltCount} 个预置服务`)
 
   // 预加载 persistent widget
   await initPersistentWidgets()

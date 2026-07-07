@@ -198,3 +198,74 @@ export async function removeServiceStorage(serviceId: string) {
   console.log('[Registry] 删除服务存储:', serviceId)
   await removeServiceDir(serviceId)
 }
+
+// ============================================================
+// 预置服务安装（public/services/）
+// ============================================================
+
+const PREBUILT_SERVICES_URL = '/services/index.json'
+
+export async function installPrebuiltServices(): Promise<number> {
+  let installed = 0
+
+  let indexData: any
+  try {
+    const res = await fetch(PREBUILT_SERVICES_URL)
+    if (!res.ok) {
+      console.log('[Registry] 预置服务索引不可用:', res.status)
+      return 0
+    }
+    indexData = await res.json()
+  } catch (e) {
+    console.log('[Registry] 预置服务索引加载失败:', e)
+    return 0
+  }
+
+  const serviceList = indexData?.services ?? []
+  for (const entry of serviceList) {
+    const serviceId = entry.id
+    const manifest: ServiceManifest = {
+      id: serviceId,
+      name: entry.manifest.name,
+      version: entry.manifest.version,
+      description: entry.manifest.description,
+      permissions: entry.manifest.permissions,
+    }
+
+    // 已注册则跳过
+    if (getService(serviceId)) {
+      console.log('[Registry] 预置服务已存在，跳过:', serviceId)
+      continue
+    }
+
+    const fileList: string[] = entry.files ?? []
+    const files: ServiceFile[] = []
+    let fetchFailed = false
+
+    for (const fp of fileList) {
+      try {
+        const res = await fetch(`/services/${serviceId}/${fp}`)
+        if (!res.ok) { fetchFailed = true; break }
+        files.push({ path: fp, content: await res.text() })
+      } catch {
+        fetchFailed = true
+        break
+      }
+    }
+
+    if (fetchFailed) {
+      console.log('[Registry] 预置服务文件下载失败，跳过:', serviceId)
+      continue
+    }
+
+    if (files.length === 0) continue
+
+    const pkg: ServicePackage = { manifest, files }
+    await registerService(manifest, 'builtin')
+    await storeServicePackage(serviceId, pkg)
+    installed++
+    console.log(`[Registry] ✓ 预置服务已安装: ${serviceId} (${files.length} 个文件)`)
+  }
+
+  return installed
+}

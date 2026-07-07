@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>宠物世界</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ========== 物种选择遮罩（新用户） ========== -->
+  <div id="select-overlay" class="overlay" style="display:none">
+    <div class="select-panel">
+      <h2>🐣 选择你的初始宠物</h2>
+      <div class="species-grid" id="species-grid"></div>
+      <div class="select-form" id="select-form" style="display:none">
+        <input id="pet-name-input" type="text" placeholder="输入宠物昵称..." maxlength="10">
+        <button id="confirm-pet-btn" class="btn primary">确认选择</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 确认对话框遮罩 ========== -->
+  <div id="confirm-overlay" class="overlay" style="display:none">
+    <div class="select-panel" style="max-width:320px">
+      <p id="confirm-text" style="font-size:15px;margin-bottom:16px;line-height:1.6"></p>
+      <div style="display:flex;gap:10px">
+        <button id="confirm-yes" class="btn primary" style="flex:1">✅ 确定</button>
+        <button id="confirm-no" class="btn ghost" style="flex:1">❌ 取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 进化动画遮罩 ========== -->
+  <div id="evo-overlay" class="overlay" style="display:none">
+    <div class="evo-panel">
+      <div class="evo-emoji" id="evo-emoji">✨</div>
+      <h2 id="evo-title">进化！</h2>
+      <p id="evo-desc">你的宠物进化到了新形态！</p>
+      <button id="evo-ok-btn" class="btn primary">太好了！</button>
+    </div>
+  </div>
+
+  <!-- ========== 主界面 ========== -->
+  <div id="main-app" style="display:none">
+
+    <!-- 顶栏 -->
+    <div class="topbar">
+      <span class="topbar-title">🐾 宠物世界</span>
+      <span class="topbar-gold" id="gold-display">💰 200</span>
+    </div>
+
+    <!-- Tab 导航 -->
+    <div class="tabbar" id="tabbar">
+      <button class="tab active" data-tab="pet">🐾 宠物</button>
+      <button class="tab" data-tab="battle">⚔️ 对战</button>
+      <button class="tab" data-tab="trade">💰 交易</button>
+    </div>
+
+    <!-- Tab 内容 -->
+    <div class="content">
+
+      <!-- ===== 宠物 Tab ===== -->
+      <div class="tab-content active" id="tab-pet">
+        <!-- 由 pet-view.js 填充 -->
+      </div>
+
+      <!-- ===== 对战 Tab ===== -->
+      <div class="tab-content" id="tab-battle">
+        <!-- 由 battle.js + player-list.js 填充 -->
+      </div>
+
+      <!-- ===== 交易 Tab ===== -->
+      <div class="tab-content" id="tab-trade">
+        <!-- 由 trade.js + player-list.js 填充 -->
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ========== 脚本加载 ========== -->
+  <script src="utils/game-data.js"></script>
+  <script src="utils/storage.js"></script>
+  <script src="components/pet-view.js"></script>
+  <script src="components/battle.js"></script>
+  <script src="components/trade.js"></script>
+  <script src="components/player-list.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
