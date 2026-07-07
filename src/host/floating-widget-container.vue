@@ -17,6 +17,7 @@
           v-if="state.expanded"
           class="widget-panel"
           :class="state.config.edge === 'left' ? 'panel-right' : 'panel-left'"
+          :style="{ width: (state.config.width || 280) + 'px' }"
         >
           <div class="panel-header">
             <span class="panel-label">{{ state.config.label || state.config.id }}</span>
@@ -26,7 +27,7 @@
             <iframe
               class="widget-iframe"
               :srcdoc="state.htmlContent"
-              :data-widget-id="id"
+              :style="{ height: (state.config.height || 200) + 'px' }"
               sandbox="allow-scripts"
               allow="clipboard-write"
             ></iframe>
@@ -81,27 +82,6 @@ watch(
     onRouteChange((name as string) || null)
   }
 )
-
-// ---- 悬浮块自动适应高度 ----
-
-function handleWidgetResize(event: MessageEvent) {
-  const data = event.data
-  if (!data || data.type !== 'widget-resize') return
-  const { widgetId, height } = data
-  if (!widgetId || !height) return
-  const iframe = document.querySelector('iframe[data-widget-id="' + widgetId + '"]') as HTMLIFrameElement | null
-  if (iframe) {
-    iframe.style.height = Math.min(Math.max(height, 80), 480) + 'px'
-  }
-}
-
-onMounted(() => {
-  window.addEventListener('message', handleWidgetResize)
-})
-
-onUnmounted(() => {
-  window.removeEventListener('message', handleWidgetResize)
-})
 
 // ---- 计算 ----
 
@@ -257,7 +237,7 @@ onUnmounted(() => {
   position: absolute;
   top: 0;
   width: 280px;
-  max-height: 480px;
+  max-height: 520px;
   background: var(--color-surface, #fff);
   border-radius: 14px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.08);
@@ -323,10 +303,8 @@ onUnmounted(() => {
 
 .widget-iframe {
   width: 100%;
-  height: 200px;
   border: none;
   background: transparent;
-  transition: height 0.15s ease;
 }
 
 /* ---- 面板动画 ---- */

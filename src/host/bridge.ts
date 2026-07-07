@@ -194,33 +194,6 @@ export const BRIDGE_SCRIPT = `
       readBinary: function(token, path) { return callHost('fileAccess', 'readBinary', { token: token, path: path }); },
     },
   };
-
-  // ---- 悬浮块自动适应大小 ----
-  if (window.__widget_id__) {
-    var _lastH = 0, _lastW = 0;
-    var _sendSize = function() {
-      var b = document.body;
-      if (!b) return;
-      var d = document.documentElement;
-      var w = Math.max(b.scrollWidth || 0, d.scrollWidth || 0, b.offsetWidth || 0, d.offsetWidth || 0);
-      var h = Math.max(b.scrollHeight || 0, d.scrollHeight || 0, b.offsetHeight || 0, d.offsetHeight || 0);
-      if ((h > 10 && h !== _lastH) || (w > 10 && w !== _lastW)) {
-        _lastH = h;
-        _lastW = w;
-        window.parent.postMessage({ type: 'widget-resize', widgetId: window.__widget_id__, width: w, height: h }, '*');
-      }
-    };
-    var _startObserve = function() {
-      if (!document.body) { requestAnimationFrame(_startObserve); return; }
-      _sendSize();
-      setTimeout(_sendSize, 200);
-      setTimeout(_sendSize, 800);
-      if (window.ResizeObserver) {
-        new ResizeObserver(function() { _sendSize(); }).observe(document.body);
-      }
-    };
-    _startObserve();
-  }
 })();
 
 `

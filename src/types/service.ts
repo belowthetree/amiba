@@ -237,6 +237,8 @@ export interface FloatingWidgetConfig {
   showOn: string[]              // 生命周期：在哪些路由名下存在，空数组 = 全局
   trigger: 'manual' | 'page'   // 触发方式：manual=API 调用 show(), page=进入 showOn 路由时自动显示
   lifecycle?: string  // 管道分隔的界面/服务 ID 列表，如 "chat|user.floating-demo"。匹配时 widget 可见。"" 或 "*" = 全局。空 = 仅服务加载时可见。
+  width?: number                // 面板宽度 px，默认 280
+  height?: number               // 面板内容高度 px，默认自适应但最小值 120
 }
 
 export interface FloatingWidgetManifest {

@@ -140,7 +140,7 @@ export async function initPersistentWidgets(): Promise<void> {
       }
 
       const withServiceId: FloatingWidgetConfig = { ...config, serviceId: svc.manifest.id }
-      const injected = injectBridge(htmlContent, svc.manifest.id, config.id)
+      const injected = injectBridge(htmlContent, svc.manifest.id)
 
       registerWidget(withServiceId, injected)
       console.log(`[WidgetLifecycle] ✓ 预加载: ${config.id} (lifecycle="${config.lifecycle || '(默认)'}")`)
@@ -150,12 +150,10 @@ export async function initPersistentWidgets(): Promise<void> {
 
 // ---- 桥脚本注入 ----
 
-function injectBridge(html: string, serviceId: string, widgetId?: string): string {
-  var extra = 'window.__amiba_service_id__ = "' + serviceId + '"'
-  if (widgetId) extra += ';window.__widget_id__ = "' + widgetId + '"'
+function injectBridge(html: string, serviceId: string): string {
   return html.replace(
     '<!-- AMIBA_BRIDGE -->',
-    '<script>' + extra + '</' + 'script>' +
+    '<script>window.__amiba_service_id__ = "' + serviceId + '"</' + 'script>' +
     '<script>' + BRIDGE_SCRIPT + '<\/script>'
   )
 }

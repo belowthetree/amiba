@@ -131,10 +131,10 @@ function loadWidgetsFromPackage(pkg: ServicePackage, permissions: string[]) {
       continue
     }
 
-    // 注入 bridge 脚本 + serviceId + widgetId
+    // 注入 bridge 脚本
     const processed = widgetFile.content.replace(
       '<!-- AMIBA_BRIDGE -->',
-      '<script>window.__amiba_service_id__ = "' + serviceId.value + '";window.__widget_id__ = "' + config.id + '"</' + 'script>' +
+      '<script>window.__amiba_service_id__ = "' + serviceId.value + '"</' + 'script>' +
       '<script>' + BRIDGE_SCRIPT + '<\/script>'
     )
 
@@ -197,10 +197,10 @@ function makeApiHandler(): ApiHandler {
             if (!widgetHtml) {
               throw new Error(`Widget page not found: ${config.page}`)
             }
-            // 注入 bridge 脚本 + serviceId + widgetId
+            // 注入 bridge 脚本 + serviceId
             const processed = widgetHtml.replace(
               '<!-- AMIBA_BRIDGE -->',
-              '<script>window.__amiba_service_id__ = "' + serviceId.value + '";window.__widget_id__ = "' + config.id + '"</' + 'script>' +
+              '<script>window.__amiba_service_id__ = "' + serviceId.value + '"</' + 'script>' +
               '<script>' + BRIDGE_SCRIPT + '<\/script>'
             )
             registerWidget(

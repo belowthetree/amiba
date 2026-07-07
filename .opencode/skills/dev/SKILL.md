@@ -22,6 +22,8 @@ description: 引导 agent 在任务前后阅读/更新项目开发规范文档�
 | 服务版本归档 | `docs/development.md`（服务版本归档 节）、`src/host/service-archive.ts` |
 | 局域网服务分享 | `docs/development.md`（局域网服务分享 节）、`src/host/service-share.ts` |
 | 后台服务/BackgroundServiceManager | `docs/services.md`（后台服务 节）、`docs/jbridge.md`（background 模块）、`docs/development.md`（后台服务 节） |
+| 文件访问/fileAccess API | `docs/jbridge.md`（fileAccess 模块）、`src/host/file-access-grants.ts` |
+| 悬浮块/widget UI | `docs/services.md`（悬浮块 节）、`src/host/floating-widget-container.vue`、见下方「悬浮块 UI 规范」 |
 | 整体架构/模块关系 | `docs/architecture.md` |
 | 开发环境/构建/命名/多语言 | `docs/development.md` |
 | 预置服务（public/services/） | 见下方「预置用户服务」节 |
@@ -128,12 +130,14 @@ description: 引导 agent 在任务前后阅读/更新项目开发规范文档�
 
 | 规则 | 说明 |
 |------|------|
-| **不要设固定高度** | 面板自动适应内容高度（ResizeObserver），设 `height: xxx` 会导致留白或裁剪 |
+| **不要设固定宽高** | 面板宽高完全由 widget 内容驱动（ResizeObserver 自动测量），设死会导致留白或裁剪 |
+| **由 `.widget-root` 控制尺寸** | 根容器自然宽度即为面板宽度，推荐用 `min-width` / `max-width` 约束而不设 `width` |
 | **不要设 `body` 样式** | `body` 的 margin/padding 由宿主 iframe 控制，在 `.widget-root` 上设置 |
 | **背景色自管理** | 宿主面板背景透明，widget 必须设置自己的背景色 |
 | **字体** | 使用系统栈：`-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif` |
 | **颜色变量** | 推荐使用宿主 CSS 变量：`var(--color-text)`、`var(--color-surface)` |
-| **面板宽 280px** | 展开面板固定 280px 宽，内容自适应 |
+| **宽度范围 180~400px** | 面板宽度由 widget 内容自然宽度决定，宿主角联 180~400px |
+| **高度范围 60~520px** | 面板高度由 widget 内容自然高度决定，宿主角联 60~520px |
 
 ### 自动高度
 
@@ -164,3 +168,81 @@ description: 引导 agent 在任务前后阅读/更新项目开发规范文档�
   })();
 </script>
 ```
+
+## 后台服务开发模式
+
+生成或修改后台服务时，遵循以下模式：
+
+### background.json 配置
+
+```json
+{
+  "entry": "background.js",
+  "schedule": { "type": "interval", "intervalMs": 60000 },
+  "onEvents": ["peer-discovered"]
+}
+```
+
+### 后台入口文件模板
+
+```js
+// 接收前台/悬浮块指令
+__amiba__.background.onMessage(function(msg) {
+  switch (msg.action) {
+    case 'play': /* ... */ break;
+    case 'pause': /* ... */ break;
+  }
+})
+
+// 向前台推送状态
+__amiba__.background.postMessage({ type: 'state', playing: true })
+
+// 监听定时器
+__amiba__.background.on('tick', function(data) {
+  // data.trigger: 'interval' | 'cron'
+})
+
+// 使用标准 API
+await __amiba__.storage.set('key', value)
+const v = await __amiba__.storage.get('key')
+```
+
+### 关键约束
+
+| 规则 | 说明 |
+|------|------|
+| **前台先 start 再发消息** | 必须 `await __amiba__.background.start()` 后再 `postMessage` |
+| **start 后验证状态** | `start()` 返回不代表就绪，建议再调一次 `getState()` 确认 `running: true` |
+| **状态同步用 storage** | 悬浮块无法直接接收后台 `postMessage`，后台应写入 `storage`，悬浮块轮询 |
+| **容量限制** | 最多 3 个并发，`settings.max_background_services` 控制 |
+
+## 文件访问 API 使用模式
+
+`fileAccess` 提供通用的磁盘文件访问，需 `fileAccess` 权限。
+
+### 流程
+
+```js
+// 1. 请求授权（弹出 confirm，用户确认后获取 token）
+var grant = await __amiba__.fileAccess.requestAccess({
+  pattern: '{*.mp3,*.flac}',
+  purpose: __amiba__.storage.get.bind ? '' : '扫描音乐文件'
+})
+// → { token, path, pattern }
+
+// 2. 扫描文件列表
+var files = await __amiba__.fileAccess.listFiles(grant.token)
+// → [{ name, path, size, isDir }, ...]
+
+// 3. 读取文件
+var text = await __amiba__.fileAccess.readText(grant.token, 'readme.txt')
+var b64  = await __amiba__.fileAccess.readBinary(grant.token, 'song.mp3')
+```
+
+### 关键约束
+
+| 规则 | 说明 |
+|------|------|
+| **token 即生命周期** | token 仅本次应用生命周期有效（内存 Map），重启需重新 `requestAccess` |
+| **path 不传则弹选择器** | `requestAccess({ path: undefined })` → 弹出系统文件夹选择对话框 |
+| **token 绑定 serviceId** | 不同服务各自独立授权，token 不可跨服务使用 |

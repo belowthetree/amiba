@@ -30,15 +30,27 @@ category: platform
 - 无法多开标签页/窗口
 - 无 `allow-popups`，无 `allow-top-navigation`
 
+## 不同运行环境的 sandbox 属性
+
+| 环境 | sandbox 属性 | 说明 |
+|------|-------------|------|
+| 前台服务 iframe | `allow-scripts allow-same-origin` | 完整能力，可加载同源资源 |
+| 后台服务 iframe | `allow-scripts` | 无 `allow-same-origin`，由 `BackgroundServiceManager` 管理 |
+| 悬浮块 iframe | `allow-scripts` | 无 `allow-same-origin`，面板尺寸由 `widget.json` 声明 |
+
 ## 关键原则
 
 1. **数据持久化**: 必须用 `__amiba__.storage.*`，不得用 localStorage
 2. **多端通信**: "多人/聊天/协作"功能必须用 `network` 权限 + P2P API，不得在本地模拟多角色
 3. **UI 反馈**: 用 `__amiba__.showToast()` 替代浏览器原生弹窗
 4. **校验**: 生成或修改代码后调用 `service_validate` 自动检测违规
+5. **磁盘文件**: 用 `fileAccess` 权限 + `__amiba__.fileAccess.*` API，不直接访问文件系统
+6. **后台运行**: 用 `background` 权限 + `background.json` 声明，不依赖前台页面存活
 
 ## 常见错误
 
 - ❌ `localStorage.setItem('key', value)` → ✅ `await __amiba__.storage.set('key', value)`
 - ❌ `new BroadcastChannel('chat')` → ✅ `__amiba__.network.connect(peerId, serviceKey)`
 - ❌ `alert('成功')` → ✅ `__amiba__.showToast('成功', 'success')`
+- ❌ `fetch('/Users/.../music/')` → ✅ `await __amiba__.fileAccess.requestAccess({...})`
+- ❌ 后台直接用 `setInterval`  → ✅ 在 `background.json` 声明 `schedule`，监听 `tick` 事件
