@@ -22,6 +22,9 @@ export const lifecycleContext = reactive({
 
 /** 解析 lifecycle 字符串，判断 widget 在当前上下文中是否可见 */
 export function evaluateWidget(config: FloatingWidgetConfig): boolean {
+  // 用户显式关闭悬浮块 → 主开关优先，所有 lifecycle 模式都尊重此标志
+  if (getService(config.serviceId)?.widgetsVisible === false) return false
+
   const raw = config.lifecycle
 
   // 兼容旧字段：lifecycle: 'service' → 服务加载时可见
@@ -30,7 +33,7 @@ export function evaluateWidget(config: FloatingWidgetConfig): boolean {
   }
   // 兼容旧字段：lifecycle: 'persistent' → 始终可见
   if (raw === 'persistent') {
-    return getService(config.serviceId)?.widgetsVisible !== false
+    return true
   }
   // 无配置 → 默认服务加载时可见
   if (!raw) {

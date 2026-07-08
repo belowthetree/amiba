@@ -42,6 +42,8 @@
     var action = msg.action;
     var data = msg.data || {};
 
+    console.log('[BgWorker] onMessage:', action, JSON.stringify(data));
+
     switch (action) {
       case 'play':
         loadAndPlay(data.token, data.path, data.name, data.index);
@@ -50,23 +52,63 @@
         audio.pause();
         break;
       case 'resume':
-        audio.play().catch(function() {});
+        console.log('[BgWorker] resume: audio.src=' + (audio.src ? audio.src.slice(0,50) : '(空)'));
+        if (audio.src) {
+          audio.play().catch(function(e) { console.error('[BgWorker] audio.play() 失败:', e); });
+        } else {
+          console.log('[BgWorker] 无已加载曲目，调用 autoPlayFirst()');
+          autoPlayFirst();
+        }
         break;
       case 'volume':
         audio.volume = data.volume || 0.8;
         break;
       case 'prev':
-        playPrev();
+        if (tracks.length === 0) {
+          ensureTracksLoaded().then(function() { playPrev(); });
+        } else {
+          playPrev();
+        }
         break;
       case 'next':
-        playNext();
+        if (tracks.length === 0) {
+          ensureTracksLoaded().then(function() { playNext(); });
+        } else {
+          playNext();
+        }
         break;
     }
   });
 
   // ---- 播放逻辑 ----
 
+  async function ensureTracksLoaded() {
+    console.log('[BgWorker] ensureTracksLoaded: token=' + !!token + ' tracks.length=' + (tracks ? tracks.length : 0));
+    if (!token) {
+      token = await __amiba__.storage.get('music_token');
+      console.log('[BgWorker] 读取 music_token:', token ? '有值' : '(空)');
+    }
+    if (!tracks || tracks.length === 0) {
+      var saved = await __amiba__.storage.get('music_tracks');
+      if (saved) tracks = saved;
+      console.log('[BgWorker] 读取 music_tracks:', tracks ? tracks.length + ' 首' : '(空)');
+    }
+  }
+
+  async function autoPlayFirst() {
+    console.log('[BgWorker] autoPlayFirst: 开始');
+    await ensureTracksLoaded();
+    console.log('[BgWorker] autoPlayFirst: token=' + !!token + ' tracks.length=' + (tracks ? tracks.length : 0));
+    if (tracks.length > 0 && token) {
+      console.log('[BgWorker] autoPlayFirst: 加载第一首:', tracks[0].name);
+      loadAndPlay(token, tracks[0].path, tracks[0].name, 0);
+    } else {
+      console.warn('[BgWorker] autoPlayFirst: 无曲目或无 token，无法播放');
+    }
+  }
+
   async function loadAndPlay(newToken, trackPath, trackName, index) {
+    console.log('[BgWorker] loadAndPlay: path=' + trackPath + ' name=' + trackName + ' index=' + index);
     try {
       token = newToken;
       currentIndex = index;
@@ -79,7 +121,9 @@
       if (saved) tracks = saved;
 
       // 读取音频数据
+      console.log('[BgWorker] 读取音频二进制...');
       var b64 = await __amiba__.fileAccess.readBinary(token, trackPath);
+      console.log('[BgWorker] 读取完成, base64 长度:', b64 ? b64.length : 0);
 
       // 释放旧 blob URL
       if (audio.src && audio.src.startsWith('blob:')) {
@@ -99,9 +143,12 @@
       var url = URL.createObjectURL(blob);
 
       audio.src = url;
+      console.log('[BgWorker] 调用 audio.play()...');
       await audio.play();
+      console.log('[BgWorker] ✓ audio.play() 成功');
       notifyFront('state', playState);
     } catch(e) {
+      console.error('[BgWorker] ✗ loadAndPlay 失败:', e.message || e);
       playState.playing = false;
       notifyFront('state', playState);
     }
@@ -130,14 +177,27 @@
   // ---- 状态同步 ----
 
   var _saveTimer = null;
+  var _pendingState = null;
+
+  function flushState() {
+    if (_pendingState) {
+      console.log('[BgWorker] flushState → storage.set player_state, playing=' + _pendingState.playing + ' name=' + _pendingState.currentName);
+      __amiba__.storage.set('player_state', _pendingState);
+      _pendingState = null;
+    }
+    _saveTimer = null;
+  }
+
   function notifyFront(type, data) {
     var state = { type: type, playing: playState.playing, currentName: playState.currentName, position: playState.position, duration: playState.duration, index: currentIndex };
-    __amiba__.background.postMessage(state);
-    // 写入 storage（300ms 防抖，避免 timeupdate 频繁写入）
-    if (_saveTimer) clearTimeout(_saveTimer);
-    _saveTimer = setTimeout(function() {
-      __amiba__.storage.set('player_state', state);
-    }, 300);
+    console.log('[BgWorker] notifyFront type=' + type + ' playing=' + playState.playing + ' name=' + playState.currentName);
+    // 前台可能未加载（仅悬浮块使用时），忽略推送失败
+    __amiba__.background.postMessage(state).catch(function(){});
+    // 写入 storage（300ms 合并写入，不清除已有定时器避免 timeupdate 高频重置导致永不写入）
+    _pendingState = state;
+    if (_saveTimer === null) {
+      _saveTimer = setTimeout(flushState, 300);
+    }
   }
 
   // ---- 初始状态 ----

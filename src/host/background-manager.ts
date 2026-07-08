@@ -42,9 +42,10 @@ window.addEventListener('message', (event: MessageEvent) => {
   const data = event.data
   if (!data || data.type !== 'api' || data.module !== 'background') return
   const svcId = data.params?.serviceId
-  if (!svcId) return
+  if (!svcId) { console.log('[BgManager] 收到 background API 但无 serviceId:', data.method); return }
 
   const { method, params, requestId } = data
+  console.log('[BgManager] 全局 background API: svcId=' + svcId + ' method=' + method)
   const worker = _workers.get(svcId)
   const reply = (result?: any, error?: string) => {
     try { (event.source as WindowProxy)?.postMessage({ type: 'api-response', requestId, result, error }, '*') } catch { /* ignore */ }
@@ -76,6 +77,43 @@ window.addEventListener('message', (event: MessageEvent) => {
       stopService(svcId).then(() => reply(undefined))
       return
     }
+  }
+})
+
+// ---- 全局监听：接收 widget iframe 的 storage API 调用 ----
+// widget iframe 没有 service-container 的 bridge，需要宿主层全局转发
+
+window.addEventListener('message', async (event: MessageEvent) => {
+  const data = event.data
+  if (!data || data.type !== 'api' || data.module !== 'storage') return
+  const svcId = data.params?.serviceId
+  if (!svcId) return
+
+  const { method, params, requestId } = data
+  const reply = (result?: any, error?: string) => {
+    try { (event.source as WindowProxy)?.postMessage({ type: 'api-response', requestId, result, error }, '*') } catch { /* ignore */ }
+  }
+
+  try {
+    switch (method) {
+      case 'setStorage':
+        await setServiceData(svcId, params.key, params.data)
+        reply(undefined)
+        return
+      case 'getStorage': {
+        const v = await getServiceData(svcId, params.key)
+        reply(v)
+        return
+      }
+      case 'removeStorage':
+        await removeServiceData(svcId, params.key)
+        reply(undefined)
+        return
+      default:
+        reply(undefined, 'Unknown storage method: ' + method)
+    }
+  } catch (e: any) {
+    reply(undefined, e?.message || String(e))
   }
 })
 
@@ -182,8 +220,9 @@ async function handleBgAPI(req: { module: string; method: string; params: Record
           return
         case 'postMessage': {
           const handler = _foregroundHandlers.get(svcId)
-          if (handler) { handler(params.message); _sendResponse(worker, requestId, undefined) }
-          else { _sendResponse(worker, requestId, undefined, '前台服务未加载') }
+          if (handler) { handler(params.message) }
+          // 前台未加载不是错误（悬浮块可能独立使用后台服务）
+          _sendResponse(worker, requestId, undefined)
           return
         }
         default:

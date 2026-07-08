@@ -108,9 +108,9 @@ export const BRIDGE_SCRIPT = `
 
   window.__amiba__ = {
     storage: {
-      set: function(key, data) { return callHost('storage', 'setStorage', { key: key, data: data }); },
-      get: function(key) { return callHost('storage', 'getStorage', { key: key }); },
-      remove: function(key) { return callHost('storage', 'removeStorage', { key: key }); },
+      set: function(key, data) { return callHost('storage', 'setStorage', { key: key, data: data, serviceId: window.__amiba_service_id__ || undefined }); },
+      get: function(key) { return callHost('storage', 'getStorage', { key: key, serviceId: window.__amiba_service_id__ || undefined }); },
+      remove: function(key) { return callHost('storage', 'removeStorage', { key: key, serviceId: window.__amiba_service_id__ || undefined }); },
     },
     showToast: function(title, icon) { return callHost('notification', 'showToast', { title: title, icon: icon || 'none' }); },
     navigateTo: function(url) { return callHost('ui', 'navigateTo', { url: url }); },
@@ -168,9 +168,9 @@ export const BRIDGE_SCRIPT = `
       }
     },
     background: {
-      start: function(opts) { return callHost('background', 'start', { opts: opts || {} }); },
-      stop: function() { return callHost('background', 'stop', {}); },
-      getState: function() { return callHost('background', 'getState', {}); },
+      start: function(opts) { return callHost('background', 'start', { opts: opts || {}, serviceId: window.__amiba_service_id__ || undefined }); },
+      stop: function() { return callHost('background', 'stop', { serviceId: window.__amiba_service_id__ || undefined }); },
+      getState: function() { return callHost('background', 'getState', { serviceId: window.__amiba_service_id__ || undefined }); },
       postMessage: function(message) { return callHost('background', 'postMessage', { message: message, serviceId: window.__amiba_service_id__ || undefined }); },
       onMessage: function(callback) {
         window.addEventListener('message', function handler(e) {

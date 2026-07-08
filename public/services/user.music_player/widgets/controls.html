@@ -59,39 +59,84 @@ html, body { margin: 0; padding: 0; overflow: hidden; width: 100%; height: 100%;
 <script>
 (function() {
   var isPlaying = false, currentDuration = 0, currentPosition = 0;
+  var bgReady = false;
 
-  function postBg(action, data) {
-    if (!window.__amiba__ || !__amiba__.background) return;
+  console.log('[Widget] 初始化');
+
+  async function ensureBgReady() {
+    if (bgReady) { console.log('[Widget] ensureBgReady: 已就绪'); return; }
+    console.log('[Widget] ensureBgReady: 检查后台状态...');
+    try {
+      var state = await __amiba__.background.getState();
+      console.log('[Widget] getState:', JSON.stringify(state));
+      if (!state.running) {
+        console.log('[Widget] 后台未运行，调用 start()...');
+        await __amiba__.background.start();
+        var state2 = await __amiba__.background.getState();
+        console.log('[Widget] start 后 getState:', JSON.stringify(state2));
+        if (!state2.running) throw new Error('后台启动失败');
+      }
+      bgReady = true;
+      console.log('[Widget] ✓ 后台已就绪');
+    } catch(e) {
+      bgReady = false;
+      console.error('[Widget] ✗ ensureBgReady 失败:', e.message || e);
+    }
+  }
+
+  async function postBg(action, data) {
+    if (!window.__amiba__ || !__amiba__.background) { console.warn('[Widget] __amiba__ 不可用'); return; }
+    console.log('[Widget] postBg:', action, data || '');
+    await ensureBgReady();
+    if (!bgReady) { console.warn('[Widget] bgReady=false，跳过 postMessage'); return; }
+    console.log('[Widget] → postMessage:', action);
     __amiba__.background.postMessage({ action: action, data: data || {} });
   }
 
-  document.getElementById('wi-play').onclick = function() {
-    postBg(isPlaying ? 'pause' : 'resume');
-    // 本地立即反馈
-    isPlaying = !isPlaying;
-    document.getElementById('wi-play').textContent = isPlaying ? '⏸️' : '▶️';
-  };
+  async function doPlayPause() {
+    if (!bgReady) {
+      await ensureBgReady();
+      if (!bgReady) return;
+    }
+    if (isPlaying) {
+      await postBg('pause');
+      isPlaying = false;
+      document.getElementById('wi-play').textContent = '▶️';
+    } else {
+      await postBg('resume');
+      isPlaying = true;
+      document.getElementById('wi-play').textContent = '⏸️';
+    }
+  }
+
+  document.getElementById('wi-play').onclick = function() { doPlayPause(); };
   document.getElementById('wi-prev').onclick = function() { postBg('prev'); };
   document.getElementById('wi-next').onclick = function() { postBg('next'); };
   document.getElementById('wi-volume').oninput = function() {
     postBg('volume', { volume: parseInt(this.value) / 100 });
   };
 
-  __amiba__.background.onMessage(function(msg) {
-    updateState(msg);
-  });
-
   // 轮询 storage 获取后台状态
   function poll() {
     __amiba__.storage.get('player_state').then(function(s) {
-      if (s) updateState(s);
-    }).catch(function(){});
+      if (s) {
+        console.log('[Widget] poll 读到 player_state:', JSON.stringify(s));
+        updateState(s);
+      }
+    }).catch(function(e) {
+      console.warn('[Widget] poll 读取失败:', e.message || e);
+    });
   }
   setInterval(poll, 500);
   poll();
 
+  // 启动时自动拉取后台状态（若已有缓存曲目则后台可能已在运行）
+  console.log('[Widget] 启动时自动拉取后台...');
+  ensureBgReady();
+
   function updateState(msg) {
     if (!msg) return;
+    console.log('[Widget] updateState:', JSON.stringify(msg));
     if (msg.playing !== undefined) {
       isPlaying = msg.playing;
       document.getElementById('wi-play').textContent = msg.playing ? '⏸️' : '▶️';

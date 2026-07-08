@@ -95,6 +95,7 @@ import {
   storeServicePackage,
   removeServiceStorage,
   getService,
+  destroyServiceRuntime,
 } from '../host/registry'
 import type { ServiceEntry, ServicePackage } from '../types/service'
 import { readDirRecursive } from '../config/storage'
@@ -185,8 +186,16 @@ async function handleServiceToggle(svc: ServiceEntry) {
   }
 }
 
-function deleteService(svc: ServiceEntry) {
+async function deleteService(svc: ServiceEntry) {
   if (confirm(t('services.confirmDelete', { name: svc.manifest.name }))) {
+    // 1. 释放所有运行时资源（后台、悬浮块、文件授权、前台 handler）
+    await destroyServiceRuntime(svc.manifest.id)
+    // 2. 如果正在浏览该服务页面，导航回服务列表
+    const currentPath = router.currentRoute.value.path
+    if (currentPath === `/service/${svc.manifest.id}/` || currentPath.startsWith(`/service/${svc.manifest.id}`)) {
+      router.push('/service')
+    }
+    // 3. 注销注册表 + 删除文件
     unregisterService(svc.manifest.id)
     removeServiceStorage(svc.manifest.id)
   }

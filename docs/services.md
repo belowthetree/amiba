@@ -239,3 +239,15 @@ __amiba__.background.onMessage((msg) => {
   if (msg.type === 'check') updateUI()
 })
 ```
+
+## 经验教训
+
+- **2026-07-09**: 悬浮块通过 `__amiba__.background.postMessage()` 向后台服务发指令前，**必须先调用 `start()` / `getState()` 确保后台已启动**。widget iframe 不经过 service-container 的路由，它的 `background` API 调用走 background-manager 的全局 `window` message listener，该 listener 在 `postMessage` 时若 worker 未运行会**静默丢弃消息**。同时 `bridge.ts` 中 `background.start/stop/getState` 方法必须传入 `serviceId`（`window.__amiba_service_id__`），否则全局 listener 无法识别调用来源。
+
+- **2026-07-09**: `evaluateWidget()` 必须在任何 lifecycle 规则之前**先检查 `widgetsVisible` 标志**作为主开关。原实现中 `lifecycle: "*"` 无条件返回 `true`，导致 `setServiceWidgetsVisible(id, false)` 设置 `visible = false` 后，紧接着 `onWidgetToggled → reevaluateService → evaluateWidget` 又将 `visible` 覆盖回 `true`，widget 无法关闭且关闭状态不持久。同样 `lifecycle: "persistent"` 已有的 `widgetsVisible !== false` 检查需提升为顶级 guard。
+
+- **2026-07-09**: 删除服务时必须统一释放所有运行时资源，**收口到一处**（`registry.ts:destroyServiceRuntime()`）。原 `deleteService` 仅做了 `unregisterService` + `removeServiceStorage`，遗漏了：后台 worker（隐藏 iframe + 定时器泄漏）、文件访问授权（`_grants` Map 泄漏）、悬浮块状态（persistent widget 残留）、前台 handler（`_foregroundHandlers` 泄漏）。统一收口函数按序清理：stopService → clear foreground handler → revoke file grants → unregister ALL widgets。
+
+- **2026-07-09**: `notifyFront` 的 storage 写入防抖用 `clearTimeout` + 重设定时器是**错误的**。HTML5 Audio 的 `timeupdate` 事件每 ~250ms 触发一次，而防抖阈值 300ms 大于事件间隔 → 定时器被无限重置，storage 永远写不进去，widget 轮询永远读到过期数据。正确做法：检查定时器是否存在，若已存在则仅更新 pending 数据不清除定时器，保证首次写入在 300ms 内完成。
+
+- **2026-07-09**: Widget iframe 只有 `background` 模块有全局 `window` message listener（`background-manager.ts`），`storage`/`fileAccess` 等模块**只在 `service-container.vue` 的 bridge 中处理**。Widget 的 `__amiba__.storage.get()` 发出去的 `postMessage` 无人响应 → Promise 静默超时。修复：`bridge.ts` 的 `storage.*` 调用携带 `serviceId`（`window.__amiba_service_id__`），`background-manager.ts` 新增全局 storage listener 处理 widget 的读写请求。

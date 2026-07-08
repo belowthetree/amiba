@@ -245,6 +245,44 @@ export async function removeServiceStorage(serviceId: string) {
 }
 
 // ============================================================
+// 统一服务运行时资源销毁（删除服务 / 服务卸载时统一收口）
+// ============================================================
+
+/**
+ * 释放服务持有的所有运行时资源（后台、悬浮块、文件授权、前台 handler）。
+ * 删除服务时调用，ServiceContext.destroy() 也走此收口。
+ */
+export async function destroyServiceRuntime(serviceId: string): Promise<void> {
+  console.log('[Registry] ==== 销毁服务运行时: ' + serviceId + ' ====')
+
+  // 1. 停止后台服务（清理隐藏 iframe、定时器、网络事件订阅）
+  try {
+    const { stopService } = await import('./background-manager')
+    await stopService(serviceId)
+  } catch (e) { console.warn('[Registry] stopService 失败:', e) }
+
+  // 2. 清除前台消息 handler（防止后台向前台推送时落空）
+  try {
+    const { registerForegroundHandler } = await import('./background-manager')
+    registerForegroundHandler(serviceId, null)
+  } catch (e) { console.warn('[Registry] registerForegroundHandler 清理失败:', e) }
+
+  // 3. 吊销文件访问授权
+  try {
+    const { revokeService } = await import('./file-access-grants')
+    revokeService(serviceId)
+  } catch (e) { console.warn('[Registry] revokeService 失败:', e) }
+
+  // 4. 注销所有悬浮块（含 persistent/* 生命周期 — 删除时必须全部清理）
+  try {
+    const { widgetStates } = await import('./floating-widget-manager')
+    const ids = Object.keys(widgetStates).filter((id) => widgetStates[id]?.config?.serviceId === serviceId)
+    for (const id of ids) { delete widgetStates[id] }
+    console.log('[Registry] ✓ 服务运行时已销毁: ' + serviceId)
+  } catch (e) { console.warn('[Registry] 清理悬浮块失败:', e) }
+}
+
+// ============================================================
 // 预置服务安装（public/services/）
 // ============================================================
 
