@@ -28,6 +28,9 @@
       </div>
     </div>
 
+    <!-- 插槽: chat.above-messages -->
+    <SlotRenderer name="chat.above-messages" :html="slotHtml('chat.above-messages')" />
+
     <div class="chat-messages" ref="messagesEl">
       <div v-if="visibleMessages.length === 0" class="chat-empty">
         <div class="empty-icon">💬</div>
@@ -89,6 +92,9 @@
         {{ $t('chat.send') }}
       </button>
     </div>
+
+    <!-- 插槽: chat.below-input -->
+    <SlotRenderer name="chat.below-input" :html="slotHtml('chat.below-input')" />
 
     <!-- 统计模态框 -->
     <div v-if="showStats" class="modal-overlay" @click.self="showStats = false">
@@ -172,8 +178,12 @@ import {
   startDiscovery as netStartDiscovery,
   stopDiscovery as netStopDiscovery,
 } from '../host/network-bridge'
+import SlotRenderer from '../components/SlotRenderer.vue'
+import { themeState } from '../config/theme-store'
 
 const { t } = useI18n()
+
+const slotHtml = (name: string) => themeState.slots[name] || ''
 
 const session = getSession()
 const { messages, turnCount, sending, streaming, streamingContent, errorMessage: errorMsg } = session

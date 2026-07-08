@@ -55,7 +55,7 @@ export const TOOLSETS: Record<string, ToolsetDef> = {
 
   chat: {
     tools: ['memory'],
-    includes: ['core', 'service', 'docs'],
+    includes: ['core', 'service', 'docs', 'ui'],
   },
 
   review: {
@@ -66,6 +66,20 @@ export const TOOLSETS: Record<string, ToolsetDef> = {
       'skill_manage_patch',
       'skill_manage_edit',
       'skill_manage_delete',
+    ],
+  },
+
+  ui: {
+    tools: [
+      'ui_theme_view',
+      'ui_theme_set_variable',
+      'ui_theme_set_variables',
+      'ui_theme_set_css',
+      'ui_theme_reset',
+      'ui_slot_list',
+      'ui_slot_get',
+      'ui_slot_set',
+      'ui_slot_remove',
     ],
   },
 }

@@ -3,6 +3,9 @@
 ============================================================ -->
 <template>
   <div class="home-page">
+    <!-- 插槽: home.above-welcome -->
+    <SlotRenderer name="home.above-welcome" :html="slotHtml('home.above-welcome')" />
+
     <div class="welcome-card">
       <h1 class="app-title">{{ $t('home.heading') }}</h1>
       <p class="app-subtitle">{{ $t('home.subtitle') }}</p>
@@ -24,8 +27,14 @@
       </div>
     </div>
 
+    <!-- 插槽: home.below-features -->
+    <SlotRenderer name="home.below-features" :html="slotHtml('home.below-features')" />
+
     <div class="section" v-if="recentServices.length > 0">
       <h2 class="section-title">{{ $t('home.recentUse') }}</h2>
+
+      <!-- 插槽: home.above-recent -->
+      <SlotRenderer name="home.above-recent" :html="slotHtml('home.above-recent')" />
       <div class="recent-list">
         <div
           class="recent-item"
@@ -55,8 +64,12 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getUserServices } from '../host/registry'
+import SlotRenderer from '../components/SlotRenderer.vue'
+import { themeState } from '../config/theme-store'
 
 const { t } = useI18n()
+
+const slotHtml = (name: string) => themeState.slots[name] || ''
 
 const builtinItems = [
   { id: 'chat', name: t('home.chat.name'), icon: '💬', desc: t('home.chat.desc'), route: '/' },

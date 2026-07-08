@@ -74,7 +74,7 @@ function _matchesPattern(testPath: string, pattern: string): boolean {
 async function _listDirRecursive(basePath: string, relativeDir: string, pattern: string, results: FileInfo[]): Promise<void> {
   let isTauri = false
   try { await import('@tauri-apps/api/core'); isTauri = true } catch { /* web */ }
-  if (!isTauri) throw new Error('文件访问仅在桌面端可用')
+  if (!isTauri) throw new Error('文件访问仅在 Tauri 环境（桌面/移动端）可用')
 
   const dirPath = relativeDir ? basePath + '/' + relativeDir : basePath
   try {
@@ -129,10 +129,15 @@ export async function requestAccess(serviceId: string, req: FileAccessRequest): 
         if (!selected) throw new Error('未选择文件夹')
         folderPath = typeof selected === 'string' ? selected : selected
       } catch (e: any) {
-        throw new Error('选择文件夹失败: ' + (e?.message || String(e)))
+        // 移动端可能不支持原生文件夹选择器（plugin-dialog 在 Android 上限制），回退到手动输入路径
+        console.warn('[FileAccess] 原生文件夹选择器失败，回退到手动输入:', e?.message || e)
+        folderPath = prompt('请输入文件夹路径（例如 /storage/emulated/0/Music）:', '/storage/emulated/0/') || undefined
+        if (!folderPath) throw new Error('未指定文件夹路径')
       }
     } else {
-      throw new Error('文件夹选择仅在桌面端可用')
+      // 浏览器环境：使用 prompt 输入路径
+      folderPath = prompt('请输入文件夹路径:', '') || undefined
+      if (!folderPath) throw new Error('未指定文件夹路径')
     }
   }
 

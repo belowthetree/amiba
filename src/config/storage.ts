@@ -77,6 +77,13 @@ export async function initStorage() {
       await mkdir(SKILLS_ROOT, { baseDir: BaseDirectory.AppData, recursive: true })
       console.log('[Storage] 已创建Skill目录:', dataDir + SKILLS_ROOT)
     }
+    // Ensure theme/ & theme/slots/ subdirectory exists
+    const themeOk = await exists('amiba/theme', { baseDir: BaseDirectory.AppData })
+    if (!themeOk) {
+      await mkdir('amiba/theme', { baseDir: BaseDirectory.AppData, recursive: true })
+      await mkdir('amiba/theme/slots', { baseDir: BaseDirectory.AppData, recursive: true })
+      console.log('[Storage] 已创建主题目录:', dataDir + 'amiba/theme')
+    }
     console.log('[Storage] 数据目录就绪:', dataDir + APP_ROOT)
   } catch (e) {
     console.error('[Storage] 初始化失败:', e)

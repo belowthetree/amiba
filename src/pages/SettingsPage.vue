@@ -477,6 +477,9 @@
 
     <div class="saved-hint" v-if="showSaved">✅ {{ $t('settings.confirm.saved') }}</div>
     <SkillShareDialog v-model="shareSkillDialog" :preselect-slug="shareSkillSlug" />
+
+    <!-- 插槽: settings.extra -->
+    <SlotRenderer name="settings.extra" :html="slotHtml('settings.extra')" />
   </div>
 </template>
 
@@ -497,8 +500,12 @@ import { getCurrentVersion, checkForUpdate, downloadUpdate, installUpdate, getCa
 import { listSessions, deleteSession } from '../ai/session'
 import { getLogFiles, readLogFile, deleteLogFile, clearAllLogs, exportLogFile as exportLog, formatSize, type LogFileInfo, type LogEntry } from '../config/logger'
 import SkillShareDialog from './SkillShareDialog.vue'
+import SlotRenderer from '../components/SlotRenderer.vue'
+import { themeState } from '../config/theme-store'
 
 const { t } = useI18n()
+
+const slotHtml = (name: string) => themeState.slots[name] || ''
 
 const appVersion = ref('...')
 const activeTab = ref('general')

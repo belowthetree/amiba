@@ -240,6 +240,22 @@ const SERVICE_GUIDANCE = `## 服务工具使用指引 ⚠️ 生成前必须先�
 - 多人/协作/聊天/联机需求 → 必须声明 network 权限 + 使用 __amiba__.network.* P2P API
 - service_validate 可自动检测以上问题`
 
+const UI_GUIDANCE = `## 界面定制指引
+
+你拥有界面定制能力，可修改宿主应用的视觉外观，或在特定页面位置添加自定义内容。
+
+⚠️ **重要：修改界面样式前，必须先用 doc_read("ui-customization.md") 读取界面定制指南！**
+（包含所有 CSS 选择器速查表、CSS 变量说明、插槽位置列表。不读会写错选择器。）
+
+**界面定制流程：**
+1. doc_read("ui-customization.md") — 必读：获取 CSS 选择器和变量参考
+2. ui_theme_view — 查看当前主题状态
+3. 按需选择工具：
+   - 改颜色/圆角/字体 → ui_theme_set_variable / ui_theme_set_variables
+   - 复杂样式/特定页面 → ui_theme_set_css（参考 docs 中的选择器速查表）
+   - 添加界面元素 → ui_slot_list → ui_slot_set
+4. 效果不满意 → ui_theme_reset 恢复默认`
+
 function buildBehaviorGuidance(availableTools: string[]): string {
   const parts: string[] = []
   if (availableTools.includes('memory')) {
@@ -265,6 +281,12 @@ function buildBehaviorGuidance(availableTools: string[]): string {
     availableTools.includes('doc_read')
   ) {
     parts.push(DOCS_GUIDANCE)
+  }
+  if (
+    availableTools.includes('ui_theme_set_variable') ||
+    availableTools.includes('ui_slot_set')
+  ) {
+    parts.push(UI_GUIDANCE)
   }
   return parts.join('\n\n')
 }

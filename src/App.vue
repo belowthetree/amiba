@@ -10,9 +10,14 @@
         🏠
       </button>
 
-      <h1 class="topbar-title" @click="$router.push('/')">
+      <SlotRenderer name="topbar.left" :html="slotHtml('topbar.left')" />
+
+      <h1 v-if="!slotHtml('topbar.center')" class="topbar-title" @click="$router.push('/')">
         {{ currentTitle }}
       </h1>
+      <SlotRenderer v-else name="topbar.center" :html="slotHtml('topbar.center')" />
+
+      <SlotRenderer name="topbar.right" :html="slotHtml('topbar.right')" />
 
       <button class="nav-btn settings-btn" @click="$router.push('/settings')" :title="$t('app.settings')">
         ⚙️
@@ -37,11 +42,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import FloatingWidgetContainer from './host/floating-widget-container.vue'
 import WebviewOverlay from './components/WebviewOverlay.vue'
+import SlotRenderer from './components/SlotRenderer.vue'
+import { themeState } from './config/theme-store'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -57,6 +64,35 @@ const routeTitles: Record<string, string> = {
 const currentTitle = computed(() => {
   const name = route.name as string
   return routeTitles[name] || t('app.title')
+})
+
+const slotHtml = (name: string) => themeState.slots[name] || ''
+
+// 注入主题 CSS 变量和自定义 CSS 到 document.head
+function injectThemeStyles() {
+  let varsEl = document.getElementById('amiba-theme-vars') as HTMLStyleElement | null
+  if (!varsEl) {
+    varsEl = document.createElement('style')
+    varsEl.id = 'amiba-theme-vars'
+    document.head.appendChild(varsEl)
+  }
+  const entries = Object.entries(themeState.variables)
+  varsEl.textContent = entries.length
+    ? ':root {\n' + entries.map(([k, v]) => `  ${k}: ${v};`).join('\n') + '\n}'
+    : ''
+
+  let customEl = document.getElementById('amiba-theme-custom') as HTMLStyleElement | null
+  if (!customEl) {
+    customEl = document.createElement('style')
+    customEl.id = 'amiba-theme-custom'
+    document.head.appendChild(customEl)
+  }
+  customEl.textContent = themeState.customCSS || ''
+}
+
+onMounted(() => {
+  injectThemeStyles()
+  watch(() => ({ ...themeState.variables, css: themeState.customCSS }), injectThemeStyles, { deep: true })
 })
 </script>
 

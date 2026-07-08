@@ -14,6 +14,9 @@
     <!-- 分享弹窗 -->
     <ShareDialog v-model="showShareDialog" />
 
+    <!-- 插槽: services.above-list -->
+    <SlotRenderer name="services.above-list" :html="slotHtml('services.above-list')" />
+
     <!-- User services -->
     <div class="section">
       <h3 class="section-title">
@@ -98,9 +101,13 @@ import { readDirRecursive } from '../config/storage'
 import { widgetStates, setServiceWidgetsVisible, hasWidgetConfig } from '../host/floating-widget-manager'
 import { isRunning, startService, stopService } from '../host/background-manager'
 import { settings } from '../config/config'
+import SlotRenderer from '../components/SlotRenderer.vue'
+import { themeState } from '../config/theme-store'
 
 const router = useRouter()
 const { t } = useI18n()
+
+const slotHtml = (name: string) => themeState.slots[name] || ''
 
 const showShareDialog = ref(false)
 

@@ -19,6 +19,7 @@ import { initProviderStore } from './ai/provider-store'
 import { initCustomAgentStore } from './ai/custom-agent-store'
 import { initNetworkBridge } from './host/network-bridge'
 import { initPersistentWidgets } from './host/widget-lifecycle'
+import { initThemeStore } from './config/theme-store'
 
 async function bootstrap() {
   await initStorage()
@@ -34,6 +35,9 @@ async function bootstrap() {
     initProviderStore(),
     initCustomAgentStore(),
   ])
+  // 主题系统初始化（加载后立即生效，不影响其他模块）
+  // 非 Tauri 环境静默跳过（初始化为空）
+  initThemeStore()
   // 网络互联桥初始化（非 Tauri 环境静默跳过）
   initNetworkBridge()
 
