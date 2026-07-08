@@ -40,9 +40,9 @@
         <button
           class="widget-icon-btn"
           :title="state.config.label || state.config.id"
-          @click="toggle(id)"
+           @click="toggle(id)"
           @mousedown.prevent="startDrag($event, id)"
-          @touchstart.prevent="startDrag($event, id)"
+          @touchstart="startDrag($event, id)"
         >
           <span class="widget-icon">{{ state.config.icon }}</span>
         </button>

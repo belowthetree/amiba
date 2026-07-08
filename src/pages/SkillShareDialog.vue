@@ -24,24 +24,24 @@
       <div v-if="mode === 'send'" class="tab-content">
         <div class="form-group">
           <label>{{ $t('skillShare.selectSkill') }}</label>
-          <select v-model="selectedSkillSlug" class="form-input" :disabled="sending">
-            <option value="">{{ $t('skillShare.selectSkill') }}...</option>
-            <option v-for="s in userSkills" :key="s.slug" :value="s.slug">
-              {{ s.name }}
-            </option>
-          </select>
+          <SelectDropdown
+            v-model="selectedSkillSlug"
+            :options="skillOptions"
+            :placeholder="$t('skillShare.selectSkill') + '...'"
+            :disabled="sending"
+          />
         </div>
 
         <p v-if="!userSkills.length" class="hint-text">{{ $t('skillShare.noUserSkills') }}</p>
 
         <div class="form-group" v-if="selectedSkillSlug">
           <label>{{ $t('skillShare.selectPeer') }}</label>
-          <select v-model="selectedPeerId" class="form-input" :disabled="sending">
-            <option value="">{{ $t('skillShare.selectPeer') }}...</option>
-            <option v-for="p in lanPeers" :key="p.id" :value="p.id">
-              {{ p.name }} ({{ p.address }})
-            </option>
-          </select>
+          <SelectDropdown
+            v-model="selectedPeerId"
+            :options="peerOptions"
+            :placeholder="$t('skillShare.selectPeer') + '...'"
+            :disabled="sending"
+          />
         </div>
 
         <p v-if="selectedSkillSlug && !lanPeers.length" class="hint-text">{{ $t('skillShare.noPeers') }}</p>
@@ -115,6 +115,7 @@ import {
   type SkillShareEvent,
 } from '../host/skill-share'
 import { loadUserSkills, type Skill } from '../ai/skills'
+import SelectDropdown from '../components/SelectDropdown.vue'
 
 const { t } = useI18n()
 const visible = defineModel<boolean>({ default: false })
@@ -133,6 +134,14 @@ const userSkills = ref<Skill[]>([])
 const lanPeers = computed(() => {
   return peerList.filter((p) => p.transport === 'lan')
 })
+
+const skillOptions = computed(() =>
+  userSkills.value.filter((s) => s.slug).map((s) => ({ value: s.slug!, label: s.name }))
+)
+
+const peerOptions = computed(() =>
+  lanPeers.value.map((p) => ({ value: p.id, label: `${p.name} (${p.address})` }))
+)
 
 let unsubShare: (() => void) | null = null
 let discoveryInterval: ReturnType<typeof setInterval> | null = null

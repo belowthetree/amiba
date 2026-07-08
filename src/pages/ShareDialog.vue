@@ -25,24 +25,24 @@
       <div v-if="mode === 'send'" class="tab-content">
         <div class="form-group">
           <label>{{ $t('share.selectService') }}</label>
-          <select v-model="selectedServiceId" class="form-input" :disabled="sending">
-            <option value="">{{ $t('share.selectService') }}...</option>
-            <option v-for="s in userServices" :key="s.manifest.id" :value="s.manifest.id">
-              {{ s.manifest.name }}
-            </option>
-          </select>
+          <SelectDropdown
+            v-model="selectedServiceId"
+            :options="serviceOptions"
+            :placeholder="$t('share.selectService') + '...'"
+            :disabled="sending"
+          />
         </div>
 
         <p v-if="!userServices.length" class="hint-text">{{ $t('share.noUserServices') }}</p>
 
         <div class="form-group" v-if="selectedServiceId">
           <label>{{ $t('share.selectPeer') }}</label>
-          <select v-model="selectedPeerId" class="form-input" :disabled="sending">
-            <option value="">{{ $t('share.selectPeer') }}...</option>
-            <option v-for="p in lanPeers" :key="p.id" :value="p.id">
-              {{ p.name }} ({{ p.address }})
-            </option>
-          </select>
+          <SelectDropdown
+            v-model="selectedPeerId"
+            :options="peerOptions"
+            :placeholder="$t('share.selectPeer') + '...'"
+            :disabled="sending"
+          />
         </div>
 
         <p v-if="selectedServiceId && !lanPeers.length" class="hint-text">{{ $t('share.noPeers') }}</p>
@@ -119,6 +119,7 @@ import {
   getPendingRequest,
   type ShareEvent,
 } from '../host/service-share'
+import SelectDropdown from '../components/SelectDropdown.vue'
 
 const { t } = useI18n()
 const visible = defineModel<boolean>({ default: false })
@@ -133,12 +134,20 @@ const statusType = ref('')
 const pendingReq = ref<any>(null)
 
 const userServices = computed(() => {
-  return getUserServices().filter((s) => s.enabled && s.source !== 'builtin')
+  return getUserServices().filter((s) => s.enabled && !s.manifest.id.startsWith('system.'))
 })
 
 const lanPeers = computed(() => {
   return peerList.filter((p) => p.transport === 'lan')
 })
+
+const serviceOptions = computed(() =>
+  userServices.value.map((s) => ({ value: s.manifest.id, label: s.manifest.name }))
+)
+
+const peerOptions = computed(() =>
+  lanPeers.value.map((p) => ({ value: p.id, label: `${p.name} (${p.address})` }))
+)
 
 let unsubShare: (() => void) | null = null
 let discoveryInterval: ReturnType<typeof setInterval> | null = null
