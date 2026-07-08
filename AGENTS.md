@@ -25,12 +25,13 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 | Module | Path | Role |
 |--------|------|------|
 | **AI Core** | `src/ai/` | LLM agent (multi-tool loop), system prompt assembler (system-prompt.ts: stable/volatile split cache + nudge), personality system (soul.ts), session manager v2 (session.ts: multi-session with create/switch/delete), memory store (memory-store.ts: real-time cache + frozen snapshot + threat scanning + context fencing), skill system (skills.ts + skill-parser + skill-commands + skill-usage + skill-curator + skill-consolidation-prompt + skill-packager + skill-zip), requirement store (requirement-store.ts: per-service + global REQUIREMENT.md), service validator (service-validator.ts: storage API check, sandbox API check, permission consistency), document index (doc-index.ts: builtin + user doc search/read), service packager (packager.ts: inline multi-file package into single HTML), catalog |
-| **Tools** | `src/tools/` | ToolRegistry (deferred-queue), auto-discovery, 4 toolsets (core/service/docs), 25+ tool impls: memory, catalog_search, skill_view/list, skill_manage_*(5 tools), service_list/view/create, service_file_*(4 tools), service_validate, doc_list/read/search, soul_save, requirement_*(3 tools), session_search, web_fetch, web_browse |
+| **Tools** | `src/tools/` | ToolRegistry (deferred-queue), auto-discovery, 5 toolsets (core/service/docs/ui), 30+ tool impls: memory, catalog_search, skill_view/list, skill_manage_*(5 tools), service_list/view/create, service_file_*(4 tools), service_validate, service_archive, service_rollback, doc_list/read/search, soul_save, requirement_*(3 tools), session_search, web_fetch, web_browse, ui_theme_*(6 tools), ui_slot_*(4 tools) |
 | **Host Runtime** | `src/host/` | iframe sandbox (`service-container.vue`), postMessage JSBridge (`bridge.ts`), service registry (`registry.ts`), LAN network bridge (`network-bridge.ts` + `network-session.ts`), service sharing (`service-share.ts`), skill sharing (`skill-share.ts`), version archive (`service-archive.ts`), floating widget manager, background service manager (`background-manager.ts`), file access grants (`file-access-grants.ts`) |
 | **Web Bridge** | `src/config/web-bridge.ts` | 封装 Tauri `web_fetch`/`web_click`/`web_input_text`/`web_get_content`/`web_close` 命令，含超时和日志 |
 | **Updater** | `src/config/updater.ts` | 纯前端更新检查：调 GitHub Releases API，semver 比较，Rust reqwest 下载（绕过浏览器 CORS），全平台统一 |
 | **Pages** | `src/pages/` | 5 routes: Chat, Home, Memory, ServiceBrowse, Settings; ShareDialog (局域网服务分享弹窗), SkillShareDialog (局域网技能分享弹窗) |
-| **Config** | `src/config/` | Reactive settings persisted via Tauri FS plugin (`config.ts`), storage abstraction (`storage.ts`: auto-mkdir + pretty-print JSON), session-db wrapper (`session-db.ts`: Tauri invoke → Rust SQLite FTS5) |
+| **Config** | `src/config/` | Reactive settings persisted via Tauri FS plugin (`config.ts`), storage abstraction (`storage.ts`: auto-mkdir + pretty-print JSON), theme store (`theme-store.ts`: multi-theme management + prebuilt theme install), session-db wrapper (`session-db.ts`: Tauri invoke → Rust SQLite FTS5) |
+| **Theme** | `src/config/theme-store.ts` + `public/themes/` | 多主题系统：3 套内置主题（default/dark/ocean）从 public/themes/ 安装到 AppData；用户可创建/删除/切换主题；CSS 变量体系（30 个 :root 变量）驱动全局外观；所有页面已迁移到 var() 体系；内置主题只读，修改时自动创建用户主题副本 |
 | **i18n** | `src/i18n/` | vue-i18n based internationalization: `locales/zh-CN.ts` + `locales/en.ts`, type-safe via `LocalesSchema`, synced with `settings.language` via `watch()` |
 | **Router** | `src/router/` | `createWebHistory` with lazy-loaded page components |
 | **Types** | `src/types/` | `ServiceManifest`, `ServicePackage`, `ServiceRequest/Response`, `AppSettings`, `MemoryToolParams`, `SkillPackage`, etc. |
@@ -92,8 +93,31 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 | `requirements_summary` | core | Read global REQUIREMENTS.md |
 | `web_fetch` | core | 获取网页可读文本（全平台 WebView，Android 走 Kotlin helper） |
 | `web_browse` | core | 浏览器交互：navigate / click / input_text / get_content / close |
+| `ui_theme_view` | ui | 查看当前主题状态（CSS 变量、自定义 CSS、可用主题列表） |
+| `ui_theme_list` | ui | 列出所有主题（内置/用户，标记激活状态） |
+| `ui_theme_set_variable` | ui | 设置单个 CSS 变量（内置主题自动另存） |
+| `ui_theme_set_variables` | ui | 批量设置 CSS 变量 |
+| `ui_theme_set_css` | ui | 注入全局自定义 CSS（内置主题自动另存） |
+| `ui_theme_reset` | ui | 重置当前用户主题为默认 |
+| `ui_theme_create` | ui | 从当前主题创建新用户主题 |
+| `ui_theme_delete` | ui | 删除用户自建主题（内置/当前激活不可删） |
+| `ui_theme_switch` | ui | 切换到指定主题（立即生效） |
+| `ui_slot_list` | ui | 列出所有可用插槽（含位置描述和使用建议） |
+| `ui_slot_get` | ui | 读取插槽 HTML 内容 |
+| `ui_slot_set` | ui | 设置插槽 HTML 内容（可含 `<style>`/`<script>`） |
+| `ui_slot_remove` | ui | 清除指定插槽内容 |
 
-## Conventions
+## Theme System
+
+- **Theme directory:** `{AppData}/amiba/theme/{name}/` — 每个主题一个目录，包含 `variables.json` + `custom.css`
+- **Built-in themes:** `default`（浅色基准）、`dark`（深色模式）、`ocean`（蓝色系）— 从 `public/themes/` 安装，不可修改
+- **User themes:** 从内置主题另存创建，可自由修改删除
+- **Active theme:** 存储在 `settings.active_theme`，切换时立即重新加载并注入到 document.head
+- **Slot directory:** `{AppData}/amiba/theme/slots/` — 插槽 HTML（不随主题切换）
+- **CSS variables:** 30 个变量定义在 `:root` 中，所有页面样式通过 `var(--*)` 引用
+- **Doc:** `public/docs/ui-customization.md` — CSS 选择器速查表 + 变量参考 + 插槽列表
+- **Prebuilt themes:** `public/themes/{name}/variables.json` + `custom.css` → `installPrebuiltThemes()` 在首次启动时复制到 AppData
+- **Migration:** 无旧格式迁移需求（全新功能）
 
 - **Language:** Chinese comments with English identifiers. Section banners use `// ====...====` / `<!-- ====...==== -->`.
 - **Vue:** `<script setup lang="ts">` everywhere; scoped styles below template+script; CSS custom properties for colors/spacing in `:root`.
@@ -127,6 +151,7 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
   - `skills/.curator_state` / `.curator-logs/` — curator lifecycle
   - `souls/{name}.md` — personality files
   - `docs/` — user custom document files (override builtin `public/docs/`)
+  - `theme/{name}/` — 主题目录（variables.json + custom.css）；`theme/slots/` — 插槽 HTML
   - `logs/` — 前端日志文件（JSON Lines，按大小轮转，设置页可查看/过滤/导出）
 - **Android 源码:** Kotlin 类在 `src-tauri/gen/android/app/src/main/java/com/amiba/desktop/MainActivity.kt`（`JsCallback` + `WebViewHelper`）；`tauri android init` 会重置 `gen/android`，自定义代码需在重置后重新写入
 - **Storage auto-mkdir:** `storageSet` creates parent directories automatically before writing
@@ -142,3 +167,4 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 - **Onboarding:** first launch → `isFirstLaunch()` → injects 3-step directive → AI uses `soul_save` tool to persist personality
 - **Session management:** multi-session with dropdown selector in ChatPage; sessions persist independently; legacy `amiba_chat_history` auto-migrated
 - **Documentation:** `AGENTS.md` is the concise index; `docs/*.md` holds detailed design docs. When project structure or features change, **both** must be updated in sync. New major features must have corresponding `docs/<feature>.md`.
+- **Theme customization:** add `public/themes/{name}/` directory with `variables.json` + `custom.css`, then add name to `BUILTIN_THEMES` in `theme-store.ts`. AI can manage themes via `ui_theme_*` tools. Slots added via `ui_slot_*` tools stored in `theme/slots/`.
