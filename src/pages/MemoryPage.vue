@@ -157,12 +157,12 @@ onMounted(() => {
 .page-title {
   font-size: 22px;
   margin-bottom: 4px;
-  color: #333;
+  color: var(--color-text);
 }
 
 .subtitle {
   font-size: 13px;
-  color: #999;
+  color: var(--color-text-secondary);
   margin-bottom: 16px;
 }
 
@@ -175,8 +175,8 @@ onMounted(() => {
 .tab {
   flex: 1;
   padding: 10px;
-  border: 1px solid #e0e0e0;
-  background: white;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
   border-radius: 8px;
   font-size: 13px;
   cursor: pointer;
@@ -187,27 +187,27 @@ onMounted(() => {
 }
 
 .tab.active {
-  border-color: #1976D2;
-  color: #1976D2;
-  background: #E3F2FD;
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--color-primary-light);
 }
 
 .tab-meta {
   font-size: 11px;
-  color: #999;
+  color: var(--color-text-secondary);
 }
 
 .editor-area {
-  background: white;
+  background: var(--color-surface);
   border-radius: 12px;
   padding: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--shadow-sm);
   margin-bottom: 16px;
 }
 
 .memory-editor {
   width: 100%;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 12px;
   font-size: 14px;
@@ -218,7 +218,7 @@ onMounted(() => {
 }
 
 .memory-editor:focus {
-  border-color: #1976D2;
+  border-color: var(--color-primary);
 }
 
 .editor-actions {
@@ -229,9 +229,9 @@ onMounted(() => {
 
 .action-btn {
   padding: 8px 16px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: white;
+  background: var(--color-surface);
   font-size: 13px;
   cursor: pointer;
 }
@@ -242,26 +242,26 @@ onMounted(() => {
 }
 
 .action-btn.primary {
-  background: #1976D2;
-  color: white;
-  border-color: #1976D2;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border-color: var(--color-primary);
 }
 
 .action-btn.danger {
-  color: #e53935;
-  border-color: #e53935;
+  color: var(--color-error);
+  border-color: var(--color-error);
 }
 
 .preview-section {
-  background: white;
+  background: var(--color-surface);
   border-radius: 12px;
   padding: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--shadow-sm);
 }
 
 .preview-section h3 {
   font-size: 14px;
-  color: #666;
+  color: var(--color-text-secondary);
   margin-bottom: 12px;
 }
 
@@ -276,27 +276,27 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: #f9f9f9;
+  background: var(--color-bg);
   border-radius: 6px;
   font-size: 13px;
 }
 
 .entry-index {
-  color: #999;
+  color: var(--color-text-secondary);
   font-size: 11px;
   min-width: 20px;
 }
 
 .entry-text {
   flex: 1;
-  color: #333;
+  color: var(--color-text);
 }
 
 .entry-delete {
   padding: 2px 6px;
   border: none;
   background: none;
-  color: #e53935;
+  color: var(--color-error);
   cursor: pointer;
   font-size: 14px;
 }
@@ -306,8 +306,8 @@ onMounted(() => {
   bottom: 24px;
   left: 50%;
   transform: translateX(-50%);
-  background: #333;
-  color: white;
+  background: var(--color-text);
+  color: var(--color-surface);
   padding: 8px 20px;
   border-radius: 20px;
   font-size: 13px;

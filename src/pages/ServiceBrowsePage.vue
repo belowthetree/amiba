@@ -256,7 +256,7 @@ async function importFromFolder() {
 
 .header h2 {
   font-size: 22px;
-  color: #333;
+  color: var(--color-text);
 }
 
 .header-btns {
@@ -266,9 +266,9 @@ async function importFromFolder() {
 
 .import-btn {
   padding: 8px 16px;
-  background: white;
-  color: #1976D2;
-  border: 1px solid #1976D2;
+  background: var(--color-surface);
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary);
   border-radius: 8px;
   font-size: 13px;
   cursor: pointer;
@@ -276,15 +276,15 @@ async function importFromFolder() {
 
 .share-btn {
   padding: 8px 12px;
-  background: white;
-  border: 1px solid #e0e0e0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   font-size: 16px;
   cursor: pointer;
 }
 
 .share-btn:hover {
-  background: #f0f0f0;
+  background: var(--color-hover-bg);
 }
 
 .section {
@@ -294,7 +294,7 @@ async function importFromFolder() {
 .section-title {
   font-size: 14px;
   font-weight: 600;
-  color: #999;
+  color: var(--color-text-secondary);
   margin-bottom: 8px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -304,8 +304,8 @@ async function importFromFolder() {
 }
 
 .count {
-  background: #E3F2FD;
-  color: #1976D2;
+  background: var(--color-primary-light);
+  color: var(--color-primary);
   padding: 2px 8px;
   border-radius: 10px;
   font-size: 12px;
@@ -322,15 +322,15 @@ async function importFromFolder() {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background: white;
+  background: var(--color-surface);
   border-radius: 10px;
   cursor: pointer;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 1px 4px var(--shadow-sm);
   transition: background 0.2s;
 }
 
 .service-item:hover {
-  background: #fafafa;
+  background: var(--color-bg);
 }
 
 .svc-icon {
@@ -346,20 +346,20 @@ async function importFromFolder() {
   display: block;
   font-size: 14px;
   font-weight: 600;
-  color: #333;
+  color: var(--color-text);
 }
 
 .svc-desc {
   display: block;
   font-size: 12px;
-  color: #999;
+  color: var(--color-text-secondary);
   margin-top: 2px;
 }
 
 .svc-meta {
   display: block;
   font-size: 11px;
-  color: #ccc;
+  color: var(--color-text-muted);
   margin-top: 2px;
 }
 
@@ -370,8 +370,8 @@ async function importFromFolder() {
 }
 
 .svc-badge.system {
-  background: #E3F2FD;
-  color: #1976D2;
+  background: var(--color-primary-light);
+  color: var(--color-primary);
 }
 
 /* User services grid */
@@ -382,12 +382,12 @@ async function importFromFolder() {
 }
 
 .svc-card {
-  background: white;
+  background: var(--color-surface);
   border-radius: 12px;
   padding: 16px 12px;
   text-align: center;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 8px var(--shadow-sm);
   transition: all 0.2s;
   display: flex;
   flex-direction: column;
@@ -397,7 +397,7 @@ async function importFromFolder() {
 
 .svc-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 16px var(--shadow-md);
 }
 
 .svc-card:active {
@@ -416,12 +416,12 @@ async function importFromFolder() {
 .svc-card .card-name {
   font-size: 14px;
   font-weight: 600;
-  color: #333;
+  color: var(--color-text);
 }
 
 .svc-card .card-desc {
   font-size: 12px;
-  color: #999;
+  color: var(--color-text-secondary);
   line-height: 1.4;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -431,7 +431,7 @@ async function importFromFolder() {
 
 .svc-card .card-meta {
   font-size: 10px;
-  color: #ccc;
+  color: var(--color-text-muted);
 }
 
 .svc-card .card-actions {
@@ -461,7 +461,7 @@ async function importFromFolder() {
   left: 0;
   right: 0;
   bottom: 0;
-  background: #ccc;
+  background: var(--color-text-muted);
   border-radius: 22px;
   transition: 0.3s;
 }
@@ -473,13 +473,13 @@ async function importFromFolder() {
   width: 18px;
   left: 2px;
   bottom: 2px;
-  background: white;
+  background: var(--color-surface);
   border-radius: 50%;
   transition: 0.3s;
 }
 
 .toggle input:checked + .toggle-slider {
-  background: #1976D2;
+  background: var(--color-primary);
 }
 
 .toggle input:checked + .toggle-slider::before {
@@ -497,16 +497,16 @@ async function importFromFolder() {
 .empty {
   text-align: center;
   padding: 32px;
-  background: white;
+  background: var(--color-surface);
   border-radius: 12px;
-  color: #999;
+  color: var(--color-text-secondary);
 }
 
 .cta-btn {
   margin-top: 12px;
   padding: 10px 24px;
-  background: #1976D2;
-  color: white;
+  background: var(--color-primary);
+  color: var(--color-surface);
   border: none;
   border-radius: 8px;
   font-size: 14px;

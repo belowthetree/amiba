@@ -99,9 +99,9 @@ function openService(id: string) {
   text-align: center;
   padding: 32px 16px;
   margin-bottom: 24px;
-  background: linear-gradient(135deg, #1976D2, #42A5F5);
+  background: linear-gradient(135deg, var(--color-primary), #42A5F5);
   border-radius: 16px;
-  color: white;
+  color: var(--color-surface);
 }
 
 .app-title {
@@ -123,7 +123,7 @@ function openService(id: string) {
   font-size: 16px;
   font-weight: 600;
   margin-bottom: 12px;
-  color: #333;
+  color: var(--color-text);
 }
 
 .grid {
@@ -133,18 +133,18 @@ function openService(id: string) {
 }
 
 .feature-card {
-  background: white;
+  background: var(--color-surface);
   border-radius: 12px;
   padding: 20px 12px;
   text-align: center;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 8px var(--shadow-sm);
   transition: all 0.2s;
 }
 
 .feature-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 16px var(--shadow-md);
 }
 
 .feature-card:active {
@@ -159,13 +159,13 @@ function openService(id: string) {
 .feature-name {
   font-size: 14px;
   font-weight: 600;
-  color: #333;
+  color: var(--color-text);
   margin-bottom: 4px;
 }
 
 .feature-desc {
   font-size: 12px;
-  color: #999;
+  color: var(--color-text-secondary);
 }
 
 .recent-list {
@@ -179,14 +179,14 @@ function openService(id: string) {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  background: white;
+  background: var(--color-surface);
   border-radius: 10px;
   cursor: pointer;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 1px 4px var(--shadow-sm);
 }
 
 .recent-item:active {
-  background: #f5f5f5;
+  background: var(--color-bg);
 }
 
 .recent-icon {
@@ -196,26 +196,26 @@ function openService(id: string) {
 .recent-name {
   flex: 1;
   font-size: 14px;
-  color: #333;
+  color: var(--color-text);
 }
 
 .recent-arrow {
-  color: #ccc;
+  color: var(--color-text-muted);
 }
 
 .empty-hint {
   text-align: center;
   padding: 32px;
-  background: white;
+  background: var(--color-surface);
   border-radius: 12px;
-  color: #999;
+  color: var(--color-text-secondary);
 }
 
 .cta-btn {
   margin-top: 12px;
   padding: 10px 24px;
-  background: #1976D2;
-  color: white;
+  background: var(--color-primary);
+  color: var(--color-surface);
   border: none;
   border-radius: 8px;
   font-size: 14px;
@@ -223,6 +223,6 @@ function openService(id: string) {
 }
 
 .cta-btn:hover {
-  background: #1565C0;
+  background: var(--color-primary-hover);
 }
 </style>

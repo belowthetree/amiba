@@ -100,10 +100,43 @@ onMounted(() => {
 /* === Global Reset & Variables === */
 :root {
   --color-primary: #1976D2;
+  --color-primary-hover: #1565C0;
+  --color-primary-light: #E3F2FD;
   --color-bg: #f5f5f5;
   --color-surface: #ffffff;
   --color-text: #333333;
   --color-text-secondary: #999999;
+  --color-text-muted: #ccc;
+  --color-success: #4CAF50;
+  --color-success-light: #E8F5E9;
+  --color-warning: #FF9800;
+  --color-warning-light: #FFF3E0;
+  --color-error: #e53935;
+  --color-error-dark: #c62828;
+  --color-error-light: #ffebee;
+  --color-border: #e0e0e0;
+  --color-border-light: #f0f0f0;
+  --color-divider: #f5f5f5;
+  --color-hover-bg: #f0f0f0;
+  --color-disabled: #ccc;
+  --color-on-primary: #ffffff;
+  --color-tool-msg-bg: #F3F4F6;
+  --color-tool-msg-text: #6B7280;
+  --color-scrollbar-thumb: #c0c0c0;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --shadow-sm: 0 1px 4px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.1);
+  --font-size-xs: 11px;
+  --font-size-sm: 13px;
+  --font-size-md: 15px;
+  --font-size-lg: 18px;
+  --font-size-xl: 24px;
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
   --topbar-height: 56px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -155,7 +188,7 @@ button {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #c0c0c0;
+  background: var(--color-scrollbar-thumb, #c0c0c0);
   border-radius: 3px;
   border-right: 2px solid transparent;
   background-clip: padding-box;
@@ -184,7 +217,7 @@ button {
   height: calc(var(--topbar-height) + var(--safe-top));
   padding: var(--safe-top) 12px 0 12px;
   background: var(--color-surface);
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--color-border, #eee);
   flex-shrink: 0;
   z-index: 100;
   gap: 4px;
@@ -201,12 +234,12 @@ button {
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  color: #333;
+  color: var(--color-text);
   flex-shrink: 0;
 }
 
 .nav-btn:active {
-  background: #f0f0f0;
+  background: var(--color-hover-bg, #f0f0f0);
 }
 
 .topbar-title {

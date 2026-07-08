@@ -560,13 +560,13 @@ watch(showStats, async (open) => {
 }
 
 .session-selector:hover {
-  background: #f0f0f0;
+  background: var(--color-hover-bg);
 }
 
 .session-title {
   font-size: 14px;
   font-weight: 600;
-  color: #333;
+  color: var(--color-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -574,7 +574,7 @@ watch(showStats, async (open) => {
 
 .dropdown-arrow {
   font-size: 10px;
-  color: #999;
+  color: var(--color-text-secondary);
   flex-shrink: 0;
 }
 
@@ -586,7 +586,7 @@ watch(showStats, async (open) => {
 
 .action-btn {
   background: none;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 4px 10px;
   font-size: 16px;
@@ -595,12 +595,12 @@ watch(showStats, async (open) => {
 }
 
 .action-btn:hover {
-  background: #f0f0f0;
+  background: var(--color-hover-bg);
 }
 
 .stats-btn {
   background: none;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 4px 10px;
   font-size: 16px;
@@ -615,7 +615,7 @@ watch(showStats, async (open) => {
   right: 16px;
   max-width: 1080px;
   margin: 4px auto 0;
-  background: white;
+  background: var(--color-surface);
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.15);
   z-index: 50;
@@ -629,21 +629,21 @@ watch(showStats, async (open) => {
   gap: 8px;
   padding: 10px 14px;
   cursor: pointer;
-  border-bottom: 1px solid #f5f5f5;
+  border-bottom: 1px solid var(--color-divider, #f5f5f5);
   transition: background 0.15s;
 }
 
 .session-item:hover {
-  background: #f8f9ff;
+  background: var(--color-primary-light);
 }
 
 .session-item.active {
-  background: #e3f2fd;
+  background: var(--color-primary-light);
 }
 
 .session-item-title {
   font-size: 14px;
-  color: #333;
+  color: var(--color-text);
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -652,14 +652,14 @@ watch(showStats, async (open) => {
 
 .session-item-meta {
   font-size: 11px;
-  color: #aaa;
+  color: var(--color-text-muted);
   flex-shrink: 0;
 }
 
 .session-del {
   background: none;
   border: none;
-  color: #ccc;
+  color: var(--color-text-muted);
   cursor: pointer;
   font-size: 12px;
   padding: 2px 6px;
@@ -668,14 +668,14 @@ watch(showStats, async (open) => {
 }
 
 .session-del:hover {
-  color: #e53935;
-  background: #ffebee;
+  color: var(--color-error);
+  background: var(--color-error-light);
 }
 
 .session-empty {
   padding: 24px;
   text-align: center;
-  color: #ccc;
+  color: var(--color-text-muted);
   font-size: 13px;
 }
 
@@ -697,7 +697,7 @@ watch(showStats, async (open) => {
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #999;
+  color: var(--color-text-secondary);
   gap: 8px;
 }
 
@@ -707,7 +707,7 @@ watch(showStats, async (open) => {
 
 .hint {
   font-size: 12px;
-  color: #ccc;
+  color: var(--color-text-muted);
 }
 
 .message {
@@ -725,7 +725,7 @@ watch(showStats, async (open) => {
 }
 
 .message.user .message-content {
-  background: #1976D2;
+  background: var(--color-primary);
   color: white;
   border-radius: 16px 16px 4px 16px;
 }
@@ -735,10 +735,10 @@ watch(showStats, async (open) => {
 }
 
 .message.assistant .message-content {
-  background: white;
-  color: #333;
+  background: var(--color-surface);
+  color: var(--color-text);
   border-radius: 16px 16px 16px 4px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 8px var(--shadow-sm);
 }
 
 .message.tool {
@@ -746,16 +746,16 @@ watch(showStats, async (open) => {
 }
 
 .message.tool .message-content {
-  background: #F3F4F6;
-  color: #6B7280;
+  background: var(--color-tool-msg-bg);
+  color: var(--color-tool-msg-text);
   border-radius: 12px;
   font-size: 12px;
   padding: 6px 14px;
 }
 
 .message.error .message-content {
-  background: #FFF3E0;
-  color: #E65100;
+  background: var(--color-warning-light);
+  color: var(--color-warning);
   align-self: center;
   font-size: 13px;
 }
@@ -784,7 +784,7 @@ watch(showStats, async (open) => {
   max-width: 1080px;
   width: calc(100% - 24px);
   margin: 0 auto 12px auto;
-  background: white;
+  background: var(--color-surface);
   border-radius: 16px;
 }
 
@@ -812,7 +812,7 @@ watch(showStats, async (open) => {
 .send-btn {
   flex-shrink: 0;
   padding: 10px 18px;
-  background: #1976D2;
+  background: var(--color-primary);
   color: white;
   border: none;
   border-radius: 12px;
@@ -823,14 +823,14 @@ watch(showStats, async (open) => {
 }
 
 .send-btn:disabled {
-  background: #ccc;
+  background: var(--color-text-muted);
   cursor: not-allowed;
 }
 
 .stop-btn {
   flex-shrink: 0;
   padding: 10px 18px;
-  background: #e53935;
+  background: var(--color-error);
   color: white;
   border: none;
   border-radius: 12px;
@@ -841,7 +841,7 @@ watch(showStats, async (open) => {
 }
 
 .stop-btn:hover {
-  background: #c62828;
+  background: var(--color-error-dark);
 }
 
 /* ---- 统计模态框 ---- */
@@ -857,7 +857,7 @@ watch(showStats, async (open) => {
 }
 
 .modal-box {
-  background: white;
+  background: var(--color-surface);
   border-radius: 16px;
   padding: 24px;
   min-width: 280px;
@@ -874,43 +874,43 @@ watch(showStats, async (open) => {
   justify-content: space-between;
   align-items: center;
   padding: 12px 0;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--color-border-light, #f0f0f0);
 }
 
 .stat-label {
   font-size: 14px;
-  color: #666;
+  color: var(--color-text-secondary);
 }
 
 .stat-value {
   font-size: 14px;
   font-weight: 600;
-  color: #1976D2;
+  color: var(--color-primary);
 }
 
 .stat-divider {
   padding: 10px 0 6px;
   font-size: 13px;
   font-weight: 600;
-  color: #888;
-  border-top: 1px solid #f0f0f0;
+  color: var(--color-text-secondary);
+  border-top: 1px solid var(--color-border-light, #f0f0f0);
   margin-top: 4px;
 }
 
 .stat-row.total {
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid var(--color-border);
   padding-top: 10px;
 }
 
 .stat-row.total .stat-value {
-  color: #333;
+  color: var(--color-text);
 }
 
 .peer-list {
   max-height: 160px;
   overflow-y: auto;
   margin-top: 6px;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--color-border-light, #f0f0f0);
   padding-top: 6px;
 }
 
@@ -931,13 +931,13 @@ watch(showStats, async (open) => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #333;
+  color: var(--color-text);
 }
 
 .peer-transport {
   font-size: 10px;
-  color: #999;
-  background: #f0f0f0;
+  color: var(--color-text-secondary);
+  background: var(--color-hover-bg);
   padding: 1px 6px;
   border-radius: 4px;
   flex-shrink: 0;
@@ -945,7 +945,7 @@ watch(showStats, async (open) => {
 
 .no-peers {
   text-align: center;
-  color: #ccc;
+  color: var(--color-text-muted);
   font-size: 12px;
   padding: 10px 0;
 }
@@ -954,7 +954,7 @@ watch(showStats, async (open) => {
   margin-top: 16px;
   width: 100%;
   padding: 8px;
-  background: #f5f5f5;
+  background: var(--color-bg);
   border: none;
   border-radius: 8px;
   font-size: 14px;
@@ -970,7 +970,7 @@ watch(showStats, async (open) => {
 .limit-actions .primary-btn {
   flex: 1;
   padding: 10px 16px;
-  background: #1976D2;
+  background: var(--color-primary);
   color: white;
   border: none;
   border-radius: 8px;
@@ -979,14 +979,14 @@ watch(showStats, async (open) => {
 }
 
 .limit-actions .primary-btn:hover {
-  background: #1565C0;
+  background: var(--color-primary-hover);
 }
 
 .limit-actions .secondary-btn {
   flex: 1;
   padding: 10px 16px;
-  background: #f5f5f5;
-  color: #666;
+  background: var(--color-bg);
+  color: var(--color-text-secondary);
   border: none;
   border-radius: 8px;
   font-size: 14px;
@@ -994,7 +994,7 @@ watch(showStats, async (open) => {
 }
 
 .limit-actions .secondary-btn:hover {
-  background: #e0e0e0;
+  background: var(--color-hover-bg);
 }
 
 /* === 响应式：移动端适配 === */
@@ -1036,25 +1036,25 @@ watch(showStats, async (open) => {
 
 .reasoning-block summary {
   font-size: 12px;
-  color: #999;
+  color: var(--color-text-secondary);
   cursor: pointer;
   user-select: none;
   padding: 2px 0;
 }
 
 .reasoning-block summary::marker {
-  color: #bbb;
+  color: var(--color-text-muted);
 }
 
 .reasoning-content {
   font-size: 12px;
-  color: #777;
+  color: var(--color-text-secondary);
   font-style: italic;
   line-height: 1.6;
   white-space: pre-wrap;
   padding: 8px 10px;
   background: rgba(0,0,0,0.03);
-  border-left: 3px solid #d0d0d0;
+  border-left: 3px solid var(--color-border, #d0d0d0);
   border-radius: 0 6px 6px 0;
 }
 
