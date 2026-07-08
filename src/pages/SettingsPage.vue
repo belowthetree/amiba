@@ -106,6 +106,36 @@
       </div>
 
       <div class="settings-section">
+        <h3 class="section-label">🎨 {{ $t('settings.appearance.title') }}</h3>
+
+        <!-- 主题选择下拉 -->
+        <div class="form-group">
+          <label>{{ $t('settings.appearance.activeTheme') }}</label>
+          <select v-model="selectedTheme" class="form-input" @change="handleThemeSwitch">
+            <option
+              v-for="t in themeListItems"
+              :key="t.name"
+              :value="t.name"
+            >{{ t.name }}{{ t.builtin ? ' (' + $t('settings.appearance.builtinTag') + ')' : '' }}</option>
+          </select>
+        </div>
+
+        <!-- 配色预览 -->
+        <div v-if="Object.keys(themeState.variables).length" class="form-group">
+          <label>{{ $t('settings.appearance.colorPreview') }}</label>
+          <div class="color-grid">
+            <div
+              v-for="(val, key) in themeState.variables"
+              :key="key"
+              class="color-chip"
+              :style="{ background: val }"
+              :title="`${key}: ${val}`"
+            ></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
         <h3 class="section-label">{{ $t('settings.general.appearance') }}</h3>
 
         <div class="form-group">
@@ -501,11 +531,32 @@ import { listSessions, deleteSession } from '../ai/session'
 import { getLogFiles, readLogFile, deleteLogFile, clearAllLogs, exportLogFile as exportLog, formatSize, type LogFileInfo, type LogEntry } from '../config/logger'
 import SkillShareDialog from './SkillShareDialog.vue'
 import SlotRenderer from '../components/SlotRenderer.vue'
-import { themeState } from '../config/theme-store'
+import { themeState, switchTheme, isBuiltinTheme } from '../config/theme-store'
 
 const { t } = useI18n()
 
 const slotHtml = (name: string) => themeState.slots[name] || ''
+
+// ---- 外观 ----
+
+const selectedTheme = ref(themeState.activeTheme)
+
+const themeListItems = computed(() =>
+  themeState.themes.map((name) => ({
+    name,
+    builtin: isBuiltinTheme(name),
+  }))
+)
+
+async function handleThemeSwitch() {
+  if (selectedTheme.value === themeState.activeTheme) return
+  try {
+    await switchTheme(selectedTheme.value)
+  } catch (e: any) {
+    alert(e.message)
+    selectedTheme.value = themeState.activeTheme
+  }
+}
 
 const appVersion = ref('...')
 const activeTab = ref('general')
@@ -1289,4 +1340,23 @@ onMounted(async () => {
 .level-info{background:#E3F2FD;color:#1565C0}
 .level-warn{background:#FFF3E0;color:#E65100}
 .level-error{background:#FFEBEE;color:#C62828}
+
+/* === 外观 Tab === */
+.theme-active-badge{display:flex;align-items:center;gap:8px}
+.theme-active-name{font-weight:600;font-size:15px;color:#333}
+.theme-tag{font-size:10px;padding:2px 6px;border-radius:4px;font-weight:600}
+.theme-tag.builtin{background:#E3F2FD;color:#1565C0}
+.theme-tag.user{background:#E8F5E9;color:#2E7D32}
+.theme-list{display:flex;flex-direction:column;gap:4px}
+.theme-item{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;cursor:pointer;transition:background .15s}
+.theme-item:hover{background:#f5f5f5}
+.theme-item.active{background:#E3F2FD;font-weight:600}
+.theme-item-name{flex:1;font-size:14px}
+.theme-item-del{width:24px;height:24px;border:none;background:none;color:#999;cursor:pointer;font-size:14px;border-radius:4px;display:flex;align-items:center;justify-content:center}
+.theme-item-del:hover{background:#ffebee;color:#c62828}
+.theme-create-row{display:flex;gap:8px;align-items:center}
+.theme-create-row .form-input{flex:1}
+.theme-create-row .action-btn{white-space:nowrap;padding:8px 16px;background:#1976D2;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px}
+.color-grid{display:flex;flex-wrap:wrap;gap:8px}
+.color-chip{width:32px;height:32px;border-radius:6px;border:1px solid #e0e0e0;cursor:default}
 </style>

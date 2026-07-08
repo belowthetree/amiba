@@ -64,7 +64,7 @@ const en: LocalesSchema = {
   },
   settings: {
     title: 'Settings',
-    tabs: { general: 'General', skills: 'Skills & Agent', data: 'Data', logs: 'Logs' },
+    tabs: { general: 'General', skills: 'Skills & Agent', data: 'Data', logs: 'Logs', appearance: 'Appearance' },
     general: {
       apiConfig: 'API Configuration',
       apiKey: 'API Key',
@@ -198,6 +198,20 @@ const en: LocalesSchema = {
         deleteFile: 'Delete File',
         export: 'Export Log',
       },
+    },
+    appearance: {
+      title: 'Appearance',
+      activeTheme: 'Active Theme',
+      themeList: 'Themes',
+      builtinTag: 'Built-in',
+      userTag: 'Custom',
+      createTheme: 'Save Current As...',
+      createPlaceholder: 'New theme name',
+      deleteTheme: 'Delete',
+      deleteConfirm: 'Delete theme "{name}"?',
+      colorPreview: 'Color Preview',
+      noUserThemes: 'No custom themes',
+      loading: 'Loading...',
     },
     confirm: {
       clearAllData: 'Are you sure you want to clear all data? This will delete configuration, memory, and installed services. This action cannot be undone!',

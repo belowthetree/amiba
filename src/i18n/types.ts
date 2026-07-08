@@ -63,7 +63,21 @@ export interface LocalesSchema {
   }
   settings: {
     title: string
-    tabs: { general: string; skills: string; data: string; logs: string }
+    tabs: { general: string; skills: string; data: string; logs: string; appearance: string }
+    appearance: {
+      title: string
+      activeTheme: string
+      themeList: string
+      builtinTag: string
+      userTag: string
+      createTheme: string
+      createPlaceholder: string
+      deleteTheme: string
+      deleteConfirm: string
+      colorPreview: string
+      noUserThemes: string
+      loading: string
+    }
     general: {
       apiConfig: string
       apiKey: string

@@ -1,0 +1,7 @@
+{
+  "--color-bg": "#e3f2fd",
+  "--color-primary": "#0d47a1",
+  "--color-primary-hover": "#1565c0",
+  "--radius-md": "12px",
+  "--shadow-md": "0 4px 20px rgba(13,71,161,0.12)"
+}

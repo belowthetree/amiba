@@ -72,10 +72,14 @@ export const TOOLSETS: Record<string, ToolsetDef> = {
   ui: {
     tools: [
       'ui_theme_view',
+      'ui_theme_list',
       'ui_theme_set_variable',
       'ui_theme_set_variables',
       'ui_theme_set_css',
       'ui_theme_reset',
+      'ui_theme_create',
+      'ui_theme_delete',
+      'ui_theme_switch',
       'ui_slot_list',
       'ui_slot_get',
       'ui_slot_set',

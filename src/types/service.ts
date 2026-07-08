@@ -143,6 +143,7 @@ export interface AppSettings {
   api_key: string
   reasoning_effort?: ReasoningEffort
   theme_mode: 'light' | 'dark' | 'system'
+  active_theme: string
   language: string
   device_id: string
   network_lan_visible: boolean

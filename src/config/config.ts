@@ -15,6 +15,7 @@ const defaults: AppSettings = {
   ai_model: 'deepseek-v4-flash',
   api_key: '',
   theme_mode: 'system',
+  active_theme: 'default',
   language: 'zh-CN',
   device_id: '',
   network_lan_visible: true,

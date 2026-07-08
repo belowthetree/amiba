@@ -1,0 +1,10 @@
+{
+  "--color-bg": "#1a1a2e",
+  "--color-surface": "#16213e",
+  "--color-text": "#e0e0e0",
+  "--color-text-secondary": "#999999",
+  "--color-primary": "#4fc3f7",
+  "--color-primary-hover": "#29b6f6",
+  "--input-bg": "#0f3460",
+  "--input-border": "#2a2a4a"
+}

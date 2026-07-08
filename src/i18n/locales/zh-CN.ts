@@ -64,7 +64,7 @@ const zhCN: LocalesSchema = {
   },
   settings: {
     title: '设置',
-    tabs: { general: '通用', skills: '技能 & Agent', data: '数据', logs: '日志' },
+    tabs: { general: '通用', skills: '技能 & Agent', data: '数据', logs: '日志', appearance: '外观' },
     general: {
       apiConfig: 'API 配置',
       apiKey: 'API Key',
@@ -198,6 +198,20 @@ const zhCN: LocalesSchema = {
         deleteFile: '删除文件',
         export: '导出日志',
       },
+    },
+    appearance: {
+      title: '界面外观',
+      activeTheme: '当前主题',
+      themeList: '主题列表',
+      builtinTag: '内置',
+      userTag: '自定义',
+      createTheme: '保存当前为...',
+      createPlaceholder: '新主题名称',
+      deleteTheme: '删除',
+      deleteConfirm: '确定删除主题 "{name}" 吗？',
+      colorPreview: '配色预览',
+      noUserThemes: '没有自定义主题',
+      loading: '加载中...',
     },
     confirm: {
       clearAllData: '确定要清除所有数据吗？这将删除配置、记忆和已安装的服务。此操作不可撤销！',
