@@ -50,6 +50,13 @@ cargo tauri build     # Tauri 桌面应用（打包 EXE/DMG/deb）
 - 所有数据本地存储在 `{AppData}/amiba/`
 - 配置、记忆、对话历史、服务文件、技能、人格文件全部本地化
 
+### 界面定制与多主题
+- **CSS 变量体系**：30 个 `:root` 变量驱动全局外观，AI 可通过对话修改配色/圆角/字体/阴影
+- **内置主题**：出厂自带 `default`（浅色）、`dark`（深色）、`ocean`（蓝色系）三套主题
+- **主题管理**：AI 可通过 `ui_theme_*` 工具创建/切换/删除主题；设置页提供下拉切换
+- **插槽系统**：10 个预定义 UI 插槽，AI 可在顶栏、首页、聊天页等位置注入自定义 HTML
+- **完全 AI 驱动**：用户说"把背景改深色"、"在顶栏加时钟"，AI 自动完成
+
 ## 内置服务
 
 应用预置了 6 个内置服务，涵盖系统功能页面和演示小程序：
@@ -324,6 +331,8 @@ adb install -r app-release-signed.apk
 | **技能** | `skill_view` `skills_list` | 查看/列出技能 |
 | **技能管理** | `skill_manage_create/patch/edit/delete/write_file` | AI 自主创建和修改技能 |
 | **需求** | `requirement_view` `requirement_update` `requirements_summary` | 需求追踪 |
+| **界面** | `ui_theme_view/list/set_variable/set_css/reset/create/delete/switch` | 主题管理与外观定制 |
+| **界面** | `ui_slot_list/get/set/remove` | 插槽/内嵌组件管理 |
 
 ## 记忆与需求机制
 
@@ -338,12 +347,13 @@ adb install -r app-release-signed.apk
 ```
 src/
 ├── ai/               AI 核心（agent, system-prompt, soul, session, memory, skill, requirement, curator）
-├── tools/            20+ AI 工具（自动发现）
+├── tools/            25+ AI 工具（自动发现，含 ui_theme_*/ui_slot_* 界面定制）
 ├── host/             服务运行时（沙箱、JSBridge、注册表）
 ├── pages/            7 个页面（Chat, Generate, Memory, MyServices, ServiceBrowse, Settings, Home）
-├── config/           配置与存储抽象
+├── config/           配置、存储抽象、主题引擎（theme-store.ts）
 ├── router/           路由
 └── types/            类型定义
+public/themes/        内置主题文件（default/dark/ocean）
 docs/                 详细设计文档
 skills/               技能文件目录
 ```
@@ -364,6 +374,7 @@ skills/               技能文件目录
 | [网络互联通信](./docs/network.md) | 局域网/蓝牙设备发现与对等通信 |
 | [服务生成](./docs/services.md) | 服务生成与运行 |
 | [开发指南](./docs/development.md) | 开发规范 |
+| [界面定制](./public/docs/ui-customization.md) | CSS 选择器速查表 + 变量参考 + 插槽 |
 
 ## CI/CD
 
@@ -378,6 +389,24 @@ git push origin main   # 触发构建
 ```
 
 也支持手动触发（Actions → workflow_dispatch）。
+
+## 主题系统
+
+变形虫内置多主题系统，用户可通过对话让 AI 自由定制界面外观。
+
+```
+{AppData}/amiba/theme/
+  default/          ← 浅色基准（只读）
+  dark/             ← 深色模式（只读）
+  ocean/            ← 蓝色系（只读）
+  我的主题/         ← 用户创建（可改可删）
+  slots/            ← 全局插槽 HTML
+```
+
+- **CSS 变量驱动**：30 个变量（颜色/圆角/阴影/字体/间距）定义在 `App.vue :root`，所有页面样式通过 `var(--*)` 引用
+- **即改即生效**：修改任意 CSS 变量，全局立即刷新
+- **AI 对话操作**：用户说"换成深色"→ AI 调用 `ui_theme_switch("dark")`；"所有按钮改圆角"→ `ui_theme_set_variable("--radius-sm", "12px")`
+- **详细参考**：[界面定制指南](public/docs/ui-customization.md) — CSS 选择器速查表 + 变量说明 + 插槽列表
 
 ## License
 

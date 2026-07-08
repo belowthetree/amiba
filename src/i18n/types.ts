@@ -60,6 +60,10 @@ export interface LocalesSchema {
     stepLimitContinue: string
     stepLimitEnd: string
     stepLimitContinueMsg: string
+    reviewRunning: string
+    reviewComplete: string
+    reviewSkipped: string
+    reviewError: string
   }
   settings: {
     title: string

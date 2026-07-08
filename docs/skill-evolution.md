@@ -88,3 +88,38 @@ skills/.archive/{slug}/         ← 归档技能
 skills/.curator_state           ← Curator 调度状态
 skills/.curator-logs/           ← 运行报告
 ```
+
+## Phase 5: Skill 审查（SkillReviewer）
+
+`src/ai/skill-reviewer.ts` — 独立审查引擎，在多个触发点 fork 独立 LLM 调用，分析对话内容并自动维护 skill 库：
+
+| 触发点 | 时机 | 行为 |
+|--------|------|------|
+| `session_end` | `/new` 切换会话时审查旧会话 | 全面审查，可创建/修补/删除 skill |
+| `manual` | 用户输入 `/review` 命令 | 同 session_end |
+| `mid_session` | 会话超过 20 轮后每 20 轮触发 | 只修补明显错误，不创建新 skill |
+| `curator` | 7 天 curator 运行时附带 | 检查长期未用 skill 是否需归档/合并 |
+
+**审查规则（优先级）**：
+1. **PATCH** 已存在的 skill（错误/过时/用户纠正）
+2. **CREATE** 新 skill（5+ 步复杂任务、可复用技巧）
+3. **DELETE** 过时 skill（被另一个完全取代）
+4. **不操作**（对话太短、纯查询）
+
+**最小消息阈值**：5 条。通过 `settings.skill_auto_review_enabled`（默认 `true`）控制开关。
+
+### UI 反馈
+
+- `manual` 和 `session_end` 触发时，聊天界面会显示 `🔍 正在整理技能库...` 消息，禁用输入框
+- 审查完成后显示汇总消息（`✅ 创建 X 个 / 修补 Y 个 / 删除 Z 个`）
+- `mid_session` 和 `curator` 为纯后台执行，不打扰用户
+- 并发防护：同一时间只允许一个审查运行
+
+### 响应式状态
+
+`src/ai/skill-reviewer.ts` 导出两个模块级 `ref`，ChatPage 直接监听：
+
+```ts
+export const isReviewing: Ref<boolean>     // 审查进行中
+export const lastReviewResult: Ref<ReviewResult | null>  // 最近结果
+```

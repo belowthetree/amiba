@@ -61,6 +61,10 @@ const zhCN: LocalesSchema = {
     stepLimitContinue: '继续处理',
     stepLimitEnd: '结束',
     stepLimitContinueMsg: '请继续处理未完成的任务。',
+    reviewRunning: '正在整理技能库...',
+    reviewComplete: '技能库整理完成 | 创建 {created} 个 / 修补 {patched} 个 / 删除 {deleted} 个',
+    reviewSkipped: '审查跳过：消息不足或已有审查在进行中',
+    reviewError: '审查失败：{error}',
   },
   settings: {
     title: '设置',

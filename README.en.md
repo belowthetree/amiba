@@ -49,6 +49,13 @@ cargo tauri build     # Tauri desktop (package EXE/DMG/deb)
 - All data stored locally under `{AppData}/amiba/`
 - Config, memory, history, services, skills, souls — all local
 
+### UI Customization & Multi-Theme
+- **CSS variable system**: 30 `:root` variables drive the global look; AI can tweak colors/corners/fonts/shadows via chat
+- **Built-in themes**: ships with `default` (light), `dark` (dark mode), `ocean` (blue palette)
+- **Theme management**: AI manages themes via `ui_theme_*` tools; Settings page offers dropdown switching
+- **Slot system**: 10 predefined UI injection points; AI can insert custom HTML into the topbar, home, chat, etc.
+- **Fully AI-driven**: say "make the background dark" or "add a clock to the topbar" — AI does it
+
 ## Built-in Services
 
 The app ships with 6 built-in services covering system pages and a demo mini-app:
@@ -320,6 +327,8 @@ adb install -r app-release-signed.apk
 | **Skills** | `skill_view` `skills_list` | View/list skills |
 | **Skill Mgmt** | `skill_manage_create/patch/edit/delete/write_file` | AI creates/modifies skills |
 | **Requirements** | `requirement_view` `requirement_update` `requirements_summary` | Requirement tracking |
+| **UI Theme** | `ui_theme_view/list/set_variable/set_css/reset/create/delete/switch` | Theme management & styling |
+| **UI Slot** | `ui_slot_list/get/set/remove` | Slot / inline component management |
 
 ## Memory & Requirement Nudge
 
@@ -334,12 +343,13 @@ Every 10 turns, system injects mandatory checks before AI responds:
 ```
 src/
 ├── ai/               AI core (agent, system-prompt, soul, session, memory, skill, requirement, curator)
-├── tools/            20+ AI tools (auto-discovered)
+├── tools/            25+ AI tools (auto-discovered, incl. ui_theme_*/ui_slot_* theming)
 ├── host/             Service runtime (sandbox, JSBridge, registry)
 ├── pages/            7 pages (Chat, Generate, Memory, MyServices, ServiceBrowse, Settings, Home)
-├── config/           Config & storage abstraction
+├── config/           Config, storage abstraction, theme engine (theme-store.ts)
 ├── router/           Routes
 └── types/            Type definitions
+public/themes/        Built-in theme files (default/dark/ocean)
 docs/                 Detailed design docs
 skills/               Skill files
 ```
@@ -360,6 +370,7 @@ skills/               Skill files
 | [Network](./docs/network.md) | LAN/BLE device discovery & P2P messaging |
 | [Services](./docs/services.md) | Service generation |
 | [Development](./docs/development.md) | Dev guide |
+| [UI Customization](./public/docs/ui-customization.md) | CSS selector reference + variable guide + slots |
 
 ## CI/CD
 
@@ -374,6 +385,24 @@ git push origin main   # triggers build
 ```
 
 Manual trigger also available (Actions → workflow_dispatch).
+
+## Theme System
+
+Amiba features a multi-theme system. Users can freely customize the UI appearance through AI conversations.
+
+```
+{AppData}/amiba/theme/
+  default/          ← Light baseline (read-only)
+  dark/             ← Dark mode (read-only)
+  ocean/            ← Blue palette (read-only)
+  My Theme/         ← User-created (editable, deletable)
+  slots/            ← Global slot HTML
+```
+
+- **CSS variable-driven**: 30 variables (colors/corners/shadows/fonts/spacing) defined in `App.vue :root`; all page styles reference `var(--*)`
+- **Instant preview**: changing any CSS variable updates the entire UI immediately
+- **AI-driven**: say "switch to dark mode" → AI calls `ui_theme_switch("dark")`; "round all buttons" → `ui_theme_set_variable("--radius-sm", "12px")`
+- **Reference**: [UI Customization Guide](public/docs/ui-customization.md) — CSS selector cheat sheet + variable reference + slot list
 
 ## License
 

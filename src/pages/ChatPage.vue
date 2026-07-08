@@ -72,8 +72,9 @@
       <textarea
         v-model="input"
         class="chat-input"
-        :placeholder="$t('chat.placeholder')"
+        :placeholder="isReviewing ? $t('chat.reviewRunning') : $t('chat.placeholder')"
         rows="2"
+        :disabled="isReviewing"
         @keydown.enter.exact.prevent="send"
       ></textarea>
       <button
@@ -86,7 +87,7 @@
       <button
         v-else
         class="send-btn"
-        :disabled="!input.trim() || sending"
+        :disabled="!input.trim() || sending || isReviewing"
         @click="send"
       >
         {{ $t('chat.send') }}
@@ -173,6 +174,7 @@ import {
 } from '../ai/session'
 import type { SessionMeta } from '../ai/session'
 import { soulManager } from '../ai/soul'
+import { isReviewing, lastReviewResult } from '../ai/skill-reviewer'
 import { peerList } from '../host/network-bridge'
 import { 
   startDiscovery as netStartDiscovery,
@@ -207,6 +209,7 @@ function stopStreaming() {
 }
 
 function continueGeneration() {
+  if (isReviewing.value) return
   showStepLimit.value = false
   addUserMessage(t('chat.stepLimitContinueMsg'))
   saveHistory()
@@ -345,7 +348,7 @@ function scrollToBottom() {
 
 async function send() {
   const text = input.value.trim()
-  if (!text || sending.value) return
+  if (!text || sending.value || isReviewing.value) return
 
   // 用户主动发送消息，关闭步数限制弹窗
   showStepLimit.value = false
@@ -526,6 +529,35 @@ watch(showStats, async (open) => {
   } else {
     netStopDiscovery('lan').catch(() => {})
   }
+})
+
+// 审查状态监听：显示/隐藏进度指示器
+watch(isReviewing, (reviewing) => {
+  if (reviewing) {
+    stopStreaming()
+    session.messages.value.push({ role: 'system', content: `🔍 ${t('chat.reviewRunning')}` })
+    saveHistory()
+    scrollToBottom()
+  }
+})
+
+// 审查结果监听：完成后显示汇总（仅用户感知的触发）
+watch(lastReviewResult, (result) => {
+  if (!result) return
+  // 仅 manual（用户手动）和 session_end（/new 切换会话）展示结果
+  // mid_session / curator 是后台维护，不打扰用户
+  if (result.trigger !== 'manual' && result.trigger !== 'session_end') return
+
+  if (result.ran && !result.error) {
+    const msg = t('chat.reviewComplete', { created: result.skillsCreated, patched: result.skillsPatched, deleted: result.skillsDeleted } as any)
+    session.messages.value.push({ role: 'system', content: `✅ ${msg}` })
+  } else if (result.error) {
+    session.messages.value.push({ role: 'system', content: `⚠️ ${t('chat.reviewError', { error: result.error })}` })
+  } else {
+    session.messages.value.push({ role: 'system', content: `ℹ️ ${t('chat.reviewSkipped')}` })
+  }
+  saveHistory()
+  scrollToBottom()
 })
 </script>
 

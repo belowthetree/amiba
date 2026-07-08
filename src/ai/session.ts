@@ -282,6 +282,10 @@ export async function newSession(): Promise<string> {
   const meta = await createSession()
   _currentId = meta.id
 
+  // 清空当前消息（开始新会话）
+  session.messages.value = []
+  session.turnCount.value = 0
+
   // 触发 skill 审查（后台异步，不阻塞）
   if (visibleMessages.length >= 5) {
     const settings = (await import('../config/config')).getSettings()

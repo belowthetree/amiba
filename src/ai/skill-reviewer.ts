@@ -11,11 +11,18 @@
 //   mid_session  — 超过 20 轮时后台审查
 // ============================================================
 
+import { ref, type Ref } from 'vue'
 import { generateText, isStepCount } from 'ai'
 import { getSettings, getApiKey } from '../config/config'
 import { buildSystemPrompt } from './system-prompt'
 import { toAISdkTools } from '../tools/toolsets'
 import { createModelFromConfig } from './provider-factory'
+
+/** 是否正在执行审查（ChatPage 用于显示进度指示器和禁用输入） */
+export const isReviewing: Ref<boolean> = ref(false)
+
+/** 最近一次审查结果（ChatPage 用于显示完成汇总） */
+export const lastReviewResult: Ref<ReviewResult | null> = ref(null)
 
 export type ReviewTrigger = 'session_end' | 'manual' | 'curator' | 'mid_session'
 
@@ -79,12 +86,24 @@ export async function forkReviewAgent(
   trigger: ReviewTrigger,
   loadedSkillSlugs: string[] = [],
 ): Promise<ReviewResult> {
+  // 防止并发审查
+  if (isReviewing.value) {
+    return {
+      ran: false,
+      trigger,
+      skillsCreated: 0,
+      skillsPatched: 0,
+      skillsDeleted: 0,
+      summary: `跳过：已有审查在进行中`,
+    }
+  }
+
   const visibleMessages = messages.filter(
     (m) => (m.role === 'user' || m.role === 'assistant') && !m.content.startsWith('/'),
   )
 
   if (visibleMessages.length < MIN_MESSAGES) {
-    return {
+    const skipResult: ReviewResult = {
       ran: false,
       trigger,
       skillsCreated: 0,
@@ -92,13 +111,25 @@ export async function forkReviewAgent(
       skillsDeleted: 0,
       summary: `跳过：消息不足（${visibleMessages.length} < ${MIN_MESSAGES}）`,
     }
+    lastReviewResult.value = skipResult
+    return skipResult
   }
 
   const s = getSettings()
   const apiKey = await getApiKey()
   if (!apiKey) {
-    return { ran: false, trigger, skillsCreated: 0, skillsPatched: 0, skillsDeleted: 0, summary: '', error: 'No API key' }
+    const errResult: ReviewResult = { ran: false, trigger, skillsCreated: 0, skillsPatched: 0, skillsDeleted: 0, summary: '', error: 'No API key' }
+    lastReviewResult.value = errResult
+    return errResult
   }
+
+  // 仅用户感知的触发（手动或会话结束）才在 UI 显示进度
+  // mid_session / curator 是后台维护，不阻塞 UI
+  const isUserFacing = trigger === 'manual' || trigger === 'session_end'
+  if (isUserFacing) {
+    isReviewing.value = true
+  }
+  console.log(`[SkillReviewer] 🔍 开始审查 (${trigger})...`)
 
   // === AI SDK: 创建 provider + model ===
   const { model: languageModel } = createModelFromConfig(s.ai_base_url, apiKey, s.ai_model)
@@ -142,7 +173,6 @@ export async function forkReviewAgent(
       stopWhen: isStepCount(5),
     })
 
-    // 统计工具调用
     let skillsCreated = 0
     let skillsPatched = 0
     let skillsDeleted = 0
@@ -158,12 +188,7 @@ export async function forkReviewAgent(
 
     const summary = (await result.text).slice(0, 500)
 
-    console.log(
-      `[SkillReviewer] 审查完成 (${trigger}): ` +
-      `创建 ${skillsCreated}, 修补 ${skillsPatched}, 删除 ${skillsDeleted}`,
-    )
-
-    return {
+    const reviewResult: ReviewResult = {
       ran: true,
       trigger,
       skillsCreated,
@@ -171,9 +196,17 @@ export async function forkReviewAgent(
       skillsDeleted,
       summary,
     }
+
+    console.log(
+      `[SkillReviewer] 审查完成 (${trigger}): ` +
+      `创建 ${skillsCreated}, 修补 ${skillsPatched}, 删除 ${skillsDeleted}`,
+    )
+
+    lastReviewResult.value = reviewResult
+    return reviewResult
   } catch (e: any) {
     console.error('[SkillReviewer] 审查失败:', e)
-    return {
+    const errResult: ReviewResult = {
       ran: true,
       trigger,
       skillsCreated: 0,
@@ -181,6 +214,12 @@ export async function forkReviewAgent(
       skillsDeleted: 0,
       summary: '',
       error: e.message || String(e),
+    }
+    lastReviewResult.value = errResult
+    return errResult
+  } finally {
+    if (isUserFacing) {
+      isReviewing.value = false
     }
   }
 }

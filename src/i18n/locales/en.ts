@@ -61,6 +61,10 @@ const en: LocalesSchema = {
     stepLimitContinue: 'Continue',
     stepLimitEnd: 'End',
     stepLimitContinueMsg: 'Please continue working on the unfinished task.',
+    reviewRunning: 'Organizing skill library...',
+    reviewComplete: 'Skill library updated | Created {created} / Patched {patched} / Deleted {deleted}',
+    reviewSkipped: 'Review skipped: not enough messages or review already in progress',
+    reviewError: 'Review failed: {error}',
   },
   settings: {
     title: 'Settings',
