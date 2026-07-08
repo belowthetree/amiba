@@ -21,6 +21,10 @@ const defaults: AppSettings = {
   active_agent_id: '',
   background_services_enabled: true,
   max_background_services: 3,
+  log_enabled: true,
+  log_level: 1, // INFO
+  log_max_files: 5,
+  log_max_size_mb: 10,
 }
 
 export const settings = reactive<AppSettings>({ ...defaults })

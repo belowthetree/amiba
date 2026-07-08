@@ -354,6 +354,127 @@
       </div>
     </div>
 
+    <!-- ================================================================== -->
+    <!-- 标签: 日志 -->
+    <!-- ================================================================== -->
+    <div v-show="activeTab === 'logs'">
+
+      <div class="settings-section">
+        <h3 class="section-label">📋 {{ $t('settings.logs.settings') }}</h3>
+
+        <div class="form-group">
+          <div class="toggle-row">
+            <label style="margin-bottom:0">{{ $t('settings.logs.enabled') }}</label>
+            <label class="switch">
+              <input type="checkbox" v-model="settings.log_enabled" @change="onLogConfigChange" />
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group" v-if="settings.log_enabled">
+          <label>{{ $t('settings.logs.level') }}</label>
+          <select v-model.number="settings.log_level" class="form-input" @change="onLogConfigChange">
+            <option :value="0">{{ $t('settings.logs.levels.debug') }}</option>
+            <option :value="1">{{ $t('settings.logs.levels.info') }}</option>
+            <option :value="2">{{ $t('settings.logs.levels.warn') }}</option>
+            <option :value="3">{{ $t('settings.logs.levels.error') }}</option>
+          </select>
+        </div>
+
+        <div class="form-group" v-if="settings.log_enabled">
+          <label>{{ $t('settings.logs.maxFiles') }}</label>
+          <input type="number" v-model.number="settings.log_max_files" class="form-input" min="1" max="50" style="width:120px" />
+        </div>
+
+        <div class="form-group" v-if="settings.log_enabled">
+          <label>{{ $t('settings.logs.maxSize') }}</label>
+          <input type="number" v-model.number="settings.log_max_size_mb" class="form-input" min="1" max="100" style="width:120px" />
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <h3 class="section-label" style="margin-bottom:0">📁 {{ $t('settings.logs.files') }}</h3>
+          <div style="display:flex;gap:6px">
+            <button class="secondary-btn" style="font-size:12px;padding:4px 10px" @click="refreshLogFiles">🔄</button>
+            <button class="danger-btn" style="font-size:12px;padding:4px 10px" @click="doClearAllLogs">🗑 {{ $t('settings.logs.actions.clearAll') }}</button>
+          </div>
+        </div>
+        <div v-if="logFiles.length" class="log-file-list">
+          <div
+            v-for="f in logFiles"
+            :key="f.name"
+            :class="['log-file-item', { active: selectedLogFile === f.name }]"
+            @click="selectLogFile(f.name)"
+          >
+            <span class="log-file-name">{{ f.name }}</span>
+            <span class="log-file-meta">{{ formatSize(f.size) }}</span>
+            <button class="log-file-del" @click.stop="doDeleteLogFile(f.name)">✕</button>
+          </div>
+        </div>
+        <p v-else class="skill-empty">{{ $t('settings.logs.noLogs') }}</p>
+      </div>
+
+      <div class="settings-section" v-if="selectedLogFile">
+        <h3 class="section-label">🔍 {{ $t('settings.logs.viewer') }}</h3>
+
+        <div class="log-controls">
+          <div class="log-level-filters">
+            <label
+              v-for="lvl in ['DEBUG','INFO','WARN','ERROR']"
+              :key="lvl"
+              :class="['log-lvl-btn', { active: logFilterLevels.includes(lvl) }]"
+            >
+              <input type="checkbox" :value="lvl" v-model="logFilterLevels" />
+              <span :class="'level-badge level-' + lvl.toLowerCase()">{{ lvl }}</span>
+            </label>
+          </div>
+          <div class="log-search-row" style="margin-bottom:8px">
+            <input
+              v-model="logSearch"
+              class="form-input log-search-input"
+              :placeholder="$t('settings.logs.search')"
+              @input="onLogSearch"
+            />
+            <button class="secondary-btn" style="font-size:12px;padding:6px 10px" @click="doExportLog">
+              📥 {{ $t('settings.logs.actions.export') }}
+            </button>
+          </div>
+        </div>
+
+        <div class="log-table-wrap">
+          <table class="log-table" v-if="filteredLogEntries.length">
+            <thead>
+              <tr>
+                <th class="col-time">{{ $t('settings.logs.columns.time') }}</th>
+                <th class="col-level">{{ $t('settings.logs.columns.level') }}</th>
+                <th class="col-module">{{ $t('settings.logs.columns.module') }}</th>
+                <th class="col-msg">{{ $t('settings.logs.columns.message') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="(entry, i) in filteredLogEntries"
+                :key="i"
+                :class="'log-row level-' + entry.level.toLowerCase()"
+              >
+                <td class="col-time">{{ formatLogTime(entry.time) }}</td>
+                <td class="col-level"><span :class="'level-badge level-' + entry.level.toLowerCase()">{{ entry.level }}</span></td>
+                <td class="col-module">{{ entry.module }}</td>
+                <td class="col-msg">{{ entry.message }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p v-else class="skill-empty">{{ logSearch ? $t('settings.logs.noLogs') : $t('settings.logs.noContent') }}</p>
+        </div>
+      </div>
+
+      <div class="settings-section" v-else>
+        <p class="skill-empty">{{ $t('settings.logs.noContent') }}</p>
+      </div>
+    </div>
+
     <div class="saved-hint" v-if="showSaved">✅ {{ $t('settings.confirm.saved') }}</div>
     <SkillShareDialog v-model="shareSkillDialog" :preselect-slug="shareSkillSlug" />
   </div>
@@ -374,6 +495,7 @@ import { customAgents, addCustomAgent, updateCustomAgent, deleteCustomAgent, set
 import type { AiProvider, CustomAgent } from '../types/service'
 import { getCurrentVersion, checkForUpdate, downloadUpdate, installUpdate, getCachedUpdate, type UpdateStatus, type UpdateInfo } from '../config/updater'
 import { listSessions, deleteSession } from '../ai/session'
+import { getLogFiles, readLogFile, deleteLogFile, clearAllLogs, exportLogFile as exportLog, formatSize, type LogFileInfo, type LogEntry } from '../config/logger'
 import SkillShareDialog from './SkillShareDialog.vue'
 
 const { t } = useI18n()
@@ -384,11 +506,101 @@ const tabs = computed(() => [
   { key: 'general', label: t('settings.tabs.general') },
   { key: 'skills', label: t('settings.tabs.skills') },
   { key: 'data', label: t('settings.tabs.data') },
+  { key: 'logs', label: t('settings.tabs.logs') },
 ])
 const updateStatus = ref<UpdateStatus>({ stage: 'idle' })
 const showKey = ref(false)
 const showSaved = ref(false); const pending = ref<any[]>([])
 const deletingSessions = ref(false)
+
+// --- Log management ---
+const logFiles = ref<LogFileInfo[]>([])
+const selectedLogFile = ref('')
+const logEntries = ref<LogEntry[]>([])
+const logFilterLevels = ref<string[]>(['DEBUG', 'INFO', 'WARN', 'ERROR'])
+const logSearch = ref('')
+let logSearchTimer: ReturnType<typeof setTimeout> | null = null
+
+const filteredLogEntries = computed(() => {
+  let entries = logEntries.value
+  if (logSearch.value.trim()) {
+    const q = logSearch.value.toLowerCase()
+    entries = entries.filter(e =>
+      e.message.toLowerCase().includes(q) ||
+      e.module.toLowerCase().includes(q)
+    )
+  }
+  if (logFilterLevels.value.length < 4) {
+    entries = entries.filter(e => logFilterLevels.value.includes(e.level))
+  }
+  return entries
+})
+
+async function refreshLogFiles() {
+  logFiles.value = await getLogFiles()
+}
+
+async function selectLogFile(name: string) {
+  selectedLogFile.value = name
+  logEntries.value = await readLogFile(name)
+  logSearch.value = ''
+}
+
+async function doDeleteLogFile(name: string) {
+  if (!confirm(t('settings.confirm.deleteLogFile'))) return
+  await deleteLogFile(name)
+  if (selectedLogFile.value === name) {
+    selectedLogFile.value = ''
+    logEntries.value = []
+  }
+  await refreshLogFiles()
+}
+
+async function doClearAllLogs() {
+  if (!confirm(t('settings.confirm.clearAllLogs'))) return
+  await clearAllLogs()
+  selectedLogFile.value = ''
+  logEntries.value = []
+  await refreshLogFiles()
+}
+
+async function doExportLog() {
+  if (!selectedLogFile.value) return
+  try {
+    const blob = await exportLog(selectedLogFile.value)
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = selectedLogFile.value
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch { /* ignore */ }
+}
+
+function formatLogTime(iso: string): string {
+  try {
+    const d = new Date(iso)
+    return d.toLocaleTimeString('zh-CN', { hour12: false })
+  } catch { return iso }
+}
+
+function onLogSearch() {
+  if (logSearchTimer) clearTimeout(logSearchTimer)
+  logSearchTimer = setTimeout(() => {
+    // trigger reactive update
+  }, 200)
+}
+
+function onLogConfigChange() {
+  flashSaved()
+}
+
+// Load log files on tab switch
+watch(activeTab, (tab) => {
+  if (tab === 'logs') {
+    refreshLogFiles()
+  }
+})
 
 // --- Network visibility ---
 
@@ -1040,4 +1252,40 @@ onMounted(async () => {
 .progress-bar{width:100%;height:8px;background:#e0e0e0;border-radius:4px;overflow:hidden}
 .progress-fill{height:100%;background:#1976D2;border-radius:4px;transition:width .3s ease}
 .download-progress{display:flex;flex-direction:column;gap:4px}
+
+/* ---- Log viewer ---- */
+.log-file-list{display:flex;flex-direction:column;gap:2px;max-height:200px;overflow-y:auto}
+.log-file-item{display:flex;align-items:center;gap:8px;padding:8px 10px;background:#f9f9f9;border-radius:6px;font-size:12px;cursor:pointer;transition:background 0.15s}
+.log-file-item:hover{background:#E3F2FD}
+.log-file-item.active{background:#E3F2FD;border:1px solid #1976D2}
+.log-file-name{flex:1;font-family:monospace;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.log-file-meta{color:#999;white-space:nowrap}
+.log-file-del{border:none;background:none;color:#e53935;cursor:pointer;font-size:14px;padding:0 4px}
+.log-file-del:hover{color:#c62828}
+.log-controls{margin-bottom:8px}
+.log-level-filters{display:flex;gap:6px;margin-bottom:8px}
+.log-lvl-btn{display:flex;align-items:center;gap:2px;cursor:pointer;font-size:12px}
+.log-lvl-btn input{display:none}
+.log-lvl-btn .level-badge{opacity:0.4;transition:opacity 0.15s}
+.log-lvl-btn.active .level-badge{opacity:1}
+.log-search-row{display:flex;gap:6px}
+.log-search-input{flex:1;font-size:13px;padding:6px 10px}
+.log-table-wrap{max-height:400px;overflow:auto}
+.log-table{width:100%;border-collapse:collapse;font-size:12px}
+.log-table th{position:sticky;top:0;background:#f5f5f5;padding:6px 8px;text-align:left;font-weight:600;color:#666;border-bottom:2px solid #e0e0e0;z-index:1}
+.log-table td{padding:5px 8px;border-bottom:1px solid #f0f0f0;vertical-align:top}
+.col-time{width:80px;white-space:nowrap;font-family:monospace;color:#999}
+.col-level{width:60px;white-space:nowrap}
+.col-module{width:100px;white-space:nowrap;color:#1976D2}
+.col-msg{word-break:break-word}
+.log-row:hover{background:#f5f8ff}
+.log-row.level-error{background:#fff0f0}
+.log-row.level-error:hover{background:#ffe8e8}
+.log-row.level-warn{background:#fffbf0}
+.log-row.level-warn:hover{background:#fff5d6}
+.level-badge{display:inline-block;padding:1px 6px;border-radius:3px;font-size:11px;font-weight:600;white-space:nowrap}
+.level-debug{background:#e0e0e0;color:#666}
+.level-info{background:#E3F2FD;color:#1565C0}
+.level-warn{background:#FFF3E0;color:#E65100}
+.level-error{background:#FFEBEE;color:#C62828}
 </style>

@@ -160,6 +160,14 @@ export interface AppSettings {
   background_services_enabled?: boolean
   /** 后台服务最大并发数 */
   max_background_services?: number
+  /** 日志记录总开关 */
+  log_enabled: boolean
+  /** 最低记录级别 0=DEBUG 1=INFO 2=WARN 3=ERROR */
+  log_level: number
+  /** 最大保留日志文件数 */
+  log_max_files: number
+  /** 单文件最大大小 (MB) */
+  log_max_size_mb: number
 }
 
 // --- AI Provider ---

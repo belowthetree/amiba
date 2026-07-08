@@ -109,6 +109,7 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
   - 前端: `console.log('[模块前缀] 日志内容')`，前缀如 `[NetBridge]`、`[JSBridge]`、`[SvcContainer]`、`[NetSession]`。
   - **禁止在循环内打印日志**（如 UDP 广播每 tick、消息轮询），避免刷屏。循环相关统计日志使用计数打印（如每 10 次一次）。
   - 流程边界用 `===` 标记（如 `=== 收到 hello: ... ===`），关键结果用 `✓`/`✗` 前缀。
+- **日志文件持久化:** `src/config/logger.ts` 在 bootstrap 早期 monkey-patch `console.*`，将所有日志缓冲批量写入 `{AppData}/amiba/logs/` 目录。JSON Lines 格式，按大小自动轮转。设置页面「日志」Tab 提供查看、级别过滤、搜索、导出功能。
 
 ## Notes
 
@@ -126,6 +127,7 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
   - `skills/.curator_state` / `.curator-logs/` — curator lifecycle
   - `souls/{name}.md` — personality files
   - `docs/` — user custom document files (override builtin `public/docs/`)
+  - `logs/` — 前端日志文件（JSON Lines，按大小轮转，设置页可查看/过滤/导出）
 - **Android 源码:** Kotlin 类在 `src-tauri/gen/android/app/src/main/java/com/amiba/desktop/MainActivity.kt`（`JsCallback` + `WebViewHelper`）；`tauri android init` 会重置 `gen/android`，自定义代码需在重置后重新写入
 - **Storage auto-mkdir:** `storageSet` creates parent directories automatically before writing
 - **JSON pretty-print:** all `storageSetJSON` writes use 2-space indentation

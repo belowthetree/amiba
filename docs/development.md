@@ -93,6 +93,7 @@ src/
 ├── config/updater.ts    # 更新检查 + Rust reqwest 下载
 ├── config/session-db.ts # SQLite FTS5 数据库封装
 ├── config/web-bridge.ts  # Tauri web_* invoke 封装（fetchPage/clickGetContent/close + captureScreenshot）
+├── config/logger.ts      # 前端日志系统：monkey-patch console → JSON Lines 文件持久化 + 轮转
 ├── i18n/                 # 多语言 (zh-CN / en)
 │   ├── index.ts          # createI18n + settings.language 同步
 │   ├── types.ts          # LocalesSchema 类型
@@ -425,3 +426,4 @@ await stopReceiving()
 - **2026-07-08**: 悬浮块尺寸应由服务通过 `widget.json` 声明（`width`/`height` 字段），而非自动检测。自动检测（ResizeObserver + postMessage）存在 body 未就绪、template literal 语法错误、多次注入点维护困难等问题。声明式尺寸更简单可控，宿主只做默认值兜底（width=280, height=200）。
 - **2026-07-08**: 预置服务统一使用 `manifest.json` 与可导入包保持一致。`index.json` 只做文件清单索引（`id` + `files` 数组），不再承载元数据。`installPrebuiltServices()` 从 `manifest.json` 解析 ServiceManifest。服务目录结构完全统一，不再有两种格式之分。
 - **2026-07-08**: `fileAccess` 授权模型：内存 Map 存储 grant（token → serviceId + path + pattern），不落盘，应用重启即失效。`confirm()` 原生弹框确认，token 绑定 serviceId 实现多服务隔离。Tauri fs 插件权限名称为 `fs:allow-read`（涵盖 read_file/read_dir）、`fs:allow-read-file`、`fs:allow-read-text-file`，带连字符的 `fs:allow-read-dir`，注意与直觉的 `fs:allow-readdir` 区别。
+- **2026-07-08**: 实现前端日志系统（`src/config/logger.ts`）。Monkey-patch `console.*` 在 `bootstrap()` 中 `initConfig()` 之后立即执行，早于其他模块初始化，确保所有后续 `console.log/warn/error/debug` 都被捕获。TypeScript `erasableSyntaxOnly: true` 不允许常规 `enum`——使用 `const` 对象 + `as const` + 单独 `Record<number,string>` 映射替代。日志格式为 JSON Lines（每行一个 JSON），Tauri FS `writeTextFile` 无原生追加模式，需 `readTextFile` + 拼接 + `writeTextFile` 实现追加。

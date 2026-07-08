@@ -8,6 +8,7 @@ import router from './router'
 import { i18n, syncI18nWithSettings } from './i18n'
 import { initConfig, settings } from './config/config'
 import { initStorage } from './config/storage'
+import { initLogger } from './config/logger'
 import { initRegistry, installPrebuiltServices } from './host/registry'
 import { memoryStore } from './ai/memory-store'
 import { loadUserSkills } from './ai/skills'
@@ -21,8 +22,12 @@ import { initPersistentWidgets } from './host/widget-lifecycle'
 
 async function bootstrap() {
   await initStorage()
+  await initConfig()
+
+  // 尽早拦截 console 写入日志文件
+  initLogger(settings)
+
   await Promise.all([
-    initConfig(),
     initRegistry(),
     memoryStore.init(),
     loadUserSkills(),

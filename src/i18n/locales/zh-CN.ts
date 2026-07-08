@@ -64,7 +64,7 @@ const zhCN: LocalesSchema = {
   },
   settings: {
     title: '设置',
-    tabs: { general: '通用', skills: '技能 & Agent', data: '数据' },
+    tabs: { general: '通用', skills: '技能 & Agent', data: '数据', logs: '日志' },
     general: {
       apiConfig: 'API 配置',
       apiKey: 'API Key',
@@ -168,6 +168,37 @@ const zhCN: LocalesSchema = {
       deleteSessionsHint: '删除聊天记录不影响服务和记忆，清除所有数据不可恢复',
       clearAllData: '清除所有数据',
     },
+    logs: {
+      title: '日志管理',
+      settings: '日志设置',
+      enabled: '启用日志记录',
+      level: '最低记录级别',
+      levels: {
+        debug: '调试',
+        info: '信息',
+        warn: '警告',
+        error: '错误',
+      },
+      maxFiles: '最大文件数',
+      maxSize: '单文件最大大小 (MB)',
+      files: '日志文件',
+      viewer: '日志内容',
+      noLogs: '暂无日志文件',
+      noContent: '请选择一个日志文件',
+      search: '搜索日志…',
+      filterLevel: '按级别过滤',
+      columns: {
+        time: '时间',
+        level: '级别',
+        module: '模块',
+        message: '消息',
+      },
+      actions: {
+        clearAll: '清空所有日志',
+        deleteFile: '删除文件',
+        export: '导出日志',
+      },
+    },
     confirm: {
       clearAllData: '确定要清除所有数据吗？这将删除配置、记忆和已安装的服务。此操作不可撤销！',
       deleteSessions: '确定要删除所有聊天记录吗？此操作不可撤销！',
@@ -181,6 +212,8 @@ const zhCN: LocalesSchema = {
       deleteSkill: '确定要删除 Skill "{name}" 吗？',
       installFailed: '安装失败',
       saved: '已保存',
+      clearAllLogs: '确定要删除所有日志文件吗？此操作不可恢复。',
+      deleteLogFile: '确定要删除此日志文件吗？',
     },
     dialect: {
       installedNServices: '已安装 {n} 个服务',

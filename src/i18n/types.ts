@@ -63,7 +63,7 @@ export interface LocalesSchema {
   }
   settings: {
     title: string
-    tabs: { general: string; skills: string; data: string }
+    tabs: { general: string; skills: string; data: string; logs: string }
     general: {
       apiConfig: string
       apiKey: string
@@ -167,6 +167,37 @@ export interface LocalesSchema {
       deleteSessionsHint: string
       clearAllData: string
     }
+    logs: {
+      title: string
+      settings: string
+      enabled: string
+      level: string
+      levels: {
+        debug: string
+        info: string
+        warn: string
+        error: string
+      }
+      maxFiles: string
+      maxSize: string
+      files: string
+      viewer: string
+      noLogs: string
+      noContent: string
+      search: string
+      filterLevel: string
+      columns: {
+        time: string
+        level: string
+        module: string
+        message: string
+      }
+      actions: {
+        clearAll: string
+        deleteFile: string
+        export: string
+      }
+    }
     confirm: {
       clearAllData: string
       deleteSessions: string
@@ -180,6 +211,8 @@ export interface LocalesSchema {
       deleteSkill: string
       installFailed: string
       saved: string
+      clearAllLogs: string
+      deleteLogFile: string
     }
     dialect: {
       installedNServices: string

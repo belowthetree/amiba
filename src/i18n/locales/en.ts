@@ -64,7 +64,7 @@ const en: LocalesSchema = {
   },
   settings: {
     title: 'Settings',
-    tabs: { general: 'General', skills: 'Skills & Agent', data: 'Data' },
+    tabs: { general: 'General', skills: 'Skills & Agent', data: 'Data', logs: 'Logs' },
     general: {
       apiConfig: 'API Configuration',
       apiKey: 'API Key',
@@ -168,6 +168,37 @@ const en: LocalesSchema = {
       deleteSessionsHint: 'Deleting chat history does not affect services or memory. Clearing all data is irreversible.',
       clearAllData: 'Clear All Data',
     },
+    logs: {
+      title: 'Log Management',
+      settings: 'Log Settings',
+      enabled: 'Enable Logging',
+      level: 'Minimum Log Level',
+      levels: {
+        debug: 'Debug',
+        info: 'Info',
+        warn: 'Warn',
+        error: 'Error',
+      },
+      maxFiles: 'Max Files',
+      maxSize: 'Max File Size (MB)',
+      files: 'Log Files',
+      viewer: 'Log Viewer',
+      noLogs: 'No log files',
+      noContent: 'Select a log file to view',
+      search: 'Search logs...',
+      filterLevel: 'Filter by level',
+      columns: {
+        time: 'Time',
+        level: 'Level',
+        module: 'Module',
+        message: 'Message',
+      },
+      actions: {
+        clearAll: 'Clear All Logs',
+        deleteFile: 'Delete File',
+        export: 'Export Log',
+      },
+    },
     confirm: {
       clearAllData: 'Are you sure you want to clear all data? This will delete configuration, memory, and installed services. This action cannot be undone!',
       deleteSessions: 'Are you sure you want to delete all chat history? This action cannot be undone!',
@@ -181,6 +212,8 @@ const en: LocalesSchema = {
       deleteSkill: 'Are you sure you want to delete skill "{name}"?',
       installFailed: 'Install failed',
       saved: 'Saved',
+      clearAllLogs: 'Delete all log files? This cannot be undone.',
+      deleteLogFile: 'Delete this log file?',
     },
     dialect: {
       installedNServices: 'Installed {n} service(s)',

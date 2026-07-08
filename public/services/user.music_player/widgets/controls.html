@@ -35,6 +35,11 @@ html, body { margin: 0; padding: 0; overflow: hidden; width: 100%; height: 100%;
 }
 .controls button:active { background: var(--color-bg, #f0f0f0); }
 .controls .btn-play { font-size: 14px; background: var(--color-primary, #1976D2); color: #fff; }
+.volume-row {
+  display: flex; align-items: center; gap: 6px; margin-top: 8px;
+  font-size: 11px; color: var(--color-text-secondary, #999);
+}
+.volume-row input[type=range] { flex: 1; accent-color: var(--color-primary, #1976D2); height: 4px; }
 </style>
 <div class="widget-root">
   <div class="cover-area" id="wi-cover">🎵</div>
@@ -44,6 +49,11 @@ html, body { margin: 0; padding: 0; overflow: hidden; width: 100%; height: 100%;
     <button id="wi-prev" title="上一首">⏮</button>
     <button class="btn-play" id="wi-play" title="播放/暂停">▶️</button>
     <button id="wi-next" title="下一首">⏭</button>
+  </div>
+  <div class="volume-row">
+    <span>🔈</span>
+    <input type="range" id="wi-volume" min="0" max="100" value="80">
+    <span>🔊</span>
   </div>
 </div>
 <script>
@@ -63,6 +73,9 @@ html, body { margin: 0; padding: 0; overflow: hidden; width: 100%; height: 100%;
   };
   document.getElementById('wi-prev').onclick = function() { postBg('prev'); };
   document.getElementById('wi-next').onclick = function() { postBg('next'); };
+  document.getElementById('wi-volume').oninput = function() {
+    postBg('volume', { volume: parseInt(this.value) / 100 });
+  };
 
   __amiba__.background.onMessage(function(msg) {
     updateState(msg);
