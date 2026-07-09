@@ -224,6 +224,7 @@ export interface FileAccessRequest {
   path?: string     // 不传则弹出系统文件夹选择器
   pattern?: string  // 文件过滤，如 "*.mp3" / "**/*.json"
   purpose?: string  // 用途说明，显示在 confirm 中
+  silent?: boolean  // 静默模式：跳过 confirm 弹窗（仅在 path 已指定时生效）
 }
 
 export interface FileAccessGrant {

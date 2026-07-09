@@ -52,6 +52,10 @@ function _arrayToBase64(bytes: Uint8Array): string {
 
 function _matchesPattern(testPath: string, pattern: string): boolean {
   if (!pattern) return false
+  // **/*.ext or **/{*.ext1,*.ext2} → 先剥离 **/ 前缀再匹配
+  if (pattern.startsWith('**/')) {
+    return _matchesPattern(testPath, pattern.slice(3))
+  }
   // **/*.ext
   const globMatch = pattern.match(/^\*\*\/\*(\.\w+)$/)
   if (globMatch) {
@@ -143,18 +147,22 @@ export async function requestAccess(serviceId: string, req: FileAccessRequest): 
 
   if (!folderPath) throw new Error('未指定文件夹路径')
 
-  // 原生 confirm 确认
-  const purpose = req.purpose || '读取文件'
   const pattern = req.pattern || '*'
-  const confirmed = confirm(
-    '服务请求访问文件夹\n\n' +
-    '路径: ' + folderPath + '\n' +
-    '用途: ' + purpose + '\n' +
-    '模式: ' + pattern + '\n\n' +
-    '允许访问？'
-  )
 
-  if (!confirmed) throw new Error('用户拒绝了文件访问')
+  // 静默模式（path 已指定 + silent=true）：跳过 confirm
+  if (!req.silent) {
+    const purpose = req.purpose || '读取文件'
+    const confirmed = confirm(
+      '服务请求访问文件夹\n\n' +
+      '路径: ' + folderPath + '\n' +
+      '用途: ' + purpose + '\n' +
+      '模式: ' + pattern + '\n\n' +
+      '允许访问？'
+    )
+    if (!confirmed) throw new Error('用户拒绝了文件访问')
+  } else {
+    console.log('[FileAccess] 静默授权: ' + serviceId + ' -> ' + folderPath + ' (' + pattern + ')')
+  }
 
   const token = _generateToken()
   const grant: FileAccessGrant = {
