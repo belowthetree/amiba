@@ -97,6 +97,13 @@ jobs:
           key: ${{ runner.os }}-android-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-android-cargo-
 
+      - name: Setup Gradle
+        if: steps.check.outputs.skip == 'false'
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          build-root-directory: src-tauri/gen/android
+          cache-disabled: true
+
       - name: Install cargo-tauri CLI
         if: steps.check.outputs.skip == 'false'
         run: cargo install tauri-cli --version "^2"
