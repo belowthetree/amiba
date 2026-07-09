@@ -14,6 +14,11 @@ const zhCN: LocalesSchema = {
     serviceBrowse: '服务浏览',
     newSession: '新会话',
     delete: '删除',
+    quick: '快捷',
+  },
+  quick: {
+    title: '快捷页面',
+    emptyHint: '这是一个可自定义的快捷页面。告诉 AI 你想要什么，它会帮你定制这里的内容。',
   },
   home: {
     heading: '变形虫 Amiba',

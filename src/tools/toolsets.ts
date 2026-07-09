@@ -84,6 +84,10 @@ export const TOOLSETS: Record<string, ToolsetDef> = {
       'ui_slot_get',
       'ui_slot_set',
       'ui_slot_remove',
+      'custom_view_list',
+      'custom_view_read',
+      'custom_view_edit',
+      'custom_view_write',
     ],
   },
 }

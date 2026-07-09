@@ -17,17 +17,23 @@
       </h1>
       <SlotRenderer v-else name="topbar.center" :html="slotHtml('topbar.center')" />
 
-      <SlotRenderer name="topbar.right" :html="slotHtml('topbar.right')" />
+      <div class="topbar-right-group">
+        <SlotRenderer name="topbar.right" :html="slotHtml('topbar.right')" />
 
-      <button class="nav-btn settings-btn" @click="$router.push('/settings')" :title="$t('app.settings')">
-        ⚙️
-      </button>
+        <button class="nav-btn quick-btn" @click="$router.push('/quick')" :title="$t('app.quick')">
+          ✦
+        </button>
+
+        <button class="nav-btn settings-btn" @click="$router.push('/settings')" :title="$t('app.settings')">
+          ⚙️
+        </button>
+      </div>
     </header>
 
     <!-- Main content -->
-    <main class="main-content">
+    <main ref="mainRef" class="main-content" @touchstart="onSwipeStart" @touchend="onSwipeEnd">
       <router-view v-slot="{ Component }">
-        <transition name="page" mode="out-in">
+        <transition :name="transitionName" mode="out-in">
           <component :is="Component" />
         </transition>
       </router-view>
@@ -42,8 +48,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, onMounted, watch, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import FloatingWidgetContainer from './host/floating-widget-container.vue'
 import WebviewOverlay from './components/WebviewOverlay.vue'
@@ -52,12 +58,73 @@ import { themeState } from './config/theme-store'
 
 const { t } = useI18n()
 const route = useRoute()
+const router = useRouter()
+const mainRef = ref<HTMLElement>()
+
+// ==== 页面序列（从左到右） ====
+const PAGE_ORDER = ['/services', '/', '/quick', '/settings']
+
+const transitionName = ref('page-forward')
+
+function routePath(name: string | symbol | null | undefined): string {
+  if (name === 'services') return '/services'
+  if (name === 'chat') return '/'
+  if (name === 'quick') return '/quick'
+  if (name === 'settings') return '/settings'
+  return '/'
+}
+
+function getPageIndex(path: string): number {
+  return PAGE_ORDER.indexOf(path)
+}
+
+// ==== 滑动手势导航 ====
+const SWIPE_MIN = 80
+const SWIPE_MAX_V = 50
+const SWIPE_MAX_TIME = 500
+
+let swipeStartX = 0
+let swipeStartY = 0
+let swipeStartTime = 0
+
+function onSwipeStart(e: TouchEvent) {
+  const t = e.touches[0]
+  swipeStartX = t.clientX
+  swipeStartY = t.clientY
+  swipeStartTime = Date.now()
+}
+
+function onSwipeEnd(e: TouchEvent) {
+  const t = e.changedTouches[0]
+  const dx = t.clientX - swipeStartX
+  const dy = t.clientY - swipeStartY
+  const elapsed = Date.now() - swipeStartTime
+
+  if (elapsed > SWIPE_MAX_TIME) return
+  if (Math.abs(dx) < SWIPE_MIN) return
+  if (Math.abs(dy) > SWIPE_MAX_V) return
+
+  const currentPath = routePath(route.name)
+  const idx = getPageIndex(currentPath)
+  if (idx < 0) return
+
+  if (dx < 0 && idx < PAGE_ORDER.length - 1) {
+    // 左滑 → 下一页
+    transitionName.value = 'page-forward'
+    router.push(PAGE_ORDER[idx + 1])
+  } else if (dx > 0 && idx > 0) {
+    // 右滑 → 上一页
+    transitionName.value = 'page-back'
+    router.push(PAGE_ORDER[idx - 1])
+  }
+}
 
 const routeTitles: Record<string, string> = {
   chat: t('app.title'),
   home: t('app.home'),
   settings: t('app.settings'),
   memory: t('app.memory'),
+  quick: t('app.quick'),
   service: t('app.service'),
 }
 
@@ -242,6 +309,14 @@ button {
   background: var(--color-hover-bg, #f0f0f0);
 }
 
+.topbar-right-group {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
 .topbar-title {
   position: absolute;
   left: 50%;
@@ -264,23 +339,42 @@ button {
   -webkit-overflow-scrolling: touch;
 }
 
-/* Page transitions */
-.page-enter-active {
+/* Page transitions — forward (左滑) */
+.page-forward-enter-active {
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
-.page-leave-active {
+.page-forward-leave-active {
   transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
-.page-enter-from {
+.page-forward-enter-from {
   opacity: 0;
-  transform: translateX(20px);
+  transform: translateX(30px);
 }
 
-.page-leave-to {
+.page-forward-leave-to {
   opacity: 0;
-  transform: translateX(-20px);
+  transform: translateX(-30px);
+}
+
+/* Page transitions — back (右滑) */
+.page-back-enter-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.page-back-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.page-back-enter-from {
+  opacity: 0;
+  transform: translateX(-30px);
+}
+
+.page-back-leave-to {
+  opacity: 0;
+  transform: translateX(30px);
 }
 
 /* === 响应式：平板 === */

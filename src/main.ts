@@ -20,6 +20,7 @@ import { initCustomAgentStore } from './ai/custom-agent-store'
 import { initNetworkBridge } from './host/network-bridge'
 import { initPersistentWidgets } from './host/widget-lifecycle'
 import { initThemeStore, installPrebuiltThemes } from './config/theme-store'
+import { initCustomViewStore } from './config/custom-view-store'
 
 async function bootstrap() {
   await initStorage()
@@ -41,6 +42,8 @@ async function bootstrap() {
   // 安装预置主题（从 public/themes/ 复制到 AppData，首次运行或缺失时执行）
   const prebuiltThemeCount = await installPrebuiltThemes()
   if (prebuiltThemeCount > 0) console.log(`[Bootstrap] 安装了 ${prebuiltThemeCount} 个预置主题`)
+  // 自定义视图存储初始化
+  await initCustomViewStore()
   // 网络互联桥初始化（非 Tauri 环境静默跳过）
   initNetworkBridge()
 

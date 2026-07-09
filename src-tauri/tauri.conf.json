@@ -1,11 +1,11 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "amiba",
-  "version": "0.6.8",
+  "version": "0.6.9",
   "identifier": "com.amiba.desktop",
   "build": {
     "frontendDist": "../dist",
-    "devUrl": "http://localhost:8080",
+    "devUrl": "http://localhost:8484",
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build"
   },

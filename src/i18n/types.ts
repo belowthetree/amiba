@@ -13,6 +13,11 @@ export interface LocalesSchema {
     serviceBrowse: string
     newSession: string
     delete: string
+    quick: string
+  }
+  quick: {
+    title: string
+    emptyHint: string
   }
   home: {
     heading: string
