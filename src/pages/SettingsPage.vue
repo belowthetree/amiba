@@ -36,7 +36,7 @@
           </button>
         </div>
 
-        <div class="form-group">
+        <div class="form-group" v-if="!defaultProviderId">
           <label>{{ $t('settings.general.baseUrl') }}</label>
           <input
             v-model="settings.ai_base_url"
@@ -46,17 +46,25 @@
         </div>
 
         <div class="form-group">
+          <label>{{ $t('settings.general.defaultProvider') }}</label>
+          <select v-model="defaultProviderId" class="form-input" @change="onDefaultProviderChange">
+            <option value="">{{ $t('settings.general.noProviderSelected') }}</option>
+            <option v-for="p in providerList" :key="p.id" :value="p.id">{{ p.name }}</option>
+          </select>
+        </div>
+
+        <div class="form-group">
           <label>{{ $t('settings.general.model') }}</label>
+          <select v-model="settings.ai_model" class="form-input" v-if="defaultProviderModels.length">
+            <option v-for="m in defaultProviderModels" :key="m" :value="m">{{ m }}</option>
+          </select>
           <input
+            v-else
             v-model="settings.ai_model"
             class="form-input"
-            placeholder="deepseek-chat"
-            list="global-model-list"
+            :placeholder="$t('settings.general.customModelPlaceholder')"
             autocomplete="off"
           />
-          <datalist id="global-model-list">
-            <option v-for="m in globalModelOptions" :key="m" :value="m" />
-          </datalist>
         </div>
 
         <div class="form-group">
@@ -881,40 +889,39 @@ function removeProvider(idx: number) {
   } catch (e: any) { alert(e.message) }
 }
 
+// --- 当前默认供应商的模型列表（通用页签模型下拉框） ---
+const defaultProviderId = ref(settings.default_provider_id || '')
+const defaultProviderModels = computed(() => {
+  if (!defaultProviderId.value) return []
+  const p = providerList.find(p => p.id === defaultProviderId.value)
+  return p?.models || []
+})
+
+function onDefaultProviderChange() {
+  settings.default_provider_id = defaultProviderId.value || undefined
+  if (defaultProviderId.value) {
+    const p = providerList.find(p => p.id === defaultProviderId.value)
+    if (p) {
+      // 自动填充 base_url
+      if (p.baseUrl) settings.ai_base_url = p.baseUrl
+      if (p.apiKey) settings.api_key = p.apiKey
+      // 如果当前模型不在供应商列表中，清空让其重新选择
+      if (p.models.length && !p.models.includes(settings.ai_model)) {
+        settings.ai_model = p.models[0]
+      }
+    }
+  }
+}
+
 // --- Custom Agent management ---
 const agentList = customAgents as CustomAgent[]
 const agentEditingIdx = ref(-1)
 const agentForm = ref({ name: '', id: '', providerId: '', model: '', selectedSkills: [] as string[], systemPrompt: '', reasoning_effort: '' })
 
-// 当前选中供应商的模型列表
 const availableModels = computed(() => {
   if (!agentForm.value.providerId) return []
   const p = providerList.find(p => p.id === agentForm.value.providerId)
   return p?.models || []
-})
-
-// 全局模型选项：合并预置列表 + 所有供应商的模型
-const PRESET_MODELS = [
-  // DeepSeek
-  'deepseek-chat',
-  'deepseek-reasoner',
-  // OpenAI
-  'gpt-4.1',
-  'gpt-4.1-mini',
-  'gpt-4o',
-  'gpt-4o-mini',
-  // 其他常用
-  'qwen-plus',
-  'qwen-max',
-  'glm-4-plus',
-]
-
-const globalModelOptions = computed(() => {
-  const set = new Set(PRESET_MODELS)
-  for (const p of providerList) {
-    for (const m of p.models) set.add(m)
-  }
-  return [...set]
 })
 
 function addAgentDialog() {

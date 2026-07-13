@@ -12,6 +12,37 @@ export const providers = reactive<AiProvider[]>([])
 let initialized = false
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 
+const PRESET_PROVIDERS: AiProvider[] = [
+  {
+    id: 'deepseek',
+    name: 'DeepSeek',
+    baseUrl: 'https://api.deepseek.com/v1',
+    apiKey: '',
+    models: ['deepseek-chat', 'deepseek-reasoner'],
+  },
+  {
+    id: 'openai',
+    name: 'OpenAI',
+    baseUrl: 'https://api.openai.com/v1',
+    apiKey: '',
+    models: ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano', 'gpt-4o', 'gpt-4o-mini', 'o4-mini', 'o3'],
+  },
+  {
+    id: 'qwen',
+    name: 'Qwen',
+    baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    apiKey: '',
+    models: ['qwen-plus', 'qwen-max', 'qwen-turbo', 'qwen3-235b-a22b'],
+  },
+  {
+    id: 'custom-api',
+    name: 'CustomAPI',
+    baseUrl: '',
+    apiKey: '',
+    models: [],
+  },
+]
+
 // ---- 初始化 ----
 
 export async function initProviderStore(): Promise<void> {
@@ -19,8 +50,11 @@ export async function initProviderStore(): Promise<void> {
   initialized = true
 
   const saved = await storageGetJSON<AiProvider[]>(STORAGE_KEY)
-  if (saved && Array.isArray(saved)) {
+  if (saved && Array.isArray(saved) && saved.length > 0) {
     providers.splice(0, providers.length, ...saved)
+  } else {
+    // 首次初始化：写入预置供应商
+    providers.splice(0, providers.length, ...PRESET_PROVIDERS)
   }
 
   // 自动持久化（300ms 防抖）

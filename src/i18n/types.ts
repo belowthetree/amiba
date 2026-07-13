@@ -92,6 +92,9 @@ export interface LocalesSchema {
       apiKey: string
       baseUrl: string
       model: string
+      defaultProvider: string
+      noProviderSelected: string
+      customModelPlaceholder: string
       reasoningEffort: string
       reasoningDefault: string
       reasoningLow: string

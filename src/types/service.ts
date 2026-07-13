@@ -148,6 +148,8 @@ export interface AppSettings {
   device_id: string
   network_lan_visible: boolean
   active_agent_id: string
+  /** 当前默认供应商 ID（用于通用设置页签模型选择） */
+  default_provider_id?: string
   /** Curator 技能生命周期管理配置 */
   curator_enabled?: boolean
   curator_interval_hours?: number
