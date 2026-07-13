@@ -13,7 +13,7 @@ export interface ServiceManifest {
   permissions: Permission[]
 }
 
-export type Permission = 'storage' | 'notification' | 'widgets' | 'network' | 'background' | 'fileAccess'
+export type Permission = 'storage' | 'notification' | 'widgets' | 'network' | 'background' | 'fileAccess' | 'fetch'
 
 // --- Background Service Config ---
 
@@ -102,7 +102,7 @@ export interface ServicePackage {
 
 export interface ServiceRequest {
   type: 'api'
-  module: 'storage' | 'notification' | 'ui' | 'task' | 'widgets' | 'network' | 'background' | 'fileAccess'
+  module: 'storage' | 'notification' | 'ui' | 'task' | 'widgets' | 'network' | 'background' | 'fileAccess' | 'fetch'
   method: string
   params: Record<string, any>
   requestId: string

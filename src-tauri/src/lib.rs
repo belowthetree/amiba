@@ -4,9 +4,11 @@ mod network_visibility;
 mod network_session;
 
 use std::sync::Mutex;
+use std::collections::HashMap;
 use tauri::Manager;
 use tauri::Emitter;
 use tokio::sync::watch;
+use url::Url;
 
 /// 下载取消令牌：download_file 流式循环中检查此通道，cancel_download 触发
 struct DownloadCancel(Mutex<Option<watch::Sender<bool>>>);
@@ -116,6 +118,57 @@ fn cancel_download(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+// ============================================================
+// service_http_request: 服务 HTTP 请求代理，允许 LAN IP
+// 绕过浏览器 CORS 和移动端明文流量限制
+// ============================================================
+
+#[tauri::command]
+async fn service_http_request(
+    url: String,
+    method: String,
+    headers: HashMap<String, String>,
+    body: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let parsed = Url::parse(&url).map_err(|e| format!("Invalid URL: {e}"))?;
+    let scheme = parsed.scheme();
+    if scheme != "http" && scheme != "https" {
+        return Err(format!("Blocked protocol: {scheme}"));
+    }
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .user_agent("AmibaService/1.0")
+        .build()
+        .map_err(|e| format!("HTTP client error: {e}"))?;
+
+    let method_upper = method.to_uppercase();
+    let mut req = match method_upper.as_str() {
+        "GET" => client.get(parsed.as_str()),
+        "POST" => client.post(parsed.as_str()),
+        "PUT" => client.put(parsed.as_str()),
+        "DELETE" => client.delete(parsed.as_str()),
+        _ => return Err(format!("Unsupported HTTP method: {method}")),
+    };
+
+    for (k, v) in &headers {
+        req = req.header(k.as_str(), v.as_str());
+    }
+
+    if let Some(ref b) = body {
+        req = req.body(b.clone());
+    }
+
+    let resp = req.send().await.map_err(|e| format!("Request failed: {e}"))?;
+    let status = resp.status().as_u16();
+    let resp_body = resp.text().await.map_err(|e| format!("Read response: {e}"))?;
+
+    Ok(serde_json::json!({
+        "status": status,
+        "body": resp_body,
+    }))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
@@ -205,6 +258,7 @@ pub fn run() {
     .invoke_handler(tauri::generate_handler![
       download_file,
       cancel_download,
+      service_http_request,
       db::commands::search_sessions,
       db::commands::index_message,
       db::commands::index_message_batch,

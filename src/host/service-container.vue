@@ -318,6 +318,23 @@ function makeApiHandler(): ApiHandler {
             throw new Error(`Unknown fileAccess method: ${method}`)
         }
       }
+      case 'fetch': {
+        switch (method) {
+          case 'request': {
+            const result = await import('@tauri-apps/api/core').then(m =>
+              m.invoke('service_http_request', {
+                url: params.url,
+                method: params.method || 'GET',
+                headers: params.headers || {},
+                body: params.body || null,
+              })
+            )
+            return result
+          }
+          default:
+            throw new Error(`Unknown fetch method: ${method}`)
+        }
+      }
       default:
         throw new Error(`Unknown module: ${module}`)
     }

@@ -193,6 +193,16 @@ export const BRIDGE_SCRIPT = `
       readText: function(token, path) { return callHost('fileAccess', 'readText', { token: token, path: path }); },
       readBinary: function(token, path) { return callHost('fileAccess', 'readBinary', { token: token, path: path }); },
     },
+    fetch: {
+      request: function(opts) {
+        return callHost('fetch', 'request', {
+          url: opts.url,
+          method: opts.method || 'GET',
+          headers: opts.headers || {},
+          body: opts.body || null,
+        });
+      },
+    },
   };
 })();
 
@@ -236,6 +246,10 @@ export function createBridge(
     }
     if (req.module === 'fileAccess' && !allowedPermissions.includes('fileAccess')) {
       sendResponse(req.requestId, undefined, 'Permission denied: fileAccess')
+      return
+    }
+    if (req.module === 'fetch' && !allowedPermissions.includes('fetch')) {
+      sendResponse(req.requestId, undefined, 'Permission denied: fetch')
       return
     }
 
