@@ -1,45 +1,136 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: #1a1a2e; color: #eee; overflow-x: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif;
+  background: linear-gradient(180deg, #0f0c29 0%, #1a1a2e 40%, #16213e 100%);
+  color: #eee; overflow-x: hidden;
+  min-height: 100vh;
 }
-.app { max-width: 600px; margin: 0 auto; padding: 16px; min-height: 100vh; }
+.app { max-width: 640px; margin: 0 auto; padding: 20px 16px 140px; min-height: 100vh; }
 
-.header { text-align: center; padding: 24px 0 16px; }
-.header h1 { font-size: 20px; font-weight: 600; }
+/* ===== 头部 ===== */
+.header { text-align: center; padding: 16px 0 24px; }
+.header .logo { font-size: 42px; margin-bottom: 6px; filter: drop-shadow(0 4px 12px rgba(79,195,247,.35)); }
+.header h1 { font-size: 22px; font-weight: 700; letter-spacing: 1px; }
+.subtitle { font-size: 12px; color: #667; margin-top: 4px; letter-spacing: 2px; }
 
-.hint { color: #888; font-size: 13px; margin-bottom: 8px; }
-.folder-path { font-size: 12px; color: #4fc3f7; margin-left: 8px; word-break: break-all; }
+/* ===== 文件夹 ===== */
+.section { margin: 14px 0; }
+.btn { border: none; border-radius: 12px; cursor: pointer; font-size: 14px; padding: 12px 20px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  transition: transform .12s, box-shadow .12s, opacity .12s; }
+.btn:active { transform: scale(.97); }
+.btn-primary {
+  background: linear-gradient(135deg, #4fc3f7 0%, #7c4dff 100%);
+  color: #fff; font-weight: 600; width: 100%; font-size: 15px;
+  box-shadow: 0 4px 20px rgba(79,195,247,.3);
+}
+.btn-primary:hover { box-shadow: 0 6px 24px rgba(124,77,255,.4); }
+.btn-primary:disabled { opacity: .55; }
+.btn-icon { font-size: 16px; }
+.btn-sm { background: rgba(255,255,255,.08); color: #aab; padding: 6px 14px; font-size: 12px; border-radius: 8px; }
+.btn-sm:hover { background: rgba(255,255,255,.14); color: #dde; }
+.btn-text { background: none; color: #4fc3f7; padding: 2px 8px; font-size: 12px; }
+.folder-info { display: flex; align-items: center; gap: 6px; margin-top: 10px;
+  background: rgba(79,195,247,.08); border: 1px solid rgba(79,195,247,.2);
+  border-radius: 10px; padding: 8px 12px; }
+.folder-path { flex: 1; font-size: 12px; color: #4fc3f7; word-break: break-all;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.section { margin: 12px 0; }
-.lib-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-.track-count { font-size: 12px; color: #888; }
+/* ===== 曲库 ===== */
+.lib-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.track-count { font-size: 12px; color: #778; }
 
-.btn { border: none; border-radius: 8px; cursor: pointer; font-size: 14px; padding: 10px 20px; }
-.btn-primary { background: #4fc3f7; color: #1a1a2e; font-weight: 600; width: 100%; }
-.btn-primary:disabled { opacity: .5; }
-.btn-sm { background: #333; color: #ccc; padding: 4px 12px; font-size: 12px; }
+.search-box { display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08);
+  border-radius: 10px; padding: 8px 12px; transition: border-color .15s; }
+.search-box:focus-within { border-color: rgba(79,195,247,.5); }
+.search-icon { font-size: 13px; opacity: .6; }
+.search-box input { flex: 1; background: none; border: none; outline: none;
+  color: #eee; font-size: 13px; font-family: inherit; }
+.search-box input::placeholder { color: #556; }
 
-.track-list { border-radius: 10px; overflow: hidden; background: #16213e; }
+.track-list { border-radius: 14px; overflow: hidden; background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.06); backdrop-filter: blur(6px); }
 .track-item {
-  display: flex; align-items: center; padding: 10px 14px; cursor: pointer;
-  border-bottom: 1px solid #1a1a2e; font-size: 13px;
+  display: flex; align-items: center; padding: 11px 14px; cursor: pointer;
+  border-bottom: 1px solid rgba(255,255,255,.04); font-size: 13px;
+  transition: background .12s;
 }
-.track-item:hover { background: #1f3460; }
-.track-item.active { background: #0f3460; border-left: 3px solid #4fc3f7; }
-.track-num { width: 30px; color: #666; font-size: 12px; text-align: center; }
+.track-item:last-child { border-bottom: none; }
+.track-item:hover { background: rgba(79,195,247,.08); }
+.track-item.active { background: rgba(79,195,247,.12); }
+.track-item.active .track-name { color: #4fc3f7; font-weight: 600; }
+.track-num { width: 30px; color: #556; font-size: 12px; text-align: center; flex-shrink: 0; }
+.track-item.active .track-num { color: #4fc3f7; }
 .track-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.track-size { color: #666; font-size: 11px; margin-left: 8px; }
+.track-size { color: #556; font-size: 11px; margin-left: 10px; flex-shrink: 0; }
+.track-empty { padding: 32px 0; text-align: center; color: #556; font-size: 13px; }
 
-.player { margin: 16px 0; background: #16213e; border-radius: 12px; padding: 16px; }
-.now-playing { text-align: center; font-size: 14px; font-weight: 500; margin-bottom: 10px;
+/* 播放指示动画 */
+.eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; margin-right: 6px; }
+.eq i { width: 3px; background: #4fc3f7; border-radius: 1px; animation: eq 1s ease-in-out infinite; }
+.eq i:nth-child(2) { animation-delay: .25s; }
+.eq i:nth-child(3) { animation-delay: .5s; }
+@keyframes eq { 0%,100% { height: 4px; } 50% { height: 12px; } }
+.eq.paused i { animation-play-state: paused; height: 4px; }
+
+/* ===== 播放器（吸底卡片） ===== */
+.player {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: 12px;
+  width: calc(100% - 24px); max-width: 616px;
+  background: rgba(22,33,62,.92); backdrop-filter: blur(16px);
+  border: 1px solid rgba(79,195,247,.2);
+  border-radius: 18px; padding: 14px 16px;
+  display: flex; gap: 14px; align-items: center;
+  box-shadow: 0 8px 32px rgba(0,0,0,.5);
+  z-index: 10;
+}
+.cover {
+  width: 64px; height: 64px; border-radius: 12px; flex-shrink: 0;
+  background: linear-gradient(135deg, #4fc3f7 0%, #7c4dff 100%);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px; box-shadow: 0 4px 16px rgba(124,77,255,.35);
+}
+.cover.playing .cover-icon { animation: bob 1.6s ease-in-out infinite; }
+@keyframes bob { 0%,100% { transform: scale(1); } 50% { transform: scale(1.15); } }
+
+.player-body { flex: 1; min-width: 0; }
+.now-playing { font-size: 14px; font-weight: 600; margin-bottom: 8px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.progress-bar { height: 4px; background: #333; border-radius: 2px; margin: 8px 0; cursor: pointer; }
-.progress-fill { height: 100%; background: #4fc3f7; border-radius: 2px; width: 0; transition: width .3s linear; }
-.time-row { display: flex; justify-content: space-between; font-size: 11px; color: #888; margin-bottom: 12px; }
-.controls { display: flex; justify-content: center; gap: 16px; margin-bottom: 12px; }
-.btn-ctrl { background: none; border: none; font-size: 22px; cursor: pointer; color: #ccc; width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-.btn-ctrl:active { background: #1f3460; }
-.btn-play { background: #4fc3f7; color: #1a1a2e; font-size: 16px; }
-.volume-row { display: flex; align-items: center; gap: 8px; font-size: 14px; }
-.volume-row input[type=range] { flex: 1; accent-color: #4fc3f7; }
+
+.progress-bar { position: relative; height: 5px; background: rgba(255,255,255,.12);
+  border-radius: 3px; cursor: pointer; margin: 6px 0 4px; }
+.progress-bar:hover { height: 7px; }
+.progress-fill { height: 100%; border-radius: 3px; width: 0;
+  background: linear-gradient(90deg, #4fc3f7, #7c4dff); }
+.progress-thumb { position: absolute; top: 50%; left: 0; width: 11px; height: 11px;
+  background: #fff; border-radius: 50%; transform: translate(-50%,-50%);
+  opacity: 0; transition: opacity .12s; box-shadow: 0 1px 4px rgba(0,0,0,.5); pointer-events: none; }
+.progress-bar:hover .progress-thumb { opacity: 1; }
+
+.time-row { display: flex; justify-content: space-between; font-size: 10px; color: #778; margin-bottom: 6px; }
+
+.controls { display: flex; align-items: center; gap: 6px; }
+.btn-ctrl { background: none; border: none; font-size: 18px; cursor: pointer; color: #bbc;
+  width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; transition: background .12s, color .12s; }
+.btn-ctrl:hover { background: rgba(255,255,255,.08); color: #fff; }
+.btn-ctrl:active { background: rgba(79,195,247,.2); }
+.btn-play { background: linear-gradient(135deg, #4fc3f7 0%, #7c4dff 100%);
+  color: #fff; font-size: 15px; width: 42px; height: 42px;
+  box-shadow: 0 3px 12px rgba(79,195,247,.35); }
+.btn-play:hover { color: #fff; background: linear-gradient(135deg, #5fd0ff 0%, #8d63ff 100%); }
+.btn-mode { font-size: 14px; }
+.btn-mode.active { color: #4fc3f7; }
+
+.volume-wrap { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 60px; margin-left: 4px; }
+.vol-icon { font-size: 13px; }
+.volume-wrap input[type=range] { flex: 1; accent-color: #4fc3f7; height: 4px; cursor: pointer; }
+
+/* 窄屏适配 */
+@media (max-width: 420px) {
+  .cover { width: 52px; height: 52px; font-size: 22px; }
+  .btn-ctrl { width: 34px; height: 34px; font-size: 16px; }
+  .btn-play { width: 38px; height: 38px; }
+  .volume-wrap { display: none; }
+}

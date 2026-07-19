@@ -4,37 +4,40 @@
   var token = null;
   var tracks = [];
   var currentIndex = -1;
+  var playMode = 'sequence'; // sequence | loop | shuffle
   var playState = { playing: false, currentName: '', position: 0, duration: 0 };
-  var stateTimer = null;
 
   // ---- 音频事件 ----
 
   audio.addEventListener('timeupdate', function() {
     playState.position = audio.currentTime;
     playState.duration = audio.duration || 0;
-    notifyFront('state', playState);
+    notifyFront('state');
   });
 
   audio.addEventListener('ended', function() {
+    if (playMode === 'loop') {
+      audio.currentTime = 0;
+      audio.play().catch(function(){});
+      return;
+    }
     playNext();
   });
 
   audio.addEventListener('error', function() {
     playState.playing = false;
-    notifyFront('state', playState);
+    notifyFront('state');
   });
 
   audio.addEventListener('play', function() {
     playState.playing = true;
-    notifyFront('state', playState);
+    notifyFront('state');
   });
 
   audio.addEventListener('pause', function() {
     playState.playing = false;
-    notifyFront('state', playState);
+    notifyFront('state');
   });
-
-  audio.volume = 0.8;
 
   // ---- 前台/悬浮块指令 ----
 
@@ -52,16 +55,27 @@
         audio.pause();
         break;
       case 'resume':
-        console.log('[BgWorker] resume: audio.src=' + (audio.src ? audio.src.slice(0,50) : '(空)'));
         if (audio.src) {
           audio.play().catch(function(e) { console.error('[BgWorker] audio.play() 失败:', e); });
         } else {
-          console.log('[BgWorker] 无已加载曲目，调用 autoPlayFirst()');
           autoPlayFirst();
         }
         break;
       case 'volume':
-        audio.volume = data.volume || 0.8;
+        audio.volume = data.volume !== undefined ? data.volume : 0.8;
+        break;
+      case 'seek':
+        if (audio.src && data.position !== undefined && isFinite(data.position)) {
+          audio.currentTime = data.position;
+          playState.position = data.position;
+          notifyFront('state');
+        }
+        break;
+      case 'mode':
+        if (data.mode) {
+          playMode = data.mode;
+          console.log('[BgWorker] 播放模式 →', playMode);
+        }
         break;
       case 'prev':
         if (tracks.length === 0) {
@@ -83,24 +97,18 @@
   // ---- 播放逻辑 ----
 
   async function ensureTracksLoaded() {
-    console.log('[BgWorker] ensureTracksLoaded: token=' + !!token + ' tracks.length=' + (tracks ? tracks.length : 0));
     if (!token) {
       token = await __amiba__.storage.get('music_token');
-      console.log('[BgWorker] 读取 music_token:', token ? '有值' : '(空)');
     }
     if (!tracks || tracks.length === 0) {
       var saved = await __amiba__.storage.get('music_tracks');
       if (saved) tracks = saved;
-      console.log('[BgWorker] 读取 music_tracks:', tracks ? tracks.length + ' 首' : '(空)');
     }
   }
 
   async function autoPlayFirst() {
-    console.log('[BgWorker] autoPlayFirst: 开始');
     await ensureTracksLoaded();
-    console.log('[BgWorker] autoPlayFirst: token=' + !!token + ' tracks.length=' + (tracks ? tracks.length : 0));
     if (tracks.length > 0 && token) {
-      console.log('[BgWorker] autoPlayFirst: 加载第一首:', tracks[0].name);
       loadAndPlay(token, tracks[0].path, tracks[0].name, 0);
     } else {
       console.warn('[BgWorker] autoPlayFirst: 无曲目或无 token，无法播放');
@@ -108,22 +116,22 @@
   }
 
   async function loadAndPlay(newToken, trackPath, trackName, index) {
-    console.log('[BgWorker] loadAndPlay: path=' + trackPath + ' name=' + trackName + ' index=' + index);
+    console.log('[BgWorker] loadAndPlay: name=' + trackName + ' index=' + index);
     try {
       token = newToken;
       currentIndex = index;
       playState.currentName = trackName;
+      playState.position = 0;
+      playState.duration = 0;
       playState.playing = true;
-      notifyFront('track-change', { index: index });
+      notifyFront('track-change');
 
       // 从 storage 获取缓存曲目列表
       var saved = await __amiba__.storage.get('music_tracks');
       if (saved) tracks = saved;
 
       // 读取音频数据
-      console.log('[BgWorker] 读取音频二进制...');
       var b64 = await __amiba__.fileAccess.readBinary(token, trackPath);
-      console.log('[BgWorker] 读取完成, base64 长度:', b64 ? b64.length : 0);
 
       // 释放旧 blob URL
       if (audio.src && audio.src.startsWith('blob:')) {
@@ -143,21 +151,30 @@
       var url = URL.createObjectURL(blob);
 
       audio.src = url;
-      console.log('[BgWorker] 调用 audio.play()...');
       await audio.play();
-      console.log('[BgWorker] ✓ audio.play() 成功');
-      notifyFront('state', playState);
+      console.log('[BgWorker] ✓ 播放成功:', trackName);
+      notifyFront('state');
     } catch(e) {
       console.error('[BgWorker] ✗ loadAndPlay 失败:', e.message || e);
       playState.playing = false;
-      notifyFront('state', playState);
+      notifyFront('state');
     }
   }
 
+  function pickNextIndex() {
+    if (tracks.length === 0) return -1;
+    if (playMode === 'shuffle' && tracks.length > 1) {
+      var idx;
+      do { idx = Math.floor(Math.random() * tracks.length); } while (idx === currentIndex);
+      return idx;
+    }
+    var next = currentIndex + 1;
+    return next >= tracks.length ? 0 : next;
+  }
+
   function playNext() {
-    if (tracks.length === 0) return;
-    var idx = currentIndex + 1;
-    if (idx >= tracks.length) idx = 0;
+    var idx = pickNextIndex();
+    if (idx < 0) return;
     var track = tracks[idx];
     if (track && token) {
       loadAndPlay(token, track.path, track.name, idx);
@@ -166,6 +183,11 @@
 
   function playPrev() {
     if (tracks.length === 0) return;
+    // 播放超过 3 秒时按"上一首"回到本曲开头（常见播放器行为）
+    if (audio.currentTime > 3 && playMode !== 'shuffle') {
+      audio.currentTime = 0;
+      return;
+    }
     var idx = currentIndex - 1;
     if (idx < 0) idx = tracks.length - 1;
     var track = tracks[idx];
@@ -181,16 +203,22 @@
 
   function flushState() {
     if (_pendingState) {
-      console.log('[BgWorker] flushState → storage.set player_state, playing=' + _pendingState.playing + ' name=' + _pendingState.currentName);
       __amiba__.storage.set('player_state', _pendingState);
       _pendingState = null;
     }
     _saveTimer = null;
   }
 
-  function notifyFront(type, data) {
-    var state = { type: type, playing: playState.playing, currentName: playState.currentName, position: playState.position, duration: playState.duration, index: currentIndex };
-    console.log('[BgWorker] notifyFront type=' + type + ' playing=' + playState.playing + ' name=' + playState.currentName);
+  function notifyFront(type) {
+    var state = {
+      type: type,
+      playing: playState.playing,
+      currentName: playState.currentName,
+      position: playState.position,
+      duration: playState.duration,
+      index: currentIndex,
+      mode: playMode
+    };
     // 前台可能未加载（仅悬浮块使用时），忽略推送失败
     __amiba__.background.postMessage(state).catch(function(){});
     // 写入 storage（300ms 合并写入，不清除已有定时器避免 timeupdate 高频重置导致永不写入）
@@ -204,4 +232,9 @@
 
   __amiba__.storage.get('music_token').then(function(t) { if (t) token = t; });
   __amiba__.storage.get('music_tracks').then(function(t) { if (t) tracks = t; });
+  __amiba__.storage.get('music_mode').then(function(m) { if (m) playMode = m; });
+  __amiba__.storage.get('music_volume').then(function(v) {
+    if (v !== null && v !== undefined) audio.volume = v;
+    else audio.volume = 0.8;
+  });
 })();
