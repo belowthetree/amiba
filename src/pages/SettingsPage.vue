@@ -508,6 +508,17 @@
         </div>
       </div>
 
+      <!-- Crash 诊断 -->
+      <div v-if="tombstoneText" class="settings-section" style="margin-top:20px">
+        <h3 class="section-label">🪦 上次崩溃诊断 (Native Crash)</h3>
+        <div class="log-table-wrap" style="max-height:300px">
+          <pre class="tombstone-block">{{ tombstoneText }}</pre>
+        </div>
+        <button class="secondary-btn" style="margin-top:6px;font-size:12px" @click="copyTombstone">
+          📋 {{ tombstoneCopied ? '已复制!' : '复制堆栈信息' }}
+        </button>
+      </div>
+
       <div class="settings-section" v-else>
         <p class="skill-empty">{{ $t('settings.logs.noContent') }}</p>
       </div>
@@ -588,6 +599,10 @@ const logFilterLevels = ref<string[]>(['DEBUG', 'INFO', 'WARN', 'ERROR'])
 const logSearch = ref('')
 let logSearchTimer: ReturnType<typeof setTimeout> | null = null
 
+// --- Crash 诊断 ---
+const tombstoneText = ref('')
+const tombstoneCopied = ref(false)
+
 const filteredLogEntries = computed(() => {
   let entries = logEntries.value
   if (logSearch.value.trim()) {
@@ -662,10 +677,29 @@ function onLogConfigChange() {
   flashSaved()
 }
 
+async function loadTombstone() {
+  try {
+    const { invoke } = await import('@tauri-apps/api/core')
+    const text = await invoke<string>('read_tombstone')
+    tombstoneText.value = text
+  } catch {
+    tombstoneText.value = ''
+  }
+}
+
+async function copyTombstone() {
+  try {
+    await navigator.clipboard.writeText(tombstoneText.value)
+    tombstoneCopied.value = true
+    setTimeout(() => { tombstoneCopied.value = false }, 2000)
+  } catch { /* clipboard denied */ }
+}
+
 // Load log files on tab switch
 watch(activeTab, (tab) => {
   if (tab === 'logs') {
     refreshLogFiles()
+    loadTombstone()
   }
 })
 
@@ -1398,6 +1432,20 @@ onMounted(async () => {
 .level-info{background:var(--color-primary-light);color:var(--color-primary-hover)}
 .level-warn{background:var(--color-warning-light);color:var(--color-warning)}
 .level-error{background:var(--color-error-light);color:var(--color-error-dark)}
+
+/* ---- Tombstone (crash diagnostics) ---- */
+.tombstone-block {
+  margin: 0;
+  padding: 12px;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  font-family: 'Fira Code', 'Cascadia Code', 'JetBrains Mono', monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre;
+  overflow-x: auto;
+  border-radius: 8px;
+}
 
 /* === 外观 Tab === */
 .theme-active-badge{display:flex;align-items:center;gap:8px}

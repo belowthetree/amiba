@@ -29,6 +29,21 @@ class MainActivity : TauriActivity() {
   companion object {
     @Volatile var instance: MainActivity? = null
       private set
+
+    // ============================================================
+    // 供 Rust JNI 调用：返回上次 native crash 的 tombstone 内容
+    // 无崩溃时返回空字符串
+    // ============================================================
+    @JvmStatic
+    fun getLastTombstone(): String {
+      val ctx = instance ?: return ""
+      return try {
+        val tombFile = java.io.File(ctx.filesDir, "last_tombstone.txt")
+        if (tombFile.exists()) tombFile.readText() else ""
+      } catch (e: Exception) {
+        ""
+      }
+    }
   }
 
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -132,8 +147,14 @@ class MainActivity : TauriActivity() {
         android.util.Log.i("[amiba]", "  $line")
       }
       android.util.Log.i("[amiba]", "  --- end tombstone ---")
+
+      // 写入 filesDir 供前端读取（设置在日志页签展示）
+      val content = lines.joinToString("\n")
+      val tombFile = java.io.File(filesDir, "last_tombstone.txt")
+      tombFile.writeText(content)
+      android.util.Log.i("[amiba]", "  tombstone saved to: ${tombFile.absolutePath}")
     } catch (e: Exception) {
-      android.util.Log.w("[amiba]", "  tombstone read error: ${e.message}")
+      android.util.Log.w("[amiba]", "  tombstone read/write error: ${e.message}")
     }
   }
 

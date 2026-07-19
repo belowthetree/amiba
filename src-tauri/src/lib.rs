@@ -308,6 +308,7 @@ pub fn run() {
       network_visibility::network_get_device_id,
       #[cfg(target_os = "android")]
       picker::pick_folder,
+      picker::read_tombstone,
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
