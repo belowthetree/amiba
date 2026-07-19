@@ -9,7 +9,7 @@
 use tauri::AppHandle;
 
 #[tauri::command]
-#[allow(unused_variables)]
+#[cfg_attr(not(target_os = "android"), allow(dead_code, unused_variables))]
 pub async fn pick_folder(
     app: AppHandle,
     title: Option<String>,
@@ -23,9 +23,7 @@ pub async fn pick_folder(
 
     #[cfg(not(target_os = "android"))]
     {
-        // 桌面端：由前端 @tauri-apps/plugin-dialog 处理
-        // 如果意外走到这里，返回错误提示
-        Err("pick_folder command is Android-only; use @tauri-apps/plugin-dialog on desktop".into())
+        Err("pick_folder is Android-only".into())
     }
 }
 

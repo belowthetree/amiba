@@ -323,6 +323,7 @@ pub fn run() {
       network_session::network_start_listener,
       network_session::network_stop_listener,
       network_visibility::network_get_device_id,
+      #[cfg(target_os = "android")]
       picker::pick_folder,
     ])
     .run(tauri::generate_context!())
