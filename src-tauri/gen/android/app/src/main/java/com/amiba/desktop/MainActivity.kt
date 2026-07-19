@@ -1,6 +1,8 @@
 package com.amiba.desktop
 
 import android.app.Activity
+import android.app.ActivityManager
+import android.app.ApplicationExitInfo
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -15,6 +17,11 @@ import android.webkit.ValueCallback
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.enableEdgeToEdge
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -28,6 +35,7 @@ class MainActivity : TauriActivity() {
     instance = this
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
+    logPreviousExitReasons()
     ensureStoragePermission()
   }
 
@@ -39,6 +47,94 @@ class MainActivity : TauriActivity() {
   override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
     super.onActivityResult(requestCode, resultCode, data)
     FolderPickerHelper.onActivityResult(requestCode, resultCode, data)
+  }
+
+  // ============================================================
+  // 崩溃诊断：Android 11+ ApplicationExitInfo API
+  // 应用启动时查询上次进程退出原因，输出到 logcat。
+  // 免权限：只读自己进程的历史退出记录。
+  // 注意: gen/android 会被 `tauri android init` 重置,重置后需重新写入本段
+  // ============================================================
+  private fun logPreviousExitReasons() {
+    try {
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+        android.util.Log.i("[amiba]", "ExitReasons: API < 30, skipped")
+        return
+      }
+
+      val am = getSystemService(android.content.Context.ACTIVITY_SERVICE) as ActivityManager
+      val reasons: List<ApplicationExitInfo> = am.getHistoricalProcessExitReasons(null, 0, 5)
+
+      if (reasons.isEmpty()) {
+        android.util.Log.i("[amiba]", "ExitReasons: (first launch or no history)")
+        return
+      }
+
+      val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
+      for ((i, exit) in reasons.withIndex()) {
+        val ts = sdf.format(Date(exit.timestamp))
+        val reasonName = reasonName(exit.reason)
+        val desc = exit.description ?: "(no description)"
+        val pid = exit.pid
+
+        android.util.Log.i("[amiba]", buildString {
+          append("=== Exit #${i + 1} === pid=$pid reason=$reasonName time=$ts")
+        })
+        android.util.Log.i("[amiba]", "  description: $desc")
+        android.util.Log.i("[amiba]", "  importance: ${exit.importance}, pss: ${formatMem(exit.pss)} " +
+          "rss: ${formatMem(exit.rss)}, status: ${exit.status}")
+
+        // Native 崩溃 → 读取 tombstone 堆栈
+        if (exit.reason == ApplicationExitInfo.REASON_CRASH_NATIVE) {
+          logNativeTombstone(exit)
+        }
+      }
+    } catch (e: Exception) {
+      android.util.Log.w("[amiba]", "ExitReasons: query failed: ${e.message}", e)
+    }
+  }
+
+  private fun reasonName(reason: Int): String = when (reason) {
+    ApplicationExitInfo.REASON_ANR -> "ANR"
+    ApplicationExitInfo.REASON_CRASH -> "CRASH(Java)"
+    ApplicationExitInfo.REASON_CRASH_NATIVE -> "CRASH(Native)"
+    ApplicationExitInfo.REASON_LOW_MEMORY -> "LOW_MEMORY(LMK)"
+    ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> "EXCESSIVE_RESOURCE"
+    ApplicationExitInfo.REASON_INITIALIZATION_FAILURE -> "INIT_FAILURE"
+    ApplicationExitInfo.REASON_DEPENDENCY_DIED -> "DEPENDENCY_DIED"
+    ApplicationExitInfo.REASON_FREEZER -> "FREEZER"
+    ApplicationExitInfo.REASON_SIGNALED -> "SIGNALED"
+    ApplicationExitInfo.REASON_USER_REQUESTED -> "USER_REQUESTED"
+    ApplicationExitInfo.REASON_USER_STOPPED -> "USER_STOPPED"
+    ApplicationExitInfo.REASON_PACKAGE_STATE_CHANGE -> "PACKAGE_STATE_CHANGE"
+    ApplicationExitInfo.REASON_PACKAGE_UPDATED -> "PACKAGE_UPDATED"
+    ApplicationExitInfo.REASON_OTHER -> "OTHER"
+    else -> "UNKNOWN($reason)"
+  }
+
+  private fun formatMem(kb: Long): String = when {
+    kb <= 0 -> "N/A"
+    kb >= 1024 * 1024 -> "${"%.1f".format(kb / (1024.0 * 1024.0))} GB"
+    kb >= 1024 -> "${"%.1f".format(kb / 1024.0)} MB"
+    else -> "$kb KB"
+  }
+
+  private fun logNativeTombstone(exit: ApplicationExitInfo) {
+    try {
+      val traceStream = exit.traceInputStream ?: run {
+        android.util.Log.w("[amiba]", "  tombstone: (no trace available)")
+        return
+      }
+      val reader = BufferedReader(InputStreamReader(traceStream))
+      val lines = reader.useLines { it.take(60).toList() } // 前 60 行足够定位
+      android.util.Log.i("[amiba]", "  --- tombstone (first ${lines.size} lines) ---")
+      for (line in lines) {
+        android.util.Log.i("[amiba]", "  $line")
+      }
+      android.util.Log.i("[amiba]", "  --- end tombstone ---")
+    } catch (e: Exception) {
+      android.util.Log.w("[amiba]", "  tombstone read error: ${e.message}")
+    }
   }
 
   // ============================================================
