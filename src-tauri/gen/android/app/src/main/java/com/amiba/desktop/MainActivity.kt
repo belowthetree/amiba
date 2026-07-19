@@ -38,7 +38,8 @@ class MainActivity : TauriActivity() {
     fun getLastTombstone(): String {
       val ctx = instance ?: return ""
       return try {
-        val tombFile = java.io.File(ctx.filesDir, "last_tombstone.txt")
+        val tombDir = ctx.getExternalFilesDir(null) ?: ctx.filesDir
+        val tombFile = java.io.File(tombDir, "last_tombstone.txt")
         if (tombFile.exists()) tombFile.readText() else ""
       } catch (e: Exception) {
         ""
@@ -148,9 +149,10 @@ class MainActivity : TauriActivity() {
       }
       android.util.Log.i("[amiba]", "  --- end tombstone ---")
 
-      // 写入 filesDir 供前端读取（设置在日志页签展示）
+      // 写入外部私有存储（PC 通过 USB 可看到：Android/data/com.amiba.desktop/files/）
       val content = lines.joinToString("\n")
-      val tombFile = java.io.File(filesDir, "last_tombstone.txt")
+      val tombDir = getExternalFilesDir(null) ?: filesDir
+      val tombFile = java.io.File(tombDir, "last_tombstone.txt")
       tombFile.writeText(content)
       android.util.Log.i("[amiba]", "  tombstone saved to: ${tombFile.absolutePath}")
     } catch (e: Exception) {
