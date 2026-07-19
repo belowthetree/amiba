@@ -296,67 +296,15 @@ mod desktop {
 #[cfg(target_os = "android")]
 mod mobile {
     use super::*;
-    use jni::objects::{JObject, JValue};
+    use jni::objects::JValue;
     use jni::JavaVM;
 
-    /// 通过 JNI 获取 Android Application Context（不依赖 ndk_context）
-    fn get_app_context<'a>(env: &mut jni::JNIEnv<'a>) -> Result<JObject<'a>, String> {
-        let at_cls = env
-            .find_class("android/app/ActivityThread")
-            .map_err(|e| format!("ActivityThread class: {e}"))?;
-        let at_obj = env
-            .call_static_method(
-                &at_cls,
-                "currentActivityThread",
-                "()Landroid/app/ActivityThread;",
-                &[],
-            )
-            .map_err(|e| format!("currentActivityThread: {e}"))?
-            .l()
-            .map_err(|e| format!("currentActivityThread obj: {e}"))?;
-        let app = env
-            .call_method(
-                &at_obj,
-                "getApplication",
-                "()Landroid/app/Application;",
-                &[],
-            )
-            .map_err(|e| format!("getApplication: {e}"))?
-            .l()
-            .map_err(|e| format!("getApplication obj: {e}"))?;
-        Ok(app)
-    }
-
-    /// 使用 Application ClassLoader 查找 app 类（native 线程只有 system class loader）
-    pub(crate) fn find_app_class<'a>(env: &mut jni::JNIEnv<'a>, name: &str) -> Result<jni::objects::JClass<'a>, String> {
-        // 通过 ActivityThread 拿到 Application Context
-        let at_cls = env.find_class("android/app/ActivityThread")
-            .map_err(|e| format!("ActivityThread class: {e}"))?;
-        let at_obj = env.call_static_method(
-            &at_cls, "currentActivityThread", "()Landroid/app/ActivityThread;", &[]
-        ).map_err(|e| format!("currentActivityThread: {e}"))?.l().map_err(|e| format!("obj: {e}"))?;
-        let app = env.call_method(
-            &at_obj, "getApplication", "()Landroid/app/Application;", &[]
-        ).map_err(|e| format!("getApplication: {e}"))?.l().map_err(|e| format!("obj: {e}"))?;
-
-        // Context.getClassLoader()
-        let class_loader = env.call_method(
-            &app, "getClassLoader", "()Ljava/lang/ClassLoader;", &[]
-        ).map_err(|e| format!("getClassLoader: {e}"))?.l().map_err(|e| format!("obj: {e}"))?;
-
-        // ClassLoader.loadClass(name)
-        let jname = env.new_string(name).map_err(|e| format!("str: {e}"))?;
-        let cls = env.call_method(
-            &class_loader, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;",
-            &[JValue::Object(&jname.into())]
-        ).map_err(|e| format!("loadClass({name}): {e}"))?.l().map_err(|e| format!("obj: {e}"))?;
-
-        Ok(cls.into())
-    }
+    // get_app_context / find_app_class 已提取到 crate::android_util
+    // 消除与 picker.rs 的重复代码
 
     /// 确保 WebViewHelper 已初始化（幂等）
     fn ensure_init(env: &mut jni::JNIEnv) -> Result<(), String> {
-        let helper_cls = find_app_class(env, "com.amiba.desktop.WebViewHelper")?;
+        let helper_cls = crate::android_util::find_app_class(env, "com.amiba.desktop.WebViewHelper")?;
 
         let initialized = env
             .call_static_method(&helper_cls, "isInitialized", "()Z", &[])
@@ -369,7 +317,7 @@ mod mobile {
         }
 
         // 首次初始化：获取 Application Context
-        let ctx_obj = get_app_context(env)?;
+        let ctx_obj = crate::android_util::get_app_context(env)?;
 
         let init_ok = env
             .call_static_method(
@@ -399,7 +347,7 @@ mod mobile {
             .map_err(|e| format!("attach: {e}"))?;
 
         ensure_init(&mut env)?;
-        let helper_cls = find_app_class(&mut env, "com.amiba.desktop.WebViewHelper")?;
+        let helper_cls = crate::android_util::find_app_class(&mut env, "com.amiba.desktop.WebViewHelper")?;
 
         // 1. 导航并等待页面加载
         let jurl = env.new_string(url).map_err(|e| format!("str: {e}"))?;
@@ -467,7 +415,7 @@ mod mobile {
             .map_err(|e| format!("attach: {e}"))?;
 
         ensure_init(&mut env)?;
-        let helper_cls = find_app_class(&mut env, "com.amiba.desktop.WebViewHelper")?;
+        let helper_cls = crate::android_util::find_app_class(&mut env, "com.amiba.desktop.WebViewHelper")?;
 
         let jjs = env.new_string(js).map_err(|e| format!("str: {e}"))?;
 
@@ -789,7 +737,7 @@ pub async fn web_close(
         let vm = jvm_state.get_vm()?;
         let mut env = vm.attach_current_thread()
             .map_err(|e| format!("attach: {e}"))?;
-        let helper_cls = mobile::find_app_class(&mut env, "com.amiba.desktop.WebViewHelper")?;
+        let helper_cls = crate::android_util::find_app_class(&mut env, "com.amiba.desktop.WebViewHelper")?;
         env.call_static_method(&helper_cls, "close", "()V", &[])
             .map_err(|e| format!("close: {e}"))?;
     }

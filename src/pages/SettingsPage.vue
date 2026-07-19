@@ -508,19 +508,26 @@
         </div>
       </div>
 
-      <!-- Crash 诊断 -->
-      <div v-if="tombstoneText" class="settings-section" style="margin-top:20px">
-        <h3 class="section-label">🪦 上次崩溃诊断 (Native Crash)</h3>
-        <div class="log-table-wrap" style="max-height:300px">
-          <pre class="tombstone-block">{{ tombstoneText }}</pre>
-        </div>
-        <button class="secondary-btn" style="margin-top:6px;font-size:12px" @click="copyTombstone">
-          📋 {{ tombstoneCopied ? '已复制!' : '复制堆栈信息' }}
-        </button>
-      </div>
-
       <div class="settings-section" v-else>
         <p class="skill-empty">{{ $t('settings.logs.noContent') }}</p>
+      </div>
+
+      <!-- Crash 诊断 -->
+      <div class="settings-section" style="margin-top:20px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <h3 class="section-label" style="margin:0">🪦 崩溃诊断 (Native Crash)</h3>
+          <button class="secondary-btn" style="font-size:11px;padding:3px 10px" @click="loadTombstone">
+            🔄 检查
+          </button>
+        </div>
+        <div v-if="tombstoneText" class="log-table-wrap" style="max-height:300px">
+          <pre class="tombstone-block">{{ tombstoneText }}</pre>
+        </div>
+        <p v-else-if="tombstoneChecked" class="skill-empty">无历史崩溃记录</p>
+        <p v-else class="skill-empty" style="color:var(--color-text-secondary)">点击「检查」查询</p>
+        <button v-if="tombstoneText" class="secondary-btn" style="margin-top:6px;font-size:12px" @click="copyTombstone">
+          📋 {{ tombstoneCopied ? '已复制!' : '复制堆栈信息' }}
+        </button>
       </div>
     </div>
 
@@ -602,6 +609,7 @@ let logSearchTimer: ReturnType<typeof setTimeout> | null = null
 // --- Crash 诊断 ---
 const tombstoneText = ref('')
 const tombstoneCopied = ref(false)
+const tombstoneChecked = ref(false)
 
 const filteredLogEntries = computed(() => {
   let entries = logEntries.value
@@ -678,13 +686,15 @@ function onLogConfigChange() {
 }
 
 async function loadTombstone() {
+  tombstoneChecked.value = false
   try {
     const { invoke } = await import('@tauri-apps/api/core')
     const text = await invoke<string>('read_tombstone')
-    tombstoneText.value = text
+    tombstoneText.value = text || ''
   } catch {
     tombstoneText.value = ''
   }
+  tombstoneChecked.value = true
 }
 
 async function copyTombstone() {
@@ -699,7 +709,6 @@ async function copyTombstone() {
 watch(activeTab, (tab) => {
   if (tab === 'logs') {
     refreshLogFiles()
-    loadTombstone()
   }
 })
 

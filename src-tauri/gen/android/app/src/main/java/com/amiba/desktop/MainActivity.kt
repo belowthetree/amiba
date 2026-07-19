@@ -65,6 +65,20 @@ class MainActivity : TauriActivity() {
     FolderPickerHelper.onActivityResult(requestCode, resultCode, data)
   }
 
+  // 处理 Android 10- 运行时权限请求结果
+  override fun onRequestPermissionsResult(
+    requestCode: Int,
+    permissions: Array<out String>,
+    grantResults: IntArray
+  ) {
+    super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+    if (requestCode == 1001) {
+      val granted = grantResults.isNotEmpty() &&
+        grantResults[0] == PackageManager.PERMISSION_GRANTED
+      android.util.Log.i("[amiba]", "存储权限 ${if (granted) "✓" else "✗"} READ_EXTERNAL_STORAGE")
+    }
+  }
+
   // ============================================================
   // 崩溃诊断：Android 11+ ApplicationExitInfo API
   // 应用启动时查询上次进程退出原因，输出到 logcat。
@@ -303,7 +317,18 @@ object WebViewHelper {
 // ============================================================
 // 通过 ACTION_OPEN_DOCUMENT_TREE 让用户在移动端选取文件夹。
 // Rust JNI 线程调用 pickFolder() → 主线程启动 Intent →
-// onActivityResult 回调 → 解析 content:// URI → 返回实际路径。
+// onActivityResult 回调 → 解析 content:// URI → 返回文件系统路径。
+//
+// 参照 Android 官方 Storage Access Framework 最佳实践：
+//   https://developer.android.com/training/data-storage/shared/documents-files
+//   https://github.com/android/storage-samples/tree/main/ActionOpenDocumentTree
+//
+// 设计要点（基于官方文档）：
+//   1) EXTRA_INITIAL_URI 设置默认起始目录，减少用户导航步数
+//   2) takePersistableUriPermission 的 flags 从返回 intent 中提取
+//      （官方推荐方式），而非硬编码
+//   3) content:// URI → 文件路径转换依赖 Android 内部实现，
+//      非官方公开 API；失败时 fallback 到 content:// URI 字符串
 //
 // 防御性设计：
 //   - Activity 为 null / finishing 时立即返回空（不阻塞）
@@ -317,6 +342,22 @@ object FolderPickerHelper {
     @Volatile private var resultPath: String? = null
     @Volatile private var hasResult = false
     private val lock = Object()
+
+    /**
+     * 默认初始目录 URI（primary 卷根目录）。
+     * 参照官方 ActionOpenDocumentTree 示例中 EXTRA_INITIAL_URI 用法，
+     * 避免用户每次从根路径手动导航。
+     */
+    private fun defaultInitialUri(): Uri {
+        val docId = "primary:${android.os.Environment.DIRECTORY_DOWNLOADS}"
+        return DocumentsContract.buildDocumentUriUsingTree(
+            DocumentsContract.buildTreeDocumentUri(
+                "com.android.externalstorage.documents",
+                docId
+            ),
+            docId
+        )
+    }
 
     @JvmStatic
     fun pickFolder(timeoutMs: Long): String {
@@ -337,11 +378,18 @@ object FolderPickerHelper {
             try {
                 android.util.Log.i("[amiba]", "FolderPicker: launching ACTION_OPEN_DOCUMENT_TREE...")
                 val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+                    // 官方推荐：设置初始 URI，减少用户导航步数
+                    putExtra(DocumentsContract.EXTRA_INITIAL_URI, defaultInitialUri())
+                    // 官方推荐 flags：READ + PERSISTABLE（持久化跨重启保留）
                     addFlags(
                         Intent.FLAG_GRANT_READ_URI_PERMISSION or
                         Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
                     )
                 }
+                // 注：startActivityForResult 虽已 deprecated，但 JNI 线程需同步等待结果，
+                // ActivityResultContracts 的异步回调模型无法直接适配此场景。
+                // 此处沿用 deprecated API 属于工程折衷。
+                @Suppress("DEPRECATION")
                 activity.startActivityForResult(intent, REQUEST_CODE)
             } catch (e: Exception) {
                 android.util.Log.e("[amiba]", "FolderPicker start error: ${e.message}", e)
@@ -380,12 +428,21 @@ object FolderPickerHelper {
         if (resultCode == Activity.RESULT_OK && data?.data != null) {
             val uri = data.data!!
 
-            // 持久化读取权限（跨进程重启保留）
+            // 官方推荐方式：从返回 intent 的 flags 中提取系统实际授予的权限位，
+            // 而非硬编码。参见官方文档 takePersistableUriPermission 示例。
             try {
                 val activity = MainActivity.instance
-                val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
-                activity?.contentResolver?.takePersistableUriPermission(uri, flags)
-                android.util.Log.i("[amiba]", "FolderPicker persistable permission granted for: $uri")
+                // 从 intent.flags 提取系统授予的权限位（官方推荐做法）
+                val takeFlags = (data.flags
+                    and (Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION))
+                if (takeFlags != 0) {
+                    activity?.contentResolver?.takePersistableUriPermission(uri, takeFlags)
+                    android.util.Log.i("[amiba]", "FolderPicker persistable permission granted (flags=0x${takeFlags.toString(16)}) for: $uri")
+                } else {
+                    android.util.Log.w("[amiba]", "FolderPicker: no grant flags in returned intent, skipping persistable permission")
+                }
+            } catch (e: SecurityException) {
+                android.util.Log.w("[amiba]", "FolderPicker takePersistableUriPermission security error: ${e.message}")
             } catch (e: Exception) {
                 android.util.Log.w("[amiba]", "FolderPicker takePersistableUriPermission failed: ${e.message}")
             }
@@ -395,13 +452,12 @@ object FolderPickerHelper {
                 android.util.Log.i("[amiba]", "FolderPicker resolved: $uri → $resolved")
                 resultPath = resolved
             } else {
-                // 无法转换为文件路径，保留 content:// URI
+                // 无法转换为文件路径，保留 content:// URI 作为 fallback
                 android.util.Log.w("[amiba]", "FolderPicker cannot resolve to file path, using URI: $uri")
                 resultPath = uri.toString()
             }
         } else {
             android.util.Log.i("[amiba]", "FolderPicker: user cancelled or no data (resultCode=$resultCode)")
-            // resultPath 保持 null，pickFolder 返回空字符串
         }
 
         synchronized(lock) {
@@ -412,9 +468,16 @@ object FolderPickerHelper {
 
     /**
      * 将 content:// 树形 URI 转换为实际文件系统路径。
-     * 格式: content://com.android.externalstorage.documents/tree/primary%3ADownload
-     * documentId: primary:Download  →  /storage/emulated/0/Download
-     * documentId: ABCD-1234:Music  →  /storage/ABCD-1234/Music
+     *
+     * **非官方行为声明**：Android Storage Access Framework 设计上不提供
+     * content:// URI → 文件系统路径的官方转换方法。此处依赖 Android
+     * ExternalStorageProvider 的内部 documentId 格式实现路径映射：
+     *   primary:Download    → /storage/emulated/0/Download
+     *   ABCD-1234:Music     → /storage/ABCD-1234/Music
+     *
+     * 此实现基于 AOSP 源码中 ExternalStorageProvider 的行为，在绝大多数
+     * Android 设备和版本上可工作，但不属于官方公开 API。失败时返回 null，
+     * 调用方会 fallback 到 content:// URI 字符串。
      */
     private fun resolveDocumentPath(uri: Uri): String? {
         if (uri.scheme != "content") return uri.path
@@ -439,7 +502,8 @@ object FolderPickerHelper {
                 return "${extDir.absolutePath}/$path"
             }
 
-            // SD 卡等外部存储
+            // SD 卡等可移除存储卷
+            // 路径格式参照 AOSP StorageManager / ExternalStorageProvider
             return "/storage/$type/$path"
         } catch (e: Exception) {
             android.util.Log.w("[amiba]", "resolveDocumentPath failed: ${e.message}", e)

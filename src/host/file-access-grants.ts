@@ -2,9 +2,13 @@
 // 变形虫 (Amiba) — FileAccessGrants
 // ============================================================
 // 管理服务的文件访问授权。授权仅本次应用生命周期有效，不落盘。
+//
+// 使用 Tauri 官方 typed API（非裸 invoke），参照：
+//   https://v2.tauri.app/plugin/file-system/
 // ============================================================
 
 import type { FileAccessRequest, FileAccessGrant, FileInfo } from '../types/service'
+import type { DirEntry } from '@tauri-apps/plugin-fs'
 import { pickFolder } from '../config/folder-picker'
 
 interface GrantEntry {
@@ -43,13 +47,20 @@ function _generateToken(): string {
   return 'fa_' + Math.random().toString(36).slice(2) + '_' + Date.now().toString(36)
 }
 
+/**
+ * Uint8Array → Base64。使用分块方式避免大文件 O(n²) 字符串拼接。
+ * 参照 MDN btoa 大字符串最佳实践。
+ */
 function _arrayToBase64(bytes: Uint8Array): string {
-  let binary = ''
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i])
+  const CHUNK = 0x8000 // 32KB chunks — 避免 call stack overflow
+  const chunks: string[] = []
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    chunks.push(String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + CHUNK))))
   }
-  return btoa(binary)
+  return btoa(chunks.join(''))
 }
+
+// ---- Glob 匹配 ----
 
 function _matchesPattern(testPath: string, pattern: string): boolean {
   if (!pattern) return false
@@ -75,39 +86,54 @@ function _matchesPattern(testPath: string, pattern: string): boolean {
 }
 
 // ---- 目录扫描 ----
+// 使用 Tauri 官方 typed API readDir（@tauri-apps/plugin-fs）。
+// 官方 API 不暴露 recursive 参数；参照官方示例通过 isDirectory 手动递归。
+// 参照：https://v2.tauri.app/plugin/file-system/#read-1
 
-// 单次 read_dir 调用获取整个目录树（recursive 由 pattern 是否含 ** 决定），
-// 避免逐目录多次 IPC；注意 FileEntry.children 仅在 recursive:true 时填充。
 async function _scanDir(basePath: string, pattern: string, results: FileInfo[]): Promise<void> {
-  let isTauri = false
-  try { await import('@tauri-apps/api/core'); isTauri = true } catch { /* web */ }
-  if (!isTauri) throw new Error('文件访问仅在 Tauri 环境（桌面/移动端）可用')
+  const [{ readDir }, { join }] = await Promise.all([
+    import('@tauri-apps/plugin-fs'),
+    import('@tauri-apps/api/path'),
+  ])
 
   const recursive = pattern.includes('**')
-  let entries: { name: string; children?: any[]; size?: number }[]
-  try {
-    const { invoke } = await import('@tauri-apps/api/core')
-    entries = await invoke('plugin:fs|read_dir', { path: basePath, recursive })
-  } catch (e: any) {
-    throw new Error('无法读取目录: ' + (e?.message || String(e)))
-  }
 
-  const walk = (list: typeof entries, relativeDir: string): void => {
-    for (const entry of list) {
-      const relPath = relativeDir ? relativeDir + '/' + entry.name : entry.name
-      if (entry.children) {
-        walk(entry.children, relPath)
-      } else if (_matchesPattern(relPath, pattern) || _matchesPattern(entry.name, pattern)) {
-        results.push({
-          name: entry.name,
-          path: relPath,
-          size: entry.size ?? 0,
-          isDir: false,
-        })
+  /**
+   * 官方推荐方式：手动递归遍历。
+   * 参照 Tauri 官方 readDir 示例中的 processEntriesRecursively 模式：
+   *   for entry of entries:
+   *     if entry.isDirectory → readDir(dir) → processEntriesRecursively(...)
+   */
+  const walk = async (dirPath: string, relativeDir: string): Promise<void> => {
+    let entries: DirEntry[]
+    try {
+      entries = await readDir(dirPath)
+    } catch (e: any) {
+      console.warn('[FileAccess] 无法读取子目录: ' + dirPath + ' — ' + (e?.message || String(e)))
+      return
+    }
+
+    for (const entry of entries) {
+      const relPath = relativeDir ? await join(relativeDir, entry.name) : entry.name
+
+      if (entry.isDirectory) {
+        if (recursive) {
+          const nextDir = await join(dirPath, entry.name)
+          await walk(nextDir, relPath)
+        }
+      } else if (entry.isFile || entry.isSymlink) {
+        if (_matchesPattern(relPath, pattern) || _matchesPattern(entry.name, pattern)) {
+          results.push({
+            name: entry.name,
+            path: relPath,
+            size: 0, // DirEntry 不含 size；如需文件大小可额外调用 stat()
+            isDir: false,
+          })
+        }
       }
     }
   }
-  walk(entries, '')
+  await walk(basePath, '')
 }
 
 // ---- 公共 API ----
@@ -115,17 +141,14 @@ async function _scanDir(basePath: string, pattern: string, results: FileInfo[]):
 export async function requestAccess(serviceId: string, req: FileAccessRequest): Promise<FileAccessGrant> {
   let folderPath = req.path
 
-  // 如果没有指定路径，弹出系统文件夹选择器
   if (!folderPath) {
     let isTauri = false
     try { await import('@tauri-apps/api/core'); isTauri = true } catch { /* web */ }
     if (isTauri) {
-      // 统一使用 pickFolder（Android → Rust JNI / 桌面 → plugin-dialog）
       const picked = await pickFolder('选择文件夹')
       if (!picked) throw new Error('未选择文件夹')
       folderPath = picked
     } else {
-      // 浏览器环境：使用 prompt 输入路径
       folderPath = prompt('请输入文件夹路径:', '') || undefined
       if (!folderPath) throw new Error('未指定文件夹路径')
     }
@@ -135,7 +158,6 @@ export async function requestAccess(serviceId: string, req: FileAccessRequest): 
 
   const pattern = req.pattern || '*'
 
-  // 静默模式（path 已指定 + silent=true）：跳过 confirm
   if (!req.silent) {
     const purpose = req.purpose || '读取文件'
     const confirmed = confirm(
@@ -159,7 +181,7 @@ export async function requestAccess(serviceId: string, req: FileAccessRequest): 
   }
 
   _grants.set(token, { grant, serviceId })
-  console.log('[FileAccess] 授权: ' + serviceId + ' -> ' + grant.path + ' (' + grant.pattern + ')')
+  console.log('[FileAccess] ✓ 授权: ' + serviceId + ' -> ' + grant.path + ' (' + grant.pattern + ')')
 
   return grant
 }
@@ -175,10 +197,15 @@ export async function listFiles(serviceId: string, token: string): Promise<FileI
 export async function readTextFile(serviceId: string, token: string, relativePath: string): Promise<string> {
   const grant = validate(serviceId, token)
   if (!grant) throw new Error('文件访问授权无效或已过期')
-  const fullPath = grant.path + '/' + relativePath
+
+  const [{ readTextFile: fsReadTextFile }, { join }] = await Promise.all([
+    import('@tauri-apps/plugin-fs'),
+    import('@tauri-apps/api/path'),
+  ])
+  const fullPath = await join(grant.path, relativePath)
+
   try {
-    const { invoke } = await import('@tauri-apps/api/core')
-    return await invoke<string>('plugin:fs|read_text_file', { path: fullPath })
+    return await fsReadTextFile(fullPath)
   } catch (e: any) {
     throw new Error('无法读取文件: ' + (e?.message || String(e)))
   }
@@ -187,11 +214,16 @@ export async function readTextFile(serviceId: string, token: string, relativePat
 export async function readBinaryFile(serviceId: string, token: string, relativePath: string): Promise<string> {
   const grant = validate(serviceId, token)
   if (!grant) throw new Error('文件访问授权无效或已过期')
-  const fullPath = grant.path + '/' + relativePath
+
+  const [{ readFile: fsReadFile }, { join }] = await Promise.all([
+    import('@tauri-apps/plugin-fs'),
+    import('@tauri-apps/api/path'),
+  ])
+  const fullPath = await join(grant.path, relativePath)
+
   try {
-    const { invoke } = await import('@tauri-apps/api/core')
-    const bytes = await invoke<number[]>('plugin:fs|read_file', { path: fullPath })
-    return _arrayToBase64(new Uint8Array(bytes))
+    const bytes = await fsReadFile(fullPath)
+    return _arrayToBase64(bytes)
   } catch (e: any) {
     throw new Error('无法读取文件: ' + (e?.message || String(e)))
   }

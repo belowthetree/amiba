@@ -3,6 +3,7 @@ mod web;
 mod network_visibility;
 mod network_session;
 mod picker;
+mod android_util;
 use std::sync::Mutex;
 use std::collections::HashMap;
 use tauri::Manager;
