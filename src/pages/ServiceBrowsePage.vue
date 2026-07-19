@@ -102,6 +102,7 @@ import { readDirRecursive } from '../config/storage'
 import { widgetStates, setServiceWidgetsVisible, hasWidgetConfig } from '../host/floating-widget-manager'
 import { isRunning, startService, stopService } from '../host/background-manager'
 import { settings } from '../config/config'
+import { pickFolder } from '../config/folder-picker'
 import SlotRenderer from '../components/SlotRenderer.vue'
 import { themeState } from '../config/theme-store'
 
@@ -211,9 +212,8 @@ function formatDate(iso: string): string {
 
 async function importFromFolder() {
   try {
-    const { open } = await import('@tauri-apps/plugin-dialog')
-    const dir = await open({ directory: true, multiple: false, title: t('services.dialogTitle') })
-    if (!dir || typeof dir !== 'string') return
+    const dir = await pickFolder(t('services.dialogTitle'))
+    if (!dir) return
 
     const { readTextFile } = await import('@tauri-apps/plugin-fs')
 

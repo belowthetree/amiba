@@ -12,7 +12,7 @@ JSBridge 是宿主（Vue SPA）与用户服务（iframe）之间的唯一通信�
 // 服务 → 宿主 请求
 interface ServiceRequest {
   type: 'api'
-  module: string          // storage | notification | ui | task | widgets | network
+  module: string          // storage | notification | ui | widgets | network | background | fileAccess | fetch
   method: string          // setStorage | showToast | navigateTo | ...
   params: Record<string, any>
   requestId: string       // UUID，用于匹配响应
@@ -142,6 +142,35 @@ Widget 也可以通过服务目录下的 `widget.json` 声明式配置，服务�
 - 崩溃静默重启，不通知用户
 - 后台 iframe 内可正常使用 `storage`、`network`、`notification` 等模块
 
+### fileAccess
+
+通用磁盘文件访问。授权以 **token** 为生命周期（内存 Map），应用重启后需重新 `requestAccess`。
+
+| 方法 | 参数 | 返回 | 权限 |
+|------|------|------|------|
+| `requestAccess` | `{ opts: { path?: string, pattern?: string, purpose?: string, silent?: boolean } }` | `{ token, path, pattern }` | fileAccess |
+| `listFiles` | `{ token: string }` | `[{ name, path, size, isDir }]`（path 为相对路径） | fileAccess |
+| `readText` | `{ token: string, path: string }` | `string` | fileAccess |
+| `readBinary` | `{ token: string, path: string }` | `string`（base64） | fileAccess |
+
+**约束**：
+- `path` 不传则弹出系统文件夹选择对话框；`path` 已指定且 `silent: true` 时跳过用户确认
+- `pattern` 支持 `*.ext`、`{*.a,*.b}`、`**/` 递归前缀
+- token 绑定 serviceId，不可跨服务使用
+
+### fetch
+
+HTTP 请求代理（Rust reqwest 实现），绕过浏览器 CORS 和移动端明文流量限制。
+
+| 方法 | 参数 | 返回 | 权限 |
+|------|------|------|------|
+| `request` | `{ url: string, method?: string, headers?: object, body?: string \| null }` | `{ status: number, body: string }` | fetch |
+
+**约束**：
+- 仅支持 `http`/`https` 协议，仅支持 GET/POST/PUT/DELETE
+- 超时 10 秒，User-Agent 固定为 `AmibaService/1.0`
+- 响应 body 一律为字符串（JSON 需自行 `JSON.parse`）
+
 ## 服务内全局注入
 
 宿主在 iframe 加载完成后注入 `window.__amiba__` 对象，封装 postMessage 为 Promise 风格：
@@ -168,6 +197,18 @@ window.__amiba__ = {
     stopListening: (serviceKey) => callHost('network', 'stopListening', { serviceKey }),
     onPeerDiscovered: (cb) => { /* event listener for peer-discovered */ },
     onSession: (cb) => { /* event listener for session-created → cb(sessionProxy) */ },
+  },
+  fileAccess: {
+    requestAccess: (opts) => callHost('fileAccess', 'requestAccess', { opts }),
+    listFiles: (token) => callHost('fileAccess', 'listFiles', { token }),
+    readText: (token, path) => callHost('fileAccess', 'readText', { token, path }),
+    readBinary: (token, path) => callHost('fileAccess', 'readBinary', { token, path }),
+  },
+  fetch: {
+    request: (opts) => callHost('fetch', 'request', {
+      url: opts.url, method: opts.method || 'GET',
+      headers: opts.headers || {}, body: opts.body || null,
+    }),
   },
 }
 ```

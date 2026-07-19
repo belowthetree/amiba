@@ -28,7 +28,7 @@ interface ServicePackage {
     name: string
     version: string
     description: string
-    permissions: ('storage' | 'notification' | 'widgets' | 'network')[]
+    permissions: ('storage' | 'notification' | 'widgets' | 'network' | 'background' | 'fileAccess' | 'fetch')[]
   }
   files: ServiceFile[]  // 多文件列表
   tasks?: GeneratedTask[] // 定时任务（可选）
@@ -51,6 +51,8 @@ interface ServiceFile {
 | `widgets` | 允许服务使用悬浮块功能 |
 | `network` | 允许服务使用局域网/蓝牙互联通信，包括设备发现、原始消息收发和结构化协议（protocol）层。详见 [JSBridge 通信协议](jsbridge.md#network) |
 | `background` | 允许服务在后台持续运行（隐藏 iframe），支持定时调度、事件驱动、与前台 IPC 通信。详见 [后台服务](#后台服务) |
+| `fileAccess` | 允许服务通过授权 token 访问磁盘文件（选择文件夹、列出/读取文件）。详见 [JSBridge 通信协议](jsbridge.md#fileaccess) |
+| `fetch` | 允许服务发起 HTTP 请求（Rust reqwest 代理，绕过 CORS）。详见 [JSBridge 通信协议](jsbridge.md#fetch) |
 
 ## 服务注册
 

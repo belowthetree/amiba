@@ -2,7 +2,7 @@ mod db;
 mod web;
 mod network_visibility;
 mod network_session;
-
+mod picker;
 use std::sync::Mutex;
 use std::collections::HashMap;
 use tauri::Manager;
@@ -225,7 +225,7 @@ pub fn run() {
           match lib {
             Ok(lib) => {
               let func: libloading::Symbol<GetCreatedJavaVMsFn> =
-                match unsafe { lib.get(b"JNI_GetCreatedJavaVMs") } {
+                match lib.get(b"JNI_GetCreatedJavaVMs") {
                   Ok(f) => f,
                   Err(e) => {
                     eprintln!("[rust:lib] dlsym JNI_GetCreatedJavaVMs: {e}");
@@ -235,7 +235,7 @@ pub fn run() {
                 };
               let mut vm_ptr: *mut std::ffi::c_void = std::ptr::null_mut();
               let mut n_vms: i32 = 0;
-              let ret = unsafe { func(&mut vm_ptr, 1, &mut n_vms) };
+              let ret = func(&mut vm_ptr, 1, &mut n_vms);
               if ret != 0 || n_vms == 0 || vm_ptr.is_null() {
                 eprintln!("[rust:lib] JVM not available, web_browse disabled");
                 app.manage(AndroidJvm(std::ptr::null_mut()));
@@ -286,6 +286,7 @@ pub fn run() {
       network_session::network_start_listener,
       network_session::network_stop_listener,
       network_visibility::network_get_device_id,
+      picker::pick_folder,
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

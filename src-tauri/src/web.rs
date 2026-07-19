@@ -11,6 +11,7 @@
 
 use std::collections::HashMap;
 use std::sync::Mutex;
+#[allow(unused_imports)]
 use tauri::Emitter;
 #[cfg(target_os = "android")]
 use tauri::Manager;
@@ -807,6 +808,7 @@ pub async fn web_close(
 // ============================================================
 
 // 注入截图触发逻辑，结果写入 window._amiba_screenshot
+#[allow(dead_code)]
 const CAPTURE_TRIGGER_JS: &str = r#"(function(){
   function capture(){
     try{

@@ -5,6 +5,7 @@
 // ============================================================
 
 import type { FileAccessRequest, FileAccessGrant, FileInfo } from '../types/service'
+import { pickFolder } from '../config/folder-picker'
 
 interface GrantEntry {
   grant: FileAccessGrant
@@ -75,46 +76,38 @@ function _matchesPattern(testPath: string, pattern: string): boolean {
 
 // ---- 目录扫描 ----
 
-async function _listDirRecursive(basePath: string, relativeDir: string, pattern: string, results: FileInfo[]): Promise<void> {
+// 单次 read_dir 调用获取整个目录树（recursive 由 pattern 是否含 ** 决定），
+// 避免逐目录多次 IPC；注意 FileEntry.children 仅在 recursive:true 时填充。
+async function _scanDir(basePath: string, pattern: string, results: FileInfo[]): Promise<void> {
   let isTauri = false
   try { await import('@tauri-apps/api/core'); isTauri = true } catch { /* web */ }
   if (!isTauri) throw new Error('文件访问仅在 Tauri 环境（桌面/移动端）可用')
 
-  const dirPath = relativeDir ? basePath + '/' + relativeDir : basePath
+  const recursive = pattern.includes('**')
+  let entries: { name: string; children?: any[]; size?: number }[]
   try {
     const { invoke } = await import('@tauri-apps/api/core')
-    const entries = await invoke<{ name: string; children?: any[]; size?: number }[]>('plugin:fs|read_dir', {
-      path: dirPath,
-      recursive: false,
-    })
-
-    for (const entry of entries) {
-      const name = entry.name
-      const relPath = relativeDir ? relativeDir + '/' + name : name
-      const isDir = !!entry.children
-
-      if (isDir) {
-        if (pattern.includes('**')) {
-          await _listDirRecursive(basePath, relPath, pattern, results)
-        }
-      } else {
-        if (_matchesPattern(relPath, pattern) || _matchesPattern(name, pattern)) {
-          results.push({
-            name,
-            path: relPath,
-            size: entry.size ?? 0,
-            isDir: false,
-          })
-        }
-      }
-    }
+    entries = await invoke('plugin:fs|read_dir', { path: basePath, recursive })
   } catch (e: any) {
-    if (e?.message?.includes('read_dir not found') || e?.toString().includes('not found')) {
-      // fallback: try typed plugin invoke
-      console.warn('[FileAccess] read_dir fallback')
-    }
     throw new Error('无法读取目录: ' + (e?.message || String(e)))
   }
+
+  const walk = (list: typeof entries, relativeDir: string): void => {
+    for (const entry of list) {
+      const relPath = relativeDir ? relativeDir + '/' + entry.name : entry.name
+      if (entry.children) {
+        walk(entry.children, relPath)
+      } else if (_matchesPattern(relPath, pattern) || _matchesPattern(entry.name, pattern)) {
+        results.push({
+          name: entry.name,
+          path: relPath,
+          size: entry.size ?? 0,
+          isDir: false,
+        })
+      }
+    }
+  }
+  walk(entries, '')
 }
 
 // ---- 公共 API ----
@@ -127,17 +120,10 @@ export async function requestAccess(serviceId: string, req: FileAccessRequest): 
     let isTauri = false
     try { await import('@tauri-apps/api/core'); isTauri = true } catch { /* web */ }
     if (isTauri) {
-      try {
-        const { open } = await import('@tauri-apps/plugin-dialog')
-        const selected = await open({ directory: true, multiple: false, title: '选择文件夹' })
-        if (!selected) throw new Error('未选择文件夹')
-        folderPath = typeof selected === 'string' ? selected : selected
-      } catch (e: any) {
-        // 移动端可能不支持原生文件夹选择器（plugin-dialog 在 Android 上限制），回退到手动输入路径
-        console.warn('[FileAccess] 原生文件夹选择器失败，回退到手动输入:', e?.message || e)
-        folderPath = prompt('请输入文件夹路径（例如 /storage/emulated/0/Music）:', '/storage/emulated/0/') || undefined
-        if (!folderPath) throw new Error('未指定文件夹路径')
-      }
+      // 统一使用 pickFolder（Android → Rust JNI / 桌面 → plugin-dialog）
+      const picked = await pickFolder('选择文件夹')
+      if (!picked) throw new Error('未选择文件夹')
+      folderPath = picked
     } else {
       // 浏览器环境：使用 prompt 输入路径
       folderPath = prompt('请输入文件夹路径:', '') || undefined
@@ -182,7 +168,7 @@ export async function listFiles(serviceId: string, token: string): Promise<FileI
   const grant = validate(serviceId, token)
   if (!grant) throw new Error('文件访问授权无效或已过期')
   const items: FileInfo[] = []
-  await _listDirRecursive(grant.path, '', grant.pattern, items)
+  await _scanDir(grant.path, grant.pattern, items)
   return items
 }
 

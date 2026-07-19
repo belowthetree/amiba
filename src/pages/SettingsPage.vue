@@ -531,6 +531,7 @@ import { setVisibility, getVisibility } from '../host/network-bridge'
 import type { ServicePackage, ServiceManifest } from '../types/service'
 import { loadUserSkills, addUserSkill, updateUserSkill, deleteUserSkill, importSkillFromFolder, type Skill } from '../ai/skills'
 import { pickAndImportZip, exportAndSaveZip, importSkillFromUrl as fetchImportUrl } from '../ai/skill-zip'
+import { pickFolder } from '../config/folder-picker'
 import { providers, addProvider, updateProvider, deleteProvider, initProviderStore } from '../ai/provider-store'
 import { customAgents, addCustomAgent, updateCustomAgent, deleteCustomAgent, setActiveAgent, initCustomAgentStore } from '../ai/custom-agent-store'
 import type { AiProvider, CustomAgent } from '../types/service'
@@ -761,9 +762,8 @@ async function refreshSkills() { userSkills.value = await loadUserSkills() }
 
 async function importSkillFolder() {
   try {
-    const { open } = await import('@tauri-apps/plugin-dialog')
-    const dir = await open({ directory: true, multiple: false, title: '选择 Skill 文件夹' })
-    if (!dir || typeof dir !== 'string') return
+    const dir = await pickFolder('选择 Skill 文件夹')
+    if (!dir) return
     await importSkillFromFolder(dir)
     await refreshSkills()
     flashSaved()
