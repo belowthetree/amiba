@@ -23,24 +23,33 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 class MainActivity : TauriActivity() {
   companion object {
     @Volatile var instance: MainActivity? = null
       private set
+    // 后台线程池，用于崩溃诊断等可能耗时但非关键的启动任务
+    private val bgExecutor = Executors.newSingleThreadExecutor { r ->
+      Thread(r, "amiba-bg").apply { isDaemon = true }
+    }
 
     // ============================================================
-    // 供 Rust JNI 调用：返回上次 native crash 的 tombstone 内容
-    // 无崩溃时返回空字符串
+    // 供 Rust JNI 调用：返回最近一次 native crash 的 tombstone 内容。
+    // tombstone 文件按时间戳命名 (tombstone_yyyyMMdd_HHmmss.txt)，
+    // 选最近的一条返回。无崩溃时返回空字符串。
     // ============================================================
     @JvmStatic
     fun getLastTombstone(): String {
       val ctx = instance ?: return ""
       return try {
         val tombDir = ctx.getExternalFilesDir(null) ?: ctx.filesDir
-        val tombFile = java.io.File(tombDir, "last_tombstone.txt")
-        if (tombFile.exists()) tombFile.readText() else ""
+        val tombFiles = tombDir.listFiles { f -> f.name.startsWith("tombstone_") && f.name.endsWith(".txt") }
+        if (tombFiles.isNullOrEmpty()) return ""
+        // 取最新的一条
+        val latest = tombFiles.maxByOrNull { it.lastModified() } ?: return ""
+        latest.readText()
       } catch (e: Exception) {
         ""
       }
@@ -51,7 +60,8 @@ class MainActivity : TauriActivity() {
     instance = this
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
-    logPreviousExitReasons()
+    // 崩溃诊断涉及跨进程 IPC + tombstone I/O，移到后台线程避免 ANR
+    bgExecutor.execute { logPreviousExitReasons() }
     ensureStoragePermission()
   }
 
@@ -163,10 +173,11 @@ class MainActivity : TauriActivity() {
       }
       android.util.Log.i("[amiba]", "  --- end tombstone ---")
 
-      // 写入外部私有存储（PC 通过 USB 可看到：Android/data/com.amiba.desktop/files/）
+      // 写入文件：按时间戳命名保留多条历史记录
       val content = lines.joinToString("\n")
       val tombDir = getExternalFilesDir(null) ?: filesDir
-      val tombFile = java.io.File(tombDir, "last_tombstone.txt")
+      val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date(exit.timestamp))
+      val tombFile = java.io.File(tombDir, "tombstone_$ts.txt")
       tombFile.writeText(content)
       android.util.Log.i("[amiba]", "  tombstone saved to: ${tombFile.absolutePath}")
     } catch (e: Exception) {

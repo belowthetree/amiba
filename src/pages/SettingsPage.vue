@@ -516,15 +516,31 @@
       <div class="settings-section" style="margin-top:20px">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
           <h3 class="section-label" style="margin:0">🪦 崩溃诊断 (Native Crash)</h3>
-          <button class="secondary-btn" style="font-size:11px;padding:3px 10px" @click="loadTombstone">
-            🔄 检查
+          <button
+            class="secondary-btn"
+            style="font-size:11px;padding:3px 10px"
+            :disabled="tombstoneLoading"
+            @click="loadTombstone"
+          >
+            {{ tombstoneLoading ? '⏳' : '🔄' }} 检查
           </button>
         </div>
-        <div v-if="tombstoneText" class="log-table-wrap" style="max-height:300px">
+        <!-- 加载中 -->
+        <p v-if="tombstoneLoading" class="skill-empty">⏳ 正在查询崩溃记录…</p>
+        <!-- 查询出错 -->
+        <p v-else-if="tombstoneError" class="skill-empty" style="color:var(--color-error, #e74c3c)">
+          ⚠️ {{ tombstoneError }}
+        </p>
+        <!-- 有 tombstone 数据 -->
+        <div v-else-if="tombstoneText" class="log-table-wrap" style="max-height:300px">
           <pre class="tombstone-block">{{ tombstoneText }}</pre>
         </div>
-        <p v-else-if="tombstoneChecked" class="skill-empty">无历史崩溃记录</p>
-        <p v-else class="skill-empty" style="color:var(--color-text-secondary)">点击「检查」查询</p>
+        <!-- 已查询但无崩溃记录 -->
+        <p v-else-if="tombstoneChecked" class="skill-empty">✅ 无历史崩溃记录</p>
+        <!-- 初始状态 -->
+        <p v-else class="skill-empty" style="color:var(--color-text-secondary)">
+          点击「检查」查询上次 native crash 的 tombstone 堆栈
+        </p>
         <button v-if="tombstoneText" class="secondary-btn" style="margin-top:6px;font-size:12px" @click="copyTombstone">
           📋 {{ tombstoneCopied ? '已复制!' : '复制堆栈信息' }}
         </button>
@@ -610,6 +626,8 @@ let logSearchTimer: ReturnType<typeof setTimeout> | null = null
 const tombstoneText = ref('')
 const tombstoneCopied = ref(false)
 const tombstoneChecked = ref(false)
+const tombstoneLoading = ref(false)
+const tombstoneError = ref('')
 
 const filteredLogEntries = computed(() => {
   let entries = logEntries.value
@@ -687,14 +705,24 @@ function onLogConfigChange() {
 
 async function loadTombstone() {
   tombstoneChecked.value = false
+  tombstoneError.value = ''
+  tombstoneLoading.value = true
   try {
     const { invoke } = await import('@tauri-apps/api/core')
     const text = await invoke<string>('read_tombstone')
     tombstoneText.value = text || ''
-  } catch {
+  } catch (e: any) {
     tombstoneText.value = ''
+    const msg = e?.message || String(e)
+    if (msg.includes('command not found') || msg.includes('JVM unavailable')) {
+      tombstoneError.value = '崩溃诊断仅在 Android 平台可用'
+    } else {
+      tombstoneError.value = '查询失败: ' + msg
+    }
+  } finally {
+    tombstoneLoading.value = false
+    tombstoneChecked.value = true
   }
-  tombstoneChecked.value = true
 }
 
 async function copyTombstone() {
