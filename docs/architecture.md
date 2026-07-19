@@ -127,6 +127,7 @@ amiba/
 │   ├── config/
 │   │   ├── config.ts        # 统一配置（amiba_settings，合并所有普通设置项）
 │   │   ├── storage.ts       # 存储抽象
+│   │   ├── folder-picker.ts # 文件夹选取统一入口（Android / 桌面 / 浏览器）
 │   │   └── updater.ts       # 更新检查 + Rust reqwest 下载
 │   ├── types/
 │   │   └── service.ts       # 服务类型定义
@@ -143,7 +144,14 @@ amiba/
 │   ├── unit/
 │   └── e2e/
 ├── src-tauri/
-│   └── ...                  # Tauri Rust 后端
+│   ├── Cargo.toml
+│   ├── src/
+│   │   ├── main.rs         # Rust 入口
+│   │   ├── lib.rs          # 插件注册 + AndroidJvm + command 注册
+│   │   ├── db.rs           # SQLite FTS5 会话存储
+│   │   ├── web.rs          # WebView 浏览器引擎
+│   │   └── picker.rs       # 文件夹选取（Android JNI）
+│   └── gen/android/        # Android 项目 + MainActivity.kt
 └── package.json
 ```
 

@@ -30,7 +30,7 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 | **Web Bridge** | `src/config/web-bridge.ts` | 封装 Tauri `web_fetch`/`web_click`/`web_input_text`/`web_get_content`/`web_close` 命令，含超时和日志 |
 | **Updater** | `src/config/updater.ts` | 纯前端更新检查：调 GitHub Releases API，semver 比较，Rust reqwest 下载（绕过浏览器 CORS），全平台统一 |
 | **Pages** | `src/pages/` | 5 routes: Chat, Home, Memory, ServiceBrowse, Settings; ShareDialog (局域网服务分享弹窗), SkillShareDialog (局域网技能分享弹窗) |
-| **Config** | `src/config/` | Reactive settings persisted via Tauri FS plugin (`config.ts`), storage abstraction (`storage.ts`: auto-mkdir + pretty-print JSON), theme store (`theme-store.ts`: multi-theme management + prebuilt theme install), session-db wrapper (`session-db.ts`: Tauri invoke → Rust SQLite FTS5) |
+| **Config** | `src/config/` | Reactive settings persisted via Tauri FS plugin (`config.ts`), storage abstraction (`storage.ts`: auto-mkdir + pretty-print JSON), theme store (`theme-store.ts`: multi-theme management + prebuilt theme install), session-db wrapper (`session-db.ts`: Tauri invoke → Rust SQLite FTS5), folder-picker (`folder-picker.ts`: 统一文件夹选取 → Android Rust JNI / 桌面 plugin-dialog / 浏览器 prompt) |
 | **Theme** | `src/config/theme-store.ts` + `public/themes/` | 多主题系统：3 套内置主题（default/dark/ocean）从 public/themes/ 安装到 AppData；用户可创建/删除/切换主题；CSS 变量体系（30 个 :root 变量）驱动全局外观；所有页面已迁移到 var() 体系；内置主题只读，修改时自动创建用户主题副本 |
 | **i18n** | `src/i18n/` | vue-i18n based internationalization: `locales/zh-CN.ts` + `locales/en.ts`, type-safe via `LocalesSchema`, synced with `settings.language` via `watch()` |
 | **Router** | `src/router/` | `createWebHistory` with lazy-loaded page components |
