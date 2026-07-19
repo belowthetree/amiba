@@ -1,0 +1,7 @@
+{
+  "id": "user.rss_reader",
+  "name": "RSS 阅读器",
+  "version": "1.0.0",
+  "description": "订阅 RSS 源，聚合阅读最新文章",
+  "permissions": ["storage", "notification", "fetch"]
+}

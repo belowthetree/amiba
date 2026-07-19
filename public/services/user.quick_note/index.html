@@ -1,0 +1,41 @@
+<!-- AMIBA_BRIDGE -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>快速笔记</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app" id="app">
+
+  <div class="header">
+    <h1>📝 快速笔记</h1>
+    <span class="note-count" id="note-count"></span>
+  </div>
+
+  <!-- 新建笔记 -->
+  <div class="section">
+    <textarea id="new-note" placeholder="记录点什么..." rows="3"></textarea>
+    <div class="new-note-bar">
+      <span class="hint">也可通过右侧悬浮块随时记录</span>
+      <button class="btn btn-primary" id="btn-add">保存</button>
+    </div>
+  </div>
+
+  <!-- 搜索 -->
+  <div class="section">
+    <input type="text" id="search-input" placeholder="🔍 搜索笔记...">
+  </div>
+
+  <!-- 笔记列表 -->
+  <div class="section">
+    <div class="note-list" id="note-list"></div>
+    <div class="empty" id="empty-tip">还没有笔记，写下第一条吧</div>
+  </div>
+
+</div>
+<script src="app.js"></script>
+</body>
+</html>

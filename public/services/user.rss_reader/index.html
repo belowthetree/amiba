@@ -1,0 +1,40 @@
+<!-- AMIBA_BRIDGE -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RSS 阅读器</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app" id="app">
+
+  <div class="header">
+    <h1>📡 RSS 阅读器</h1>
+    <button class="btn btn-sm" id="btn-refresh-all">🔄 全部刷新</button>
+  </div>
+
+  <!-- 添加订阅 -->
+  <div class="section">
+    <div class="add-row">
+      <input type="text" id="feed-url" placeholder="输入 RSS 订阅地址，如 https://example.com/feed.xml">
+      <button class="btn btn-primary" id="btn-add">订阅</button>
+    </div>
+  </div>
+
+  <!-- 订阅源 -->
+  <div class="section">
+    <div class="feed-tabs" id="feed-tabs"></div>
+  </div>
+
+  <!-- 文章列表 -->
+  <div class="section">
+    <div class="article-list" id="article-list"></div>
+    <div class="empty" id="empty-tip">暂无内容，先添加一个订阅源</div>
+  </div>
+
+</div>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "widgets": [
+    {
+      "id": "quick-note",
+      "icon": "📝",
+      "label": "快速笔记",
+      "page": "widgets/quick-note.html",
+      "edge": "right",
+      "position": 120,
+      "showOn": [],
+      "trigger": "page"
+    }
+  ]
+}

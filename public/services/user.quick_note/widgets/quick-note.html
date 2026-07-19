@@ -1,0 +1,86 @@
+<!-- AMIBA_BRIDGE -->
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+.widget-root {
+  min-width: 200px; max-width: 280px;
+  padding: 12px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif;
+  background: var(--color-surface, #fff);
+  color: var(--color-text, #333);
+  border-radius: 8px;
+}
+.wi-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+.wi-input {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--color-border, #ddd);
+  border-radius: 6px; font-size: 13px; font-family: inherit; resize: none;
+  background: var(--color-bg, #f7f7f7); color: var(--color-text, #333); outline: none;
+}
+.wi-input:focus { border-color: var(--color-primary, #1976D2); }
+.wi-save {
+  width: 100%; margin-top: 8px; padding: 7px 0; border: none; border-radius: 6px;
+  background: var(--color-primary, #1976D2); color: #fff; font-size: 13px; cursor: pointer;
+}
+.wi-recent { margin-top: 10px; border-top: 1px solid var(--color-border, #eee); padding-top: 8px; }
+.wi-recent-item {
+  font-size: 12px; color: var(--color-text-secondary, #666); line-height: 1.5;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 2px 0;
+}
+.wi-empty { font-size: 12px; color: var(--color-text-secondary, #999); padding: 4px 0; }
+</style>
+<div class="widget-root">
+  <div class="wi-title">📝 快速记录</div>
+  <textarea class="wi-input" id="wi-input" rows="2" placeholder="随手记..."></textarea>
+  <button class="wi-save" id="wi-save">保存</button>
+  <div class="wi-recent" id="wi-recent"></div>
+</div>
+<script>
+(function() {
+  var STORAGE_KEY = 'notes';
+
+  var el = function(id) { return document.getElementById(id); };
+
+  async function save() {
+    var text = el('wi-input').value.trim();
+    if (!text) return;
+    var notes = await __amiba__.storage.get(STORAGE_KEY);
+    if (!Array.isArray(notes)) notes = [];
+    notes.unshift({ id: 'n' + Date.now(), text: text, at: Date.now() });
+    await __amiba__.storage.set(STORAGE_KEY, notes);
+    el('wi-input').value = '';
+    renderRecent(notes);
+  }
+
+  el('wi-save').onclick = function() { save(); };
+  el('wi-input').onkeydown = function(e) {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) save();
+  };
+
+  function renderRecent(notes) {
+    var box = el('wi-recent');
+    if (!notes || notes.length === 0) {
+      box.innerHTML = '<div class="wi-empty">暂无笔记</div>';
+      return;
+    }
+    var html = '';
+    for (var i = 0; i < Math.min(3, notes.length); i++) {
+      html += '<div class="wi-recent-item">· ' + _esc(notes[i].text) + '</div>';
+    }
+    box.innerHTML = html;
+  }
+
+  function _esc(s) {
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  // 轮询 storage，保持与主界面数据同步
+  function poll() {
+    __amiba__.storage.get(STORAGE_KEY).then(function(notes) {
+      renderRecent(Array.isArray(notes) ? notes : []);
+    }).catch(function() {});
+  }
+  setInterval(poll, 2000);
+  poll();
+})();
+</script>

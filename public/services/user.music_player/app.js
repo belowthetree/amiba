@@ -11,20 +11,23 @@
   var isAndroid = typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent);
 
   // ---- 文件夹选择 ----
+  // 全平台统一流程：点按钮 → 选取目录 → 扫描文件
 
   el('btn-pick-folder').onclick = async function() {
     try {
       el('btn-pick-folder').textContent = '选择中...';
       el('btn-pick-folder').disabled = true;
 
+      // Android 需要递归扫描（**/），桌面端用平铺模式即可
       var grant = await __amiba__.fileAccess.requestAccess({
         pattern: isAndroid ? '**/{*.mp3,*.flac,*.wav,*.ogg,*.m4a}' : '{*.mp3,*.flac,*.wav,*.ogg,*.m4a}',
         purpose: '扫描音乐文件用于播放'
       });
 
       token = grant.token;
+      el('folder-section').style.display = 'block';
+      el('btn-pick-folder').style.display = 'none';
       el('folder-path').textContent = grant.path;
-      el('btn-pick-folder').textContent = '📁 选择音乐文件夹';
 
       await scanLibrary();
     } catch(e) {
@@ -35,6 +38,8 @@
   };
 
   async function scanLibrary() {
+    if (!token) return;
+
     el('btn-rescan').textContent = '扫描中...';
     el('btn-rescan').disabled = true;
 
@@ -184,74 +189,24 @@
   });
 
   // ---- 初始化 ----
+  // 全平台统一：尝试恢复上次的授权和曲库，失败则显示选取按钮
 
   async function init() {
-    if (isAndroid) {
-      await androidAutoScan();
-      return;
-    }
-
     var savedToken = await __amiba__.storage.get('music_token');
     var savedTracks = await __amiba__.storage.get('music_tracks');
+
     if (savedToken) {
       token = savedToken;
       el('folder-section').style.display = 'block';
       el('btn-pick-folder').style.display = 'none';
       el('folder-path').textContent = '(已授权)';
     }
+
     if (savedTracks && savedTracks.length > 0) {
       tracks = savedTracks;
       renderLibrary();
       el('library-section').style.display = 'block';
     }
-  }
-
-  // Android 自动扫描根目录
-  async function androidAutoScan() {
-    // 先渲染已缓存的曲目（即时展示）
-    var savedTracks = await __amiba__.storage.get('music_tracks');
-    if (savedTracks && savedTracks.length > 0) {
-      tracks = savedTracks;
-      renderLibrary();
-      el('library-section').style.display = 'block';
-    }
-
-    // 标记正在自动扫描
-    el('folder-section').style.display = 'block';
-    el('btn-pick-folder').textContent = '正在扫描手机存储...';
-    el('btn-pick-folder').disabled = true;
-
-    var rootPaths = ['/storage/emulated/0/', '/sdcard/'];
-    var grant = null;
-
-    for (var i = 0; i < rootPaths.length; i++) {
-      try {
-        grant = await __amiba__.fileAccess.requestAccess({
-          pattern: '**/{*.mp3,*.flac,*.wav,*.ogg,*.m4a}',
-          purpose: '扫描手机音乐文件',
-          path: rootPaths[i],
-          silent: true
-        });
-        break;
-      } catch(e) {
-        console.warn('[MusicPlayer] 扫描 ' + rootPaths[i] + ' 失败:', e.message || e);
-      }
-    }
-
-    if (!grant) {
-      el('btn-pick-folder').textContent = '📁 选择音乐文件夹';
-      el('btn-pick-folder').disabled = false;
-      if (!tracks.length) {
-        __amiba__.showToast('自动扫描失败，请手动选择文件夹', 'error');
-      }
-      return;
-    }
-
-    token = grant.token;
-    el('folder-path').textContent = '手机存储';
-    el('btn-pick-folder').style.display = 'none';
-
-    await scanLibrary();
   }
 
   // ---- 工具函数 ----

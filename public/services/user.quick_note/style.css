@@ -1,0 +1,41 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif;
+  background: var(--color-bg, #f5f6f8);
+  color: var(--color-text, #333);
+}
+.app { max-width: 640px; margin: 0 auto; padding: 16px; }
+
+.header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 16px; }
+.header h1 { font-size: 20px; }
+.note-count { font-size: 13px; color: var(--color-text-secondary, #999); }
+
+.section { margin-bottom: 14px; }
+.hint { font-size: 12px; color: var(--color-text-secondary, #999); }
+
+textarea, input[type=text] {
+  width: 100%; padding: 10px 12px; border: 1px solid var(--color-border, #ddd);
+  border-radius: 8px; font-size: 14px; font-family: inherit;
+  background: var(--color-surface, #fff); color: var(--color-text, #333);
+  resize: vertical; outline: none;
+}
+textarea:focus, input[type=text]:focus { border-color: var(--color-primary, #1976D2); }
+
+.new-note-bar { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+
+.btn { border: none; border-radius: 8px; padding: 8px 18px; font-size: 14px; cursor: pointer; }
+.btn-primary { background: var(--color-primary, #1976D2); color: #fff; }
+.btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; background: var(--color-bg, #eee); color: var(--color-text, #333); }
+.btn-danger { color: #d32f2f; }
+
+.note-list { display: flex; flex-direction: column; gap: 10px; }
+.note-item {
+  background: var(--color-surface, #fff); border: 1px solid var(--color-border, #e5e5e5);
+  border-radius: 10px; padding: 12px 14px;
+}
+.note-text { font-size: 14px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+.note-meta { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+.note-time { font-size: 12px; color: var(--color-text-secondary, #999); }
+.note-actions { display: flex; gap: 6px; }
+
+.empty { text-align: center; padding: 40px 0; color: var(--color-text-secondary, #999); font-size: 14px; }

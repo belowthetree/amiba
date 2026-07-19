@@ -1,0 +1,4 @@
+{
+  "entry": "background.js",
+  "schedule": { "type": "interval", "intervalMs": 1000 }
+}

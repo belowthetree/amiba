@@ -1,0 +1,7 @@
+{
+  "id": "user.quick_note",
+  "name": "快速笔记",
+  "version": "1.0.0",
+  "description": "极简速记：全局悬浮块随时记录，主界面管理、搜索笔记",
+  "permissions": ["storage", "notification", "widgets"]
+}

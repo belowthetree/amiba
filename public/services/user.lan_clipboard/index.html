@@ -1,0 +1,52 @@
+<!-- AMIBA_BRIDGE -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>传纸条</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app" id="app">
+
+  <div class="header">
+    <h1>📨 传纸条</h1>
+    <span class="status" id="net-status">初始化中...</span>
+  </div>
+
+  <!-- 设备列表 -->
+  <div class="section">
+    <div class="section-title">
+      <span>附近的设备</span>
+      <button class="btn btn-sm" id="btn-refresh">🔄 扫描</button>
+    </div>
+    <div class="device-list" id="device-list">
+      <p class="hint">🔍 正在发现附近设备...</p>
+    </div>
+  </div>
+
+  <!-- 发送区 -->
+  <div class="section" id="send-section" style="display:none">
+    <div class="section-title">
+      <span>发送给 <b id="target-name"></b></span>
+      <span class="conn-state" id="conn-state"></span>
+    </div>
+    <textarea id="msg-input" rows="3" placeholder="输入要发送的文本..."></textarea>
+    <button class="btn btn-primary block" id="btn-send">发送</button>
+  </div>
+
+  <!-- 历史记录 -->
+  <div class="section">
+    <div class="section-title">
+      <span>历史记录</span>
+      <button class="btn btn-sm" id="btn-clear">🗑 清空</button>
+    </div>
+    <div class="history-list" id="history-list"></div>
+    <div class="empty" id="empty-tip">暂无消息</div>
+  </div>
+
+</div>
+<script src="app.js"></script>
+</body>
+</html>

@@ -27,6 +27,75 @@
         "widget.json",
         "widgets/controls.html"
       ]
+    },
+    {
+      "id": "user.remote_control",
+      "files": [
+        "manifest.json",
+        "index.html",
+        "style.css",
+        "app.js"
+      ]
+    },
+    {
+      "id": "user.quick_note",
+      "files": [
+        "manifest.json",
+        "index.html",
+        "style.css",
+        "app.js",
+        "widget.json",
+        "widgets/quick-note.html"
+      ]
+    },
+    {
+      "id": "user.lan_clipboard",
+      "files": [
+        "manifest.json",
+        "index.html",
+        "style.css",
+        "app.js"
+      ]
+    },
+    {
+      "id": "user.reader",
+      "files": [
+        "manifest.json",
+        "index.html",
+        "style.css",
+        "app.js"
+      ]
+    },
+    {
+      "id": "user.pomodoro",
+      "files": [
+        "manifest.json",
+        "index.html",
+        "style.css",
+        "app.js",
+        "background.js",
+        "background.json",
+        "widget.json",
+        "widgets/timer.html"
+      ]
+    },
+    {
+      "id": "user.rss_reader",
+      "files": [
+        "manifest.json",
+        "index.html",
+        "style.css",
+        "app.js"
+      ]
+    },
+    {
+      "id": "user.expense_book",
+      "files": [
+        "manifest.json",
+        "index.html",
+        "style.css",
+        "app.js"
+      ]
     }
   ]
 }
