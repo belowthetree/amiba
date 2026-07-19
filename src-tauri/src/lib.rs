@@ -242,44 +242,47 @@ pub fn run() {
 
         // 方式 2: libloading fallback（模拟器 / Android 10- 兼容）
         let vm_ptr = if vm_ptr.is_null() {
-          unsafe {
-            type GetCreatedJavaVMsFn = unsafe extern "system" fn(
-              vm_buf: *mut *mut std::ffi::c_void,
-              buf_len: i32,
-              n_vms: *mut i32,
-            ) -> i32;
+          (|| -> *mut std::ffi::c_void {
+            unsafe {
+              type GetCreatedJavaVMsFn = unsafe extern "system" fn(
+                vm_buf: *mut *mut std::ffi::c_void,
+                buf_len: i32,
+                n_vms: *mut i32,
+              ) -> i32;
 
-            let lib = libloading::Library::new("libnativehelper.so")
-              .or_else(|_| libloading::Library::new("libandroid_runtime.so"))
-              .or_else(|_| libloading::Library::new("libdvm.so"));
+              let lib = libloading::Library::new("libnativehelper.so")
+                .or_else(|_| libloading::Library::new("libandroid_runtime.so"))
+                .or_else(|_| libloading::Library::new("libdvm.so"));
 
-            match lib {
-              Ok(lib) => {
-                let func: libloading::Symbol<GetCreatedJavaVMsFn> =
-                  match lib.get(b"JNI_GetCreatedJavaVMs") {
-                    Ok(f) => f,
-                    Err(e) => {
-                      eprintln!("[rust:lib] dlsym JNI_GetCreatedJavaVMs: {e}");
-                      std::ptr::null_mut()
-                    }
-                  };
-                let mut vm_ptr: *mut std::ffi::c_void = std::ptr::null_mut();
-                let mut n_vms: i32 = 0;
-                let ret = func(&mut vm_ptr, 1, &mut n_vms);
-                if ret != 0 || n_vms == 0 || vm_ptr.is_null() {
-                  eprintln!("[rust:lib] JVM not available via libloading");
-                  std::ptr::null_mut()
-                } else {
-                  eprintln!("[rust:lib] ✓ JVM obtained via libloading fallback");
-                  vm_ptr
+              let lib = match lib {
+                Ok(l) => l,
+                Err(e) => {
+                  eprintln!("[rust:lib] dlopen libnativehelper: {e}");
+                  return std::ptr::null_mut();
                 }
-              }
-              Err(e) => {
-                eprintln!("[rust:lib] dlopen libnativehelper: {e}");
+              };
+
+              let func: libloading::Symbol<GetCreatedJavaVMsFn> =
+                match lib.get(b"JNI_GetCreatedJavaVMs") {
+                  Ok(f) => f,
+                  Err(e) => {
+                    eprintln!("[rust:lib] dlsym JNI_GetCreatedJavaVMs: {e}");
+                    return std::ptr::null_mut();
+                  }
+                };
+
+              let mut vp: *mut std::ffi::c_void = std::ptr::null_mut();
+              let mut n_vms: i32 = 0;
+              let ret = func(&mut vp, 1, &mut n_vms);
+              if ret != 0 || n_vms == 0 || vp.is_null() {
+                eprintln!("[rust:lib] JVM not available via libloading");
                 std::ptr::null_mut()
+              } else {
+                eprintln!("[rust:lib] ✓ JVM obtained via libloading fallback");
+                vp
               }
             }
-          }
+          })()
         } else {
           vm_ptr
         };
