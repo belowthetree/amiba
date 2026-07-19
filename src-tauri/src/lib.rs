@@ -222,70 +222,50 @@ pub fn run() {
       // 下载取消令牌
       app.manage(DownloadCancel(Mutex::new(None)));
 
-      // Android: 缓存 JavaVM 指针
-      // 首选 ndk_context（由 android-activity 初始化，真机最可靠），
-      // fallback libloading 动态查找（模拟器/旧设备兼容）。
+      // Android: 缓存 JavaVM 指针（libloading 动态查找）
       #[cfg(target_os = "android")]
       {
-        let vm_ptr = unsafe {
-          // 方式 1: ndk_context（Android NDK 标准方式，不依赖特定 .so）
-          let ctx = ndk_context::android_context();
-          let ptr = ctx.vm();
-          if !ptr.is_null() {
-            eprintln!("[rust:lib] ✓ JVM obtained via ndk_context");
-            ptr
-          } else {
-            eprintln!("[rust:lib] ndk_context VM is null, falling back to libloading...");
-            std::ptr::null_mut()
-          }
-        };
+        let vm_ptr = (|| -> *mut std::ffi::c_void {
+          unsafe {
+            type GetCreatedJavaVMsFn = unsafe extern "system" fn(
+              vm_buf: *mut *mut std::ffi::c_void,
+              buf_len: i32,
+              n_vms: *mut i32,
+            ) -> i32;
 
-        // 方式 2: libloading fallback（模拟器 / Android 10- 兼容）
-        let vm_ptr = if vm_ptr.is_null() {
-          (|| -> *mut std::ffi::c_void {
-            unsafe {
-              type GetCreatedJavaVMsFn = unsafe extern "system" fn(
-                vm_buf: *mut *mut std::ffi::c_void,
-                buf_len: i32,
-                n_vms: *mut i32,
-              ) -> i32;
+            let lib = libloading::Library::new("libnativehelper.so")
+              .or_else(|_| libloading::Library::new("libandroid_runtime.so"))
+              .or_else(|_| libloading::Library::new("libdvm.so"));
 
-              let lib = libloading::Library::new("libnativehelper.so")
-                .or_else(|_| libloading::Library::new("libandroid_runtime.so"))
-                .or_else(|_| libloading::Library::new("libdvm.so"));
+            let lib = match lib {
+              Ok(l) => l,
+              Err(e) => {
+                eprintln!("[rust:lib] dlopen failed: {e}");
+                return std::ptr::null_mut();
+              }
+            };
 
-              let lib = match lib {
-                Ok(l) => l,
+            let func: libloading::Symbol<GetCreatedJavaVMsFn> =
+              match lib.get(b"JNI_GetCreatedJavaVMs") {
+                Ok(f) => f,
                 Err(e) => {
-                  eprintln!("[rust:lib] dlopen libnativehelper: {e}");
+                  eprintln!("[rust:lib] dlsym JNI_GetCreatedJavaVMs: {e}");
                   return std::ptr::null_mut();
                 }
               };
 
-              let func: libloading::Symbol<GetCreatedJavaVMsFn> =
-                match lib.get(b"JNI_GetCreatedJavaVMs") {
-                  Ok(f) => f,
-                  Err(e) => {
-                    eprintln!("[rust:lib] dlsym JNI_GetCreatedJavaVMs: {e}");
-                    return std::ptr::null_mut();
-                  }
-                };
-
-              let mut vp: *mut std::ffi::c_void = std::ptr::null_mut();
-              let mut n_vms: i32 = 0;
-              let ret = func(&mut vp, 1, &mut n_vms);
-              if ret != 0 || n_vms == 0 || vp.is_null() {
-                eprintln!("[rust:lib] JVM not available via libloading");
-                std::ptr::null_mut()
-              } else {
-                eprintln!("[rust:lib] ✓ JVM obtained via libloading fallback");
-                vp
-              }
+            let mut vp: *mut std::ffi::c_void = std::ptr::null_mut();
+            let mut n_vms: i32 = 0;
+            let ret = func(&mut vp, 1, &mut n_vms);
+            if ret != 0 || n_vms == 0 || vp.is_null() {
+              eprintln!("[rust:lib] JVM not available via libloading (ret={ret}, n={n_vms})");
+              std::ptr::null_mut()
+            } else {
+              eprintln!("[rust:lib] ✓ JVM obtained via libloading");
+              vp
             }
-          })()
-        } else {
-          vm_ptr
-        };
+          }
+        })();
 
         if vm_ptr.is_null() {
           eprintln!("[rust:lib] ✗ JVM unavailable — web_browse / folder_picker will use fallback");
