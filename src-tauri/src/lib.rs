@@ -17,6 +17,20 @@ struct DownloadCancel(Mutex<Option<watch::Sender<bool>>>);
 #[cfg(target_os = "android")]
 pub struct AndroidJvm(pub *mut std::ffi::c_void);
 
+#[cfg(target_os = "android")]
+impl AndroidJvm {
+    /// 安全获取 JavaVM 引用。指针为 null 时返回可读错误而非 SIGSEGV。
+    pub fn get_vm(&self) -> Result<jni::JavaVM, String> {
+        if self.0.is_null() {
+            return Err("JavaVM not available on this device".into());
+        }
+        unsafe {
+            jni::JavaVM::from_raw(self.0 as *mut _)
+                .map_err(|e| format!("JVM from_raw failed: {e}"))
+        }
+    }
+}
+
 // JVM 指针在 Android 进程生命周期内有效，跨线程传递安全
 #[cfg(target_os = "android")]
 unsafe impl Send for AndroidJvm {}
@@ -209,47 +223,70 @@ pub fn run() {
       app.manage(DownloadCancel(Mutex::new(None)));
 
       // Android: 缓存 JavaVM 指针
+      // 首选 ndk_context（由 android-activity 初始化，真机最可靠），
+      // fallback libloading 动态查找（模拟器/旧设备兼容）。
       #[cfg(target_os = "android")]
       {
         let vm_ptr = unsafe {
-          type GetCreatedJavaVMsFn = unsafe extern "system" fn(
-            vm_buf: *mut *mut std::ffi::c_void,
-            buf_len: i32,
-            n_vms: *mut i32,
-          ) -> i32;
-
-          let lib = libloading::Library::new("libnativehelper.so")
-            .or_else(|_| libloading::Library::new("libandroid_runtime.so"))
-            .or_else(|_| libloading::Library::new("libdvm.so"));
-
-          match lib {
-            Ok(lib) => {
-              let func: libloading::Symbol<GetCreatedJavaVMsFn> =
-                match lib.get(b"JNI_GetCreatedJavaVMs") {
-                  Ok(f) => f,
-                  Err(e) => {
-                    eprintln!("[rust:lib] dlsym JNI_GetCreatedJavaVMs: {e}");
-                    app.manage(AndroidJvm(std::ptr::null_mut()));
-                    return Ok(());
-                  }
-                };
-              let mut vm_ptr: *mut std::ffi::c_void = std::ptr::null_mut();
-              let mut n_vms: i32 = 0;
-              let ret = func(&mut vm_ptr, 1, &mut n_vms);
-              if ret != 0 || n_vms == 0 || vm_ptr.is_null() {
-                eprintln!("[rust:lib] JVM not available, web_browse disabled");
-                app.manage(AndroidJvm(std::ptr::null_mut()));
-                return Ok(());
-              }
-              vm_ptr
-            }
-            Err(e) => {
-              eprintln!("[rust:lib] dlopen libnativehelper: {e}");
-              app.manage(AndroidJvm(std::ptr::null_mut()));
-              return Ok(());
-            }
+          // 方式 1: ndk_context（Android NDK 标准方式，不依赖特定 .so）
+          let ctx = ndk_context::android_context();
+          let ptr = ctx.vm();
+          if !ptr.is_null() {
+            eprintln!("[rust:lib] ✓ JVM obtained via ndk_context");
+            ptr
+          } else {
+            eprintln!("[rust:lib] ndk_context VM is null, falling back to libloading...");
+            std::ptr::null_mut()
           }
         };
+
+        // 方式 2: libloading fallback（模拟器 / Android 10- 兼容）
+        let vm_ptr = if vm_ptr.is_null() {
+          unsafe {
+            type GetCreatedJavaVMsFn = unsafe extern "system" fn(
+              vm_buf: *mut *mut std::ffi::c_void,
+              buf_len: i32,
+              n_vms: *mut i32,
+            ) -> i32;
+
+            let lib = libloading::Library::new("libnativehelper.so")
+              .or_else(|_| libloading::Library::new("libandroid_runtime.so"))
+              .or_else(|_| libloading::Library::new("libdvm.so"));
+
+            match lib {
+              Ok(lib) => {
+                let func: libloading::Symbol<GetCreatedJavaVMsFn> =
+                  match lib.get(b"JNI_GetCreatedJavaVMs") {
+                    Ok(f) => f,
+                    Err(e) => {
+                      eprintln!("[rust:lib] dlsym JNI_GetCreatedJavaVMs: {e}");
+                      std::ptr::null_mut()
+                    }
+                  };
+                let mut vm_ptr: *mut std::ffi::c_void = std::ptr::null_mut();
+                let mut n_vms: i32 = 0;
+                let ret = func(&mut vm_ptr, 1, &mut n_vms);
+                if ret != 0 || n_vms == 0 || vm_ptr.is_null() {
+                  eprintln!("[rust:lib] JVM not available via libloading");
+                  std::ptr::null_mut()
+                } else {
+                  eprintln!("[rust:lib] ✓ JVM obtained via libloading fallback");
+                  vm_ptr
+                }
+              }
+              Err(e) => {
+                eprintln!("[rust:lib] dlopen libnativehelper: {e}");
+                std::ptr::null_mut()
+              }
+            }
+          }
+        } else {
+          vm_ptr
+        };
+
+        if vm_ptr.is_null() {
+          eprintln!("[rust:lib] ✗ JVM unavailable — web_browse / folder_picker will use fallback");
+        }
         app.manage(AndroidJvm(vm_ptr));
       }
 

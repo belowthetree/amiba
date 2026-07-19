@@ -36,21 +36,22 @@ pub async fn pick_folder(
 #[cfg(target_os = "android")]
 async fn pick_folder_android(app: &AppHandle) -> Result<String, String> {
     use jni::objects::JValue;
-    use jni::JavaVM;
     use tauri::Manager;
 
-    let jvm_ptr = app.state::<crate::AndroidJvm>();
-    let vm = unsafe {
-        JavaVM::from_raw(jvm_ptr.0 as *mut _)
-    }.map_err(|e| format!("JVM: {e}"))?;
+    eprintln!("[picker] === pick_folder_android start ===");
+
+    let jvm_state = app.state::<crate::AndroidJvm>();
+    let vm = jvm_state.get_vm()?;
 
     let mut env = vm
         .attach_current_thread()
-        .map_err(|e| format!("attach: {e}"))?;
+        .map_err(|e| format!("JNI attach failed: {e}"))?;
 
+    eprintln!("[picker] JNI attached, finding FolderPickerHelper class...");
     let helper_cls = find_app_class(&mut env, "com.amiba.desktop.FolderPickerHelper")?;
 
     let timeout = 60_000i64; // 60 秒超时
+    eprintln!("[picker] calling FolderPickerHelper.pickFolder({timeout}ms)...");
     let result = env
         .call_static_method(
             &helper_cls,
@@ -58,13 +59,13 @@ async fn pick_folder_android(app: &AppHandle) -> Result<String, String> {
             "(J)Ljava/lang/String;",
             &[JValue::Long(timeout)],
         )
-        .map_err(|e| format!("FolderPickerHelper.pickFolder: {e}"))?;
+        .map_err(|e| format!("FolderPickerHelper.pickFolder JNI call failed: {e}"))?;
 
-    let jobj = result.l().map_err(|e| format!("result obj: {e}"))?;
+    let jobj = result.l().map_err(|e| format!("pickFolder returned non-object: {e}"))?;
     let jstr: jni::objects::JString = jobj.into();
     let path: String = env
         .get_string(&jstr)
-        .map_err(|e| format!("get_string: {e}"))?
+        .map_err(|e| format!("Failed to read result string: {e}"))?
         .into();
 
     if path.is_empty() {
@@ -72,7 +73,7 @@ async fn pick_folder_android(app: &AppHandle) -> Result<String, String> {
         return Err("用户取消".into());
     }
 
-    eprintln!("[picker] 选取文件夹: {path}");
+    eprintln!("[picker] ✓ 选取文件夹: {path}");
     Ok(path)
 }
 

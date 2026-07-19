@@ -580,10 +580,8 @@ pub async fn web_fetch(
         }
         #[cfg(target_os = "android")]
         {
-            let jvm_ptr = app.state::<crate::AndroidJvm>();
-            let vm = unsafe {
-                jni::JavaVM::from_raw(jvm_ptr.0 as *mut _)
-            }.map_err(|e| format!("JVM: {e}"))?;
+            let jvm_state = app.state::<crate::AndroidJvm>();
+            let vm = jvm_state.get_vm()?;
             return mobile::mobile_fetch_sync(&vm, &url);
         }
         #[cfg(target_os = "ios")]
@@ -614,10 +612,8 @@ pub async fn web_eval(
     }
     #[cfg(target_os = "android")]
     {
-        let jvm_ptr = app.state::<crate::AndroidJvm>();
-        let vm = unsafe {
-            jni::JavaVM::from_raw(jvm_ptr.0 as *mut _)
-        }.map_err(|e| format!("JVM: {e}"))?;
+        let jvm_state = app.state::<crate::AndroidJvm>();
+        let vm = jvm_state.get_vm()?;
         mobile::mobile_eval_sync(&vm, &js).map(|r| EvalResult { result: r })
     }
     #[cfg(target_os = "ios")]
@@ -789,10 +785,8 @@ pub async fn web_close(
     // Android: 销毁 WebViewHelper 中的 WebView
     #[cfg(target_os = "android")]
     {
-        let jvm_ptr = app.state::<crate::AndroidJvm>();
-        let vm = unsafe {
-            jni::JavaVM::from_raw(jvm_ptr.0 as *mut _)
-        }.map_err(|e| format!("JVM: {e}"))?;
+        let jvm_state = app.state::<crate::AndroidJvm>();
+        let vm = jvm_state.get_vm()?;
         let mut env = vm.attach_current_thread()
             .map_err(|e| format!("attach: {e}"))?;
         let helper_cls = mobile::find_app_class(&mut env, "com.amiba.desktop.WebViewHelper")?;

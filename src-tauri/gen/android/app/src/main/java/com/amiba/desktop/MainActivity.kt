@@ -185,6 +185,11 @@ object WebViewHelper {
 // 通过 ACTION_OPEN_DOCUMENT_TREE 让用户在移动端选取文件夹。
 // Rust JNI 线程调用 pickFolder() → 主线程启动 Intent →
 // onActivityResult 回调 → 解析 content:// URI → 返回实际路径。
+//
+// 防御性设计：
+//   - Activity 为 null / finishing 时立即返回空（不阻塞）
+//   - 启动 Intent 失败时 catch 并通知等待线程
+//   - resolveDocumentPath 失败时保留 content:// URI 作为 fallback
 // ============================================================
 
 object FolderPickerHelper {
@@ -201,12 +206,17 @@ object FolderPickerHelper {
             android.util.Log.w("[amiba]", "FolderPicker: no Activity instance")
             return ""
         }
+        if (activity.isFinishing || activity.isDestroyed) {
+            android.util.Log.w("[amiba]", "FolderPicker: Activity is finishing/destroyed")
+            return ""
+        }
 
         resultPath = null
         hasResult = false
 
-        handler.post {
+        val posted = handler.post {
             try {
+                android.util.Log.i("[amiba]", "FolderPicker: launching ACTION_OPEN_DOCUMENT_TREE...")
                 val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
                     addFlags(
                         Intent.FLAG_GRANT_READ_URI_PERMISSION or
@@ -215,41 +225,51 @@ object FolderPickerHelper {
                 }
                 activity.startActivityForResult(intent, REQUEST_CODE)
             } catch (e: Exception) {
-                android.util.Log.e("[amiba]", "FolderPicker start error: ${e.message}")
+                android.util.Log.e("[amiba]", "FolderPicker start error: ${e.message}", e)
                 synchronized(lock) {
                     hasResult = true
-                    lock.notifyAll()
+                    lock.notify()
                 }
             }
+        }
+
+        if (!posted) {
+            android.util.Log.e("[amiba]", "FolderPicker: handler.post failed (looper not ready?)")
+            return ""
         }
 
         synchronized(lock) {
             if (!hasResult) {
                 try {
                     lock.wait(timeoutMs)
-                } catch (_: InterruptedException) {}
+                } catch (_: InterruptedException) {
+                    android.util.Log.w("[amiba]", "FolderPicker: wait interrupted")
+                }
             }
         }
 
         val path = resultPath ?: ""
-        android.util.Log.i("[amiba]", "FolderPicker result: ${path.ifEmpty { "(cancelled)" }}")
+        android.util.Log.i("[amiba]", "FolderPicker result: ${path.ifEmpty { "(cancelled/empty)" }}")
         return path
     }
 
     fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         if (requestCode != REQUEST_CODE) return
 
+        android.util.Log.i("[amiba]", "FolderPicker onActivityResult: resultCode=$resultCode, data=${data?.data}")
+
         if (resultCode == Activity.RESULT_OK && data?.data != null) {
             val uri = data.data!!
 
-            // 持久化读取权限
+            // 持久化读取权限（跨进程重启保留）
             try {
                 val activity = MainActivity.instance
-                activity?.contentResolver?.takePersistableUriPermission(
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
-            } catch (_: Exception) {}
+                val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                activity?.contentResolver?.takePersistableUriPermission(uri, flags)
+                android.util.Log.i("[amiba]", "FolderPicker persistable permission granted for: $uri")
+            } catch (e: Exception) {
+                android.util.Log.w("[amiba]", "FolderPicker takePersistableUriPermission failed: ${e.message}")
+            }
 
             val resolved = resolveDocumentPath(uri)
             if (resolved != null) {
@@ -257,14 +277,17 @@ object FolderPickerHelper {
                 resultPath = resolved
             } else {
                 // 无法转换为文件路径，保留 content:// URI
-                android.util.Log.w("[amiba]", "FolderPicker cannot resolve to path, using URI: $uri")
+                android.util.Log.w("[amiba]", "FolderPicker cannot resolve to file path, using URI: $uri")
                 resultPath = uri.toString()
             }
+        } else {
+            android.util.Log.i("[amiba]", "FolderPicker: user cancelled or no data (resultCode=$resultCode)")
+            // resultPath 保持 null，pickFolder 返回空字符串
         }
 
         synchronized(lock) {
             hasResult = true
-            lock.notifyAll()
+            lock.notify()
         }
     }
 
@@ -280,19 +303,27 @@ object FolderPickerHelper {
         try {
             val docId = DocumentsContract.getTreeDocumentId(uri)
             val split = docId.split(":", limit = 2)
-            if (split.size < 2) return null
+            if (split.size < 2) {
+                android.util.Log.w("[amiba]", "resolveDocumentPath: unexpected docId format: $docId")
+                return null
+            }
 
             val type = split[0]
             val path = split[1]
 
             if (type == "primary") {
-                return "${Environment.getExternalStorageDirectory().absolutePath}/$path"
+                val extDir = Environment.getExternalStorageDirectory()
+                if (extDir == null) {
+                    android.util.Log.w("[amiba]", "resolveDocumentPath: getExternalStorageDirectory returned null")
+                    return null
+                }
+                return "${extDir.absolutePath}/$path"
             }
 
             // SD 卡等外部存储
             return "/storage/$type/$path"
         } catch (e: Exception) {
-            android.util.Log.w("[amiba]", "resolveDocumentPath failed: ${e.message}")
+            android.util.Log.w("[amiba]", "resolveDocumentPath failed: ${e.message}", e)
             return null
         }
     }
