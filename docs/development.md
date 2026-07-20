@@ -48,8 +48,10 @@ npx tauri android build
 
 ```toml
 # src-tauri/Cargo.toml
+tauri-plugin-android-fs = "28.4.0"  # SAF Picker + content:// URI 文件操作（替代旧 JNI pick_folder）
+
 [target.'cfg(target_os = "android")'.dependencies]
-jni = { version = "0.21", features = ["invocation"] }
+jni = { version = "0.21", features = ["invocation"] }  # read_tombstone 仍需要
 ndk-context = "0.1"
 libloading = "0.8"  # 用于动态加载 libnativehelper.so 获取 JVM
 ```
@@ -93,7 +95,7 @@ src/
 ├── config/updater.ts    # 更新检查 + Rust reqwest 下载
 ├── config/session-db.ts # SQLite FTS5 数据库封装
 ├── config/web-bridge.ts  # Tauri web_* invoke 封装（fetchPage/clickGetContent/close + captureScreenshot）
-├── config/folder-picker.ts # 文件夹选取统一入口（Android→Rust JNI / 桌面→plugin-dialog / 浏览器→prompt）
+├── config/folder-picker.ts # 文件夹选取统一入口（Android→tauri-plugin-android-fs SAF Picker / 桌面→plugin-dialog / 浏览器→prompt）
 ├── config/logger.ts      # 前端日志系统：monkey-patch console → JSON Lines 文件持久化 + 轮转
 ├── i18n/                 # 多语言 (zh-CN / en)
 │   ├── index.ts          # createI18n + settings.language 同步
@@ -167,10 +169,10 @@ src-tauri/
 │   ├── lib.rs          # 插件注册 + AndroidJvm 状态缓存
 │   ├── db.rs           # SQLite FTS5 会话
 │   ├── web.rs          # WebView 浏览器引擎（三平台）
-│   └── picker.rs       # 文件夹选取（Android JNI → Kotlin FolderPickerHelper）
+│   └── picker.rs       # read_tombstone（Android JNI 崩溃诊断）；pick_folder 已迁移至 tauri-plugin-android-fs
 └── gen/android/        # Android 项目（Gradle）
     └── app/src/main/java/com/amiba/desktop/
-        └── MainActivity.kt  # Activity + JsCallback + WebViewHelper + FolderPickerHelper
+        └── MainActivity.kt  # Activity + JsCallback + WebViewHelper + FolderPickerHelper（已废弃）
 ```
 
 ## 添加新页面
@@ -433,5 +435,6 @@ await stopReceiving()
 - **2026-07-09**: Android 平台播放器扫描音乐改为直接扫描根目录（`/storage/emulated/0/`），无需用户手动选文件夹。实现要点：(1) `FileAccessRequest` 新增 `silent` 字段，跳过 `confirm()` 弹窗（仅 path 已指定时生效）；(2) 前端 `app.js` 通过 `navigator.userAgent` 检测 Android，自动调用 `requestAccess({ path, silent: true })`；(3) `_matchesPattern` 支持 `**/` 前缀剥离，使 `**/{*.mp3,*.flac}` 可同时触发递归扫描 + 多扩展名匹配；(4) Tauri `fs:scope` 扩展 `/storage/emulated/0/**` 和 `/sdcard/**`；(5) AndroidManifest 添加 `READ_EXTERNAL_STORAGE` + `READ_MEDIA_AUDIO` 权限。
 - **2026-07-09**: 多主题系统实现后发现所有页面 CSS 均为硬编码颜色（0 个 `var()` 引用），切换暗色主题只改得了 `body` 背景。迁移策略：先在 App.vue `:root` 定义 30 个 CSS 变量（含颜色/圆角/阴影/字体/间距的全集），再逐页将 ~260 处硬编码替换为 `var(--*)` 引用。迁移后的关键收益：暗色主题只需一份 `variables.json` 覆盖变量值即可全局生效。迁移注意点：shadow 变量要保持语义一致，tint 背景（如 `#E3F2FD`）用 `--color-*-light` 系列变量替代而非直接用表面色变量，`white` 在 primary 背景上保留不变但所有卡片/面板的 `white` 需迁移为 `--color-surface`。
 - **2026-07-17**: Android 扫描文件夹失败是两层问题叠加。(1) **系统权限**：Manifest 只声明 `READ_EXTERNAL_STORAGE`/`READ_MEDIA_AUDIO` 不够——危险权限必须运行时请求（`requestPermissions`），且 Android 11+ Scoped Storage 下直接 POSIX 路径访问共享目录需要 `MANAGE_EXTERNAL_STORAGE`（`READ_EXTERNAL_STORAGE` 在 API 33+ 被系统忽略，`READ_MEDIA_AUDIO` 仅对 MediaStore 有效）。修复：Manifest 加 `MANAGE_EXTERNAL_STORAGE`，`MainActivity.onCreate` 中 API<30 走 `requestPermissions`，API≥30 检查 `Environment.isExternalStorageManager()` 未授权则跳 `Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION` 系统设置页。注意 `gen/android` 会被 `tauri android init` 重置，MainActivity 改动需重置后重新写入。(2) **前端递归 bug（全平台）**：`_scanDir`（原 `_listDirRecursive`）曾用 `recursive: false` 调 `plugin:fs|read_dir` 后用 `!!entry.children` 判断目录——tauri-plugin-fs 的 `FileEntry.children` **仅在 recursive:true 时填充**，非递归时目录永远被当文件、永不递归子目录。修复：单次 `read_dir` 调用（recursive 由 pattern 是否含 `**` 决定）+ 树遍历，避免逐目录多次 IPC。另：`FileEntry` 无 `size` 字段，`size ?? 0` 恒为 0（已知限制，获取真实大小需逐文件 `stat`，扫描场景不划算）。
-- **2026-07-19**: Tauri Android WebView 中 `window.__TAURI__` 全局变量不存在，导致 `pickFolder()` 误判为非 Tauri 环境直接返回 `null`。应使用 `try { await import('@tauri-apps/api/core') }` 检测 Tauri 环境（与 `file-access-grants.ts`、`session-db.ts` 一致），而非依赖 `'__TAURI__' in window`。
-- **2026-07-19**: Android 原生文件夹选取通过 `ACTION_OPEN_DOCUMENT_TREE` 实现。架构：前端 `pickFolder()` → Rust `pick_folder` command（JNI）→ Kotlin `FolderPickerHelper.pickFolder()` → 主线程 `startActivityForResult` → `onActivityResult` 回调 → `DocumentsContract.getTreeDocumentId()` 解析 content:// URI 为实际路径。路径不可转换时保留 content:// URI。关键细节：(1) 需要 `MainActivity` 实例引用（companion object 静态持有，`onCreate` 设、`onDestroy` 清）；(2) `CountDownLatch` 风格的 `synchronized` + `wait/notifyAll` 阻塞 Rust 线程等待用户选择；(3) `takePersistableUriPermission` 确保持久权限；(4) `find_app_class` 需通过 `ActivityThread.currentActivityThread()` → `getApplication().getClassLoader()` 加载 app 类（native 线程只有 system class loader）。
+- **2026-07-19**: Tauri Android WebView 中 `window.__TAURI__` 全局变量不存在，导致 `pickFolder()` 误判为非 Tauri 环境直接返回 `null`。应使用 `try { await import('@tauri-apps/api/core') }` 检测 Tauri 环境（与 `file-access-grants.ts`、`session-db.ts` 一致），而非依赖 `'__TAURI__' in window`。**（2026-07-20 更新：`pickFolder` 已迁移至 `tauri-plugin-android-fs`，通过动态 `import('tauri-plugin-android-fs-api')` 检测 Android 平台，不再依赖 `__TAURI__` 检测。）**
+- **2026-07-19**: Android 原生文件夹选取通过 `ACTION_OPEN_DOCUMENT_TREE` 实现。架构：前端 `pickFolder()` → Rust `pick_folder` command（JNI）→ Kotlin `FolderPickerHelper.pickFolder()` → 主线程 `startActivityForResult` → `onActivityResult` 回调 → `DocumentsContract.getTreeDocumentId()` 解析 content:// URI 为实际路径。路径不可转换时保留 content:// URI。关键细节：(1) 需要 `MainActivity` 实例引用（companion object 静态持有，`onCreate` 设、`onDestroy` 清）；(2) `CountDownLatch` 风格的 `synchronized` + `wait/notifyAll` 阻塞 Rust 线程等待用户选择；(3) `takePersistableUriPermission` 确保持久权限；(4) `find_app_class` 需通过 `ActivityThread.currentActivityThread()` → `getApplication().getClassLoader()` 加载 app 类（native 线程只有 system class loader）。**（2026-07-20 废弃：整套 JNI 方案被 `tauri-plugin-android-fs` 替换，保留此记录作为反面教材。根因：同步阻塞 JNI 线程 + deprecated `startActivityForResult` + Activity 生命周期不感知 → 实机闪退。详见下方 2026-07-20 条目。）**
+- **2026-07-20**: 文件夹选取从手写 JNI (`FolderPickerHelper`) 迁移至 `tauri-plugin-android-fs` (v28.4.0)。迁移原因：(1) 原实现用 `synchronized(lock).wait(60000)` 同步阻塞 tokio worker 线程，旋转屏幕 / Activity 重建时必闪退；(2) deprecated `startActivityForResult` 不感知生命周期，重建后回调丢失；(3) 手动 `unsafe` JVM 裸指针 + `Handler.post` 不可靠。新方案：AndroidX `ActivityResultRegistry` 异步回调 + Tauri PluginHandle 托管 JVM 生命周期，零阻塞。迁移改动：(a) `picker.rs` 删除 `pick_folder` command（-76 行），仅保留 `read_tombstone`；(b) `folder-picker.ts` 用动态 `import('tauri-plugin-android-fs-api')` 替代 `invoke('pick_folder')`；(c) `file-access-grants.ts` 从基于 POSIX 路径的授权模型改为基于 `content://` URI 的授权模型（+210 行改动）。注意：`MainActivity.kt` 中的 `FolderPickerHelper` 代码未删除（避免下次 `tauri android init` 重置后被遗漏），但已无调用路径。

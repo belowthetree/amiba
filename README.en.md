@@ -58,13 +58,35 @@ cargo tauri build     # Tauri desktop (package EXE/DMG/deb)
 
 ## Built-in Services
 
-The app ships with 6 built-in services covering system pages and a demo mini-app:
+The app ships with 14 built-in services (5 system services + 9 user services), covering everyday tools and JSBridge API demos.
+
+### System Services (`system.*`)
+
+Core app pages implemented as Vue Router routes, source-protected and undeletable.
 
 | ID | Name | Description |
 |---|---|---|
-| `user.pet_world` | Pet World | LAN-based pet raising, battle & trading (JSBridge demo) |
+| `system.home` | Home | Feature entry |
+| `system.chat` | AI Chat | Multi-turn conversation with AI |
+| `system.settings` | Settings | Configuration (API key, providers, agents, themes, logs) |
+| `system.my_services` | My Services | Installed service list |
+| `system.memory` | Memory | View/edit MEMORY.md & USER.md |
 
-System services (`system.*`) are implemented as Vue Router page routes, source-protected and undeletable. Prebuilt user services (`user.*`) are automatically installed on first launch, demonstrating full usage of JSBridge storage / notification / network.
+### User Prebuilt Services (`user.*`)
+
+Auto-installed on first launch, demonstrating JSBridge modules in real-world use cases.
+
+| ID | Name | Description | APIs Used |
+|---|---|---|---|
+| `user.expense_book` | Expense Book | Vue 3 + Chart.js expense tracker with category stats & monthly trends | `storage` |
+| `user.lan_clipboard` | LAN Clipboard | Send text messages between LAN devices with history | `storage` `notification` `network` |
+| `user.music_player` | Music Player | Local music scanner & player with shuffle/repeat, background play, floating widget | `storage` `notification` `widgets` `background` `fileAccess` |
+| `user.pet_world` | Pet World | LAN-based pet raising, battle & trading (full JSBridge demo) | `storage` `notification` `network` |
+| `user.pomodoro` | Pomodoro Timer | Background countdown timer with floating widget & completion alerts | `storage` `notification` `widgets` `background` |
+| `user.quick_note` | Quick Note | Global floating widget for instant notes; manage & search in main view | `storage` `notification` `widgets` |
+| `user.reader` | Text Reader | Scan local txt/md files, bookshelf management & reading progress | `storage` `notification` `fileAccess` |
+| `user.remote_control` | Presentation Remote | LAN slideshow remote: one device presents fullscreen, another flips pages | `network` `notification` |
+| `user.rss_reader` | RSS Reader | Subscribe to RSS feeds, aggregate & read articles | `storage` `notification` `fetch` |
 
 ## Service API (JSBridge)
 

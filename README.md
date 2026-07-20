@@ -59,13 +59,35 @@ cargo tauri build     # Tauri 桌面应用（打包 EXE/DMG/deb）
 
 ## 内置服务
 
-应用预置了 6 个内置服务，涵盖系统功能页面和演示小程序：
+应用预置了 14 个内置服务（5 个系统服务 + 9 个用户服务），涵盖常用工具和 JSBridge API 演示。
+
+### 系统服务（`system.*`）
+
+系统功能页面，通过 Vue Router 路由实现，源头保护不可删除。
 
 | ID | 名称 | 说明 |
 |---|---|---|
-| `user.pet_world` | 宠物世界 | 局域网宠物养成、对战、交易（JSBridge 演示） |
+| `system.home` | 首页 | 功能入口 |
+| `system.chat` | AI 对话 | 与 AI 多轮对话 |
+| `system.settings` | 设置 | 配置管理（API Key、供应商、Agent、主题、日志） |
+| `system.my_services` | 我的服务 | 已安装服务列表 |
+| `system.memory` | 记忆管理 | 查看/编辑 MEMORY.md 与 USER.md |
 
-系统服务（`system.*`）通过 Vue Router 页面路由实现，源头保护不可删除。预置用户服务（`user.*`）在首次启动时自动安装，展示 JSBridge storage / notification / network 的完整用法。
+### 用户预置服务（`user.*`）
+
+首次启动时自动安装，展示 JSBridge 各模块的真实用法。
+
+| ID | 名称 | 说明 | 涉及 API |
+|---|---|---|---|
+| `user.expense_book` | 记账本 | Vue 3 + Chart.js 记账、分类统计、月度趋势图 | `storage` |
+| `user.lan_clipboard` | 传纸条 | 局域网设备间互发文本消息，支持历史记录 | `storage` `notification` `network` |
+| `user.music_player` | 音乐播放器 | 本地音乐扫描播放、顺序/随机模式、后台播放、悬浮块控制 | `storage` `notification` `widgets` `background` `fileAccess` |
+| `user.pet_world` | 宠物世界 | 局域网宠物养成、对战、交易（JSBridge 综合演示） | `storage` `notification` `network` |
+| `user.pomodoro` | 番茄钟 | 后台倒计时番茄钟，悬浮块实时显示，完成自动提醒 | `storage` `notification` `widgets` `background` |
+| `user.quick_note` | 快速笔记 | 全局悬浮块随时速记，主界面管理/搜索笔记 | `storage` `notification` `widgets` |
+| `user.reader` | 文本阅读器 | 扫描本地 txt/md 文件，书架管理 + 阅读进度记忆 | `storage` `notification` `fileAccess` |
+| `user.remote_control` | 演示遥控器 | 局域网幻灯片遥控：一端全屏放映，另一端远程翻页 | `network` `notification` |
+| `user.rss_reader` | RSS 阅读器 | 订阅 RSS 源，聚合阅读最新文章 | `storage` `notification` `fetch` |
 
 ## 服务 API (JSBridge)
 
