@@ -31,12 +31,36 @@
     </header>
 
     <!-- Main content -->
-    <main ref="mainRef" class="main-content" @touchstart="onSwipeStart" @touchend="onSwipeEnd">
-      <router-view v-slot="{ Component }">
-        <transition :name="transitionName" mode="out-in">
-          <component :is="Component" />
-        </transition>
-      </router-view>
+    <main
+      ref="mainRef"
+      class="main-content"
+      @touchstart.passive="onSwipeStart"
+      @touchmove="onSwipeMove"
+      @touchend="onSwipeEnd"
+    >
+      <!-- 当前页（手势拖动层） -->
+      <div
+        ref="pageWrapper"
+        class="page-wrapper"
+        :class="{ 'swipe-animating': swipeAnimating }"
+        :style="{ transform: `translateX(${swipeOffsetX}px)` }"
+      >
+        <router-view v-slot="{ Component, route: r }">
+          <transition :name="transitionName" :key="r.fullPath">
+            <component :is="Component" />
+          </transition>
+        </router-view>
+      </div>
+
+      <!-- 预览页（手势拖出时从边缘露出） -->
+      <div
+        v-if="previewComponent"
+        class="preview-peek"
+        :class="previewOnLeft ? 'peek-left' : 'peek-right'"
+        :style="{ transform: `translateX(${swipeOffsetX}px)` }"
+      >
+        <component :is="previewComponent" />
+      </div>
 
       <!-- 全局悬浮块容器 -->
       <FloatingWidgetContainer />
@@ -48,7 +72,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, watch, ref } from 'vue'
+import { computed, onMounted, watch, ref, shallowRef, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import FloatingWidgetContainer from './host/floating-widget-container.vue'
@@ -60,9 +84,19 @@ const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const mainRef = ref<HTMLElement>()
+const pageWrapper = ref<HTMLElement>()
 
 // ==== 页面序列（从左到右） ====
-const PAGE_ORDER = ['/services', '/', '/quick', '/settings']
+const PAGE_ORDER = ['/services', '/', '/quick', '/settings', '/memory']
+
+// ==== 页面组件注册表（用于手势预览时渲染目标页） ====
+const PAGE_COMPONENTS: Record<string, ReturnType<typeof defineAsyncComponent>> = {
+  '/services': defineAsyncComponent(() => import('./pages/ServiceBrowsePage.vue')),
+  '/': defineAsyncComponent(() => import('./pages/ChatPage.vue')),
+  '/quick': defineAsyncComponent(() => import('./pages/QuickPage.vue')),
+  '/settings': defineAsyncComponent(() => import('./pages/SettingsPage.vue')),
+  '/memory': defineAsyncComponent(() => import('./pages/MemoryPage.vue')),
+}
 
 const transitionName = ref('page-forward')
 
@@ -71,6 +105,7 @@ function routePath(name: string | symbol | null | undefined): string {
   if (name === 'chat') return '/'
   if (name === 'quick') return '/quick'
   if (name === 'settings') return '/settings'
+  if (name === 'memory') return '/memory'
   return '/'
 }
 
@@ -78,50 +113,186 @@ function getPageIndex(path: string): number {
   return PAGE_ORDER.indexOf(path)
 }
 
-// ==== 滑动手势导航 ====
-const SWIPE_MIN = 80
-const SWIPE_MAX_V = 50
-const SWIPE_MAX_TIME = 500
+// ==== 全局导航守卫：自动计算过渡方向 ====
+router.beforeEach((to, from) => {
+  // 手势驱动时跳过 CSS transition（手势自身控制动画）
+  if (swipeCommitted.value) return
+
+  const toPath = routePath(to.name)
+  const fromPath = routePath(from.name)
+
+  if (to.name === 'service') {
+    transitionName.value = 'page-forward'
+    return
+  }
+  if (from.name === 'service') {
+    transitionName.value = 'page-back'
+    return
+  }
+
+  const toIdx = getPageIndex(toPath)
+  const fromIdx = getPageIndex(fromPath)
+  if (toIdx >= 0 && fromIdx >= 0) {
+    transitionName.value = toIdx > fromIdx ? 'page-forward' : 'page-back'
+  } else {
+    transitionName.value = 'page-forward'
+  }
+})
+
+// ==== iPhone 风格跟手滑动手势 ====
+const swipeOffsetX = ref(0)        // 实时 translateX 像素
+const swipeAnimating = ref(false)  // 松手后 CSS 动画中
+const swipeCommitted = ref(false)  // 动画完成待切路由
+const isSwiping = ref(false)       // 手势进行中
 
 let swipeStartX = 0
 let swipeStartY = 0
 let swipeStartTime = 0
+let swipeLastX = 0
+let swipeLastTime = 0
+let swipeDir = 0 // 1=右滑(back), -1=左滑(forward)
+let swipeTargetPath = ''
+
+// ==== 预览页面（手势时从边缘露出目标页） ====
+const previewComponent = shallowRef<any>(null)
+const previewOnLeft = ref(false) // true=预览在左边(back), false=预览在右边(forward)
+
+function showPreview(path: string, onLeft: boolean) {
+  previewOnLeft.value = onLeft
+  const comp = PAGE_COMPONENTS[path]
+  if (comp && previewComponent.value !== comp) {
+    previewComponent.value = comp
+  }
+}
+function hidePreview() {
+  previewComponent.value = null
+}
+
+const SWIPE_THRESHOLD_RATIO = 0.28   // 超过屏幕 28% 触发切换
+const SWIPE_VELOCITY_THRESHOLD = 0.3 // px/ms 快速滑动阈值
+const SWIPE_DAMP = 0.55              // 超出阈值后的阻尼系数
+const SWIPE_ANIM_DURATION = 280      // 松手后动画时长 ms
+
+function screenW(): number {
+  return window.innerWidth
+}
 
 function onSwipeStart(e: TouchEvent) {
+  // 如果正在做 CSS 过渡动画，取消它
+  if (swipeAnimating.value) {
+    cancelSwipeAnimation()
+  }
+
   const t = e.touches[0]
   swipeStartX = t.clientX
   swipeStartY = t.clientY
   swipeStartTime = Date.now()
+  swipeLastX = swipeStartX
+  swipeLastTime = swipeStartTime
+  swipeOffsetX.value = 0
+  swipeDir = 0
+  swipeTargetPath = ''
+  isSwiping.value = false
+  swipeCommitted.value = false
+  hidePreview()
 }
 
-function onSwipeEnd(e: TouchEvent) {
-  const t = e.changedTouches[0]
+function onSwipeMove(e: TouchEvent) {
+  const t = e.touches[0]
   const dx = t.clientX - swipeStartX
   const dy = t.clientY - swipeStartY
-  const elapsed = Date.now() - swipeStartTime
 
-  if (elapsed > SWIPE_MAX_TIME) return
-  if (Math.abs(dx) < SWIPE_MIN) return
-  if (Math.abs(dy) > SWIPE_MAX_V) return
+  // 未进入水平滑动模式时：需要超过垂直方向 1.5 倍 + 最小 8px 才激活
+  if (!isSwiping.value) {
+    if (Math.abs(dx) < 8) return
+    if (Math.abs(dy) * 1.5 > Math.abs(dx)) return
+    isSwiping.value = true
+    swipeDir = dx > 0 ? 1 : -1
 
-  const currentPath = routePath(route.name)
-  const idx = getPageIndex(currentPath)
-  if (idx < 0) return
-
-  if (dx < 0 && idx < PAGE_ORDER.length - 1) {
-    // 左滑 → 下一页
-    transitionName.value = 'page-forward'
-    router.push(PAGE_ORDER[idx + 1])
-  } else if (dx > 0 && idx > 0) {
-    // 右滑 → 上一页
-    transitionName.value = 'page-back'
-    router.push(PAGE_ORDER[idx - 1])
+    // 确定目标路由
+    const currentPath = routePath(route.name)
+    const idx = getPageIndex(currentPath)
+    if (idx >= 0) {
+      if (swipeDir < 0 && idx < PAGE_ORDER.length - 1) {
+        swipeTargetPath = PAGE_ORDER[idx + 1]
+      } else if (swipeDir > 0 && idx > 0) {
+        swipeTargetPath = PAGE_ORDER[idx - 1]
+      }
+    }
+    if (!swipeTargetPath) {
+      isSwiping.value = false
+      return
+    }
+    // 激活预览页渲染
+    showPreview(swipeTargetPath, swipeDir > 0)
   }
+
+  // 如果目标路由不可达，忽略
+  if (!swipeTargetPath) return
+
+  // 计算偏移量（带阻尼：超过 60% 屏宽后阻力增大）
+  const absDx = Math.abs(dx)
+  const limit = screenW() * 0.6
+  const offset = swipeDir > 0
+    ? (absDx > limit ? limit + (absDx - limit) * SWIPE_DAMP : absDx)
+    : -(absDx > limit ? limit + (absDx - limit) * SWIPE_DAMP : absDx)
+
+  swipeOffsetX.value = offset
+  swipeLastX = t.clientX
+  swipeLastTime = Date.now()
+  e.preventDefault()
+}
+
+function onSwipeEnd(_e: TouchEvent) {
+  if (!isSwiping.value) return
+  isSwiping.value = false
+
+  const offset = Math.abs(swipeOffsetX.value)
+  const elapsed = Date.now() - swipeLastTime
+  const velocity = elapsed > 0 ? offset / elapsed : 0
+  const threshold = screenW() * SWIPE_THRESHOLD_RATIO
+
+  // 判断是否触发切换：位移超过阈值 或 快速滑动
+  const shouldCommit = offset > threshold || velocity > SWIPE_VELOCITY_THRESHOLD
+
+  if (shouldCommit && swipeTargetPath) {
+    // 提交切换：CSS 动画到屏幕边缘
+    const targetOffset = swipeDir * screenW()
+    swipeAnimating.value = true
+    swipeCommitted.value = true
+    swipeOffsetX.value = targetOffset
+
+    // 动画结束后切路由
+    setTimeout(() => {
+      router.push(swipeTargetPath).then(() => {
+        // 瞬间重置位置（关闭动画过渡）
+        swipeAnimating.value = false
+        swipeOffsetX.value = 0
+        swipeCommitted.value = false
+        hidePreview()
+      })
+    }, SWIPE_ANIM_DURATION)
+  } else {
+    // 回弹：CSS 动画回 0
+    swipeAnimating.value = true
+    swipeOffsetX.value = 0
+    setTimeout(() => {
+      swipeAnimating.value = false
+      hidePreview()
+    }, SWIPE_ANIM_DURATION)
+  }
+}
+
+function cancelSwipeAnimation() {
+  swipeAnimating.value = false
+  swipeOffsetX.value = 0
+  swipeCommitted.value = false
+  isSwiping.value = false
+  hidePreview()
 }
 
 const routeTitles: Record<string, string> = {
   chat: t('app.title'),
-  home: t('app.home'),
   settings: t('app.settings'),
   memory: t('app.memory'),
   quick: t('app.quick'),
@@ -337,45 +508,51 @@ button {
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
+  position: relative;
 }
 
-/* Page transitions — forward (左滑) */
-.page-forward-enter-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
+/* ==== 页面容器（手势拖动层） ==== */
+.page-wrapper {
+  width: 100%;
+  height: 100%;
+  will-change: transform;
+  touch-action: pan-y; /* 允许垂直滚动，拦截水平滑动 */
 }
 
+/* 松手后的惯性 / 回弹动画 */
+.page-wrapper.swipe-animating {
+  transition: transform 0.28s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+/* ==== 预览页面（手势拖动时从边缘露出） ==== */
+.preview-peek {
+  position: absolute;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  background: var(--color-bg);
+  overflow: hidden;
+}
+.peek-right { left: 100%; }
+.peek-left  { right: 100%; }
+
+/* ==== TopBar / 非手势导航的 CSS 过渡 ==== */
+/* 仅在非手势触发的路由切换时生效（手势有自己的 JS 动画） */
+
+.page-forward-enter-active,
 .page-forward-leave-active {
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  transition: opacity 0.22s ease, transform 0.22s ease;
 }
+.page-forward-enter-from { opacity: 0; transform: translateX(30px); }
+.page-forward-leave-to   { opacity: 0; transform: translateX(-20px); }
 
-.page-forward-enter-from {
-  opacity: 0;
-  transform: translateX(30px);
-}
-
-.page-forward-leave-to {
-  opacity: 0;
-  transform: translateX(-30px);
-}
-
-/* Page transitions — back (右滑) */
-.page-back-enter-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
+.page-back-enter-active,
 .page-back-leave-active {
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  transition: opacity 0.22s ease, transform 0.22s ease;
 }
-
-.page-back-enter-from {
-  opacity: 0;
-  transform: translateX(-30px);
-}
-
-.page-back-leave-to {
-  opacity: 0;
-  transform: translateX(30px);
-}
+.page-back-enter-from { opacity: 0; transform: translateX(-30px); }
+.page-back-leave-to   { opacity: 0; transform: translateX(20px); }
 
 /* === 响应式：平板 === */
 @media (min-width: 769px) and (max-width: 1024px) {

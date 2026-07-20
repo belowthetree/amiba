@@ -304,6 +304,13 @@ export async function installPrebuiltServices(): Promise<number> {
     return 0
   }
 
+  // 动态导入 settings 读取安装记录（避免循环依赖）
+  const { settings } = await import('../config/config')
+  const installedRecord: Record<string, string> = settings.prebuilt_services_installed ?? {}
+  if (!settings.prebuilt_services_installed) {
+    settings.prebuilt_services_installed = {}
+  }
+
   const serviceList = indexData?.services ?? []
   for (const entry of serviceList) {
     const serviceId = entry.id
@@ -321,6 +328,8 @@ export async function installPrebuiltServices(): Promise<number> {
             const svc = getService(serviceId)
             if (svc && svc.manifest.version === parsed.version && existingPkg && existingPkg.files.length > 0) {
               console.log('[Registry] 预置服务已存在，版本相同，跳过:', serviceId)
+              // 同步更新安装记录版本
+              installedRecord[serviceId] = parsed.version
               continue
             }
           }
@@ -382,9 +391,16 @@ export async function installPrebuiltServices(): Promise<number> {
     // 如果已注册但文件损坏，只更新文件，不重复注册
     const alreadyRegistered = !!getService(serviceId)
     if (!alreadyRegistered) {
+      // 如果安装记录中已存在 → 用户曾删除，跳过自动重装
+      if (installedRecord[serviceId]) {
+        console.log('[Registry] 预置服务已被用户删除，跳过自动重装:', serviceId)
+        continue
+      }
       await registerService(manifest, 'builtin')
     }
     await storeServicePackage(serviceId, pkg)
+    // 更新安装记录
+    installedRecord[serviceId] = manifest.version
     installed++
     console.log(`[Registry] ✓ 预置服务${alreadyRegistered ? '已修复' : '已安装'}: ${serviceId} (${files.length} 个文件)`)
   }

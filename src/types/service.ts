@@ -171,6 +171,8 @@ export interface AppSettings {
   log_max_files: number
   /** 单文件最大大小 (MB) */
   log_max_size_mb: number
+  /** 内置服务安装记录（serviceId → version），用于避免误删后重启自动重装 */
+  prebuilt_services_installed?: Record<string, string>
 }
 
 // --- AI Provider ---

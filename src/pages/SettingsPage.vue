@@ -378,6 +378,18 @@
       </div>
 
       <div class="settings-section">
+        <h3 class="section-label">🔄 {{ $t('settings.data.reinstallPrebuilt') }}</h3>
+        <div class="action-row" style="margin-bottom:8px">
+          <button
+            class="secondary-btn"
+            :disabled="reinstallingPrebuilt"
+            @click="reinstallPrebuiltServices"
+          >{{ reinstallingPrebuilt ? $t('settings.data.reinstalling') : '🔄 ' + $t('settings.data.reinstallPrebuilt') }}</button>
+        </div>
+        <p class="toggle-desc">{{ $t('settings.data.reinstallPrebuiltHint') }}</p>
+      </div>
+
+      <div class="settings-section">
         <h3 class="section-label">💾 {{ $t('settings.data.storage') }}</h3>
         <div class="action-row" style="flex-wrap:wrap;gap:8px">
           <button class="secondary-btn" @click="exportData">📥 {{ $t('settings.data.exportConfig') }}</button>
@@ -560,7 +572,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { settings } from '../config/config'
 import { storageClear, storageKeys, storageGet, listServiceDirs, readServiceFile } from '../config/storage'
-import { registerService, storeServicePackage, getServicePackage } from '../host/registry'
+import { registerService, storeServicePackage, getServicePackage, installPrebuiltServices } from '../host/registry'
 import { setVisibility, getVisibility } from '../host/network-bridge'
 import type { ServicePackage, ServiceManifest } from '../types/service'
 import { loadUserSkills, addUserSkill, updateUserSkill, deleteUserSkill, importSkillFromFolder, type Skill } from '../ai/skills'
@@ -613,6 +625,7 @@ const updateStatus = ref<UpdateStatus>({ stage: 'idle' })
 const showKey = ref(false)
 const showSaved = ref(false); const pending = ref<any[]>([])
 const deletingSessions = ref(false)
+const reinstallingPrebuilt = ref(false)
 
 // --- Log management ---
 const logFiles = ref<LogFileInfo[]>([])
@@ -827,6 +840,26 @@ async function addSvcFile() { const inp = document.createElement("input"); inp.t
 async function installSvc(idx: number) { const s: any = pending.value[idx]; if (!s) return; try { const pkg: ServicePackage = s.data; const m: any = { id: pkg.manifest.id || ("user." + s.id), name: pkg.manifest.name || s.name, version: pkg.manifest.version || "1.0.0", description: pkg.manifest.description || "", permissions: pkg.manifest.permissions || [] }; await registerService(m, "ai-generated"); await storeServicePackage(m.id, pkg); pending.value.splice(idx, 1); flashSaved() } catch (e: any) { console.error(e); alert(t('settings.confirm.installFailed') + ": " + e.message) } }
 
 async function scanForServices() { let count = 0; const dirs = await listServiceDirs(); console.log("[Scan] service dirs:", dirs); for (const dir of dirs) { try { const raw = await readServiceFile(dir, 'manifest.json'); if (!raw) continue; const manifest: ServiceManifest = JSON.parse(raw); const pkg = await getServicePackage(dir); if (!pkg) continue; await registerService(manifest, 'ai-generated'); await storeServicePackage(manifest.id, pkg); console.log("[Scan] installed:", manifest.name); count++; } catch (e) { console.log("[Scan] skip:", dir, e) } } if (count > 0) { alert(t('settings.dialect.installedNServices', { n: count })); location.reload() } else { alert(t('settings.dialect.noServicesFound')) } }
+
+async function reinstallPrebuiltServices() {
+  reinstallingPrebuilt.value = true
+  try {
+    // 清空安装记录，允许所有预置服务重新安装
+    settings.prebuilt_services_installed = {}
+    const count = await installPrebuiltServices()
+    if (count > 0) {
+      alert(t('settings.dialect.installedNServices', { n: count }))
+      location.reload()
+    } else {
+      alert(t('settings.dialect.noServicesFound'))
+    }
+  } catch (e: any) {
+    console.error('[Settings] 重新安装内置服务失败:', e)
+    alert(t('settings.dialect.noServicesFound'))
+  } finally {
+    reinstallingPrebuilt.value = false
+  }
+}
 
 // --- Skill management functions ---
 async function refreshSkills() { userSkills.value = await loadUserSkills() }

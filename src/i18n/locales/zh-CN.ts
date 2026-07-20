@@ -20,18 +20,6 @@ const zhCN: LocalesSchema = {
     title: '快捷页面',
     emptyHint: '这是一个可自定义的快捷页面。告诉 AI 你想要什么，它会帮你定制这里的内容。',
   },
-  home: {
-    heading: '变形虫 Amiba',
-    subtitle: 'AI 驱动的即时应用平台',
-    sysFeatures: '系统功能',
-    chat: { name: 'AI 对话', desc: '与 AI 助手对话，生成和管理服务' },
-    services: { name: '服务管理', desc: '管理已安装服务' },
-    settings: { name: '设置', desc: 'API Key 与配置' },
-    memory: { name: '记忆管理', desc: 'AI 记忆与画像' },
-    recentUse: '最近使用',
-    noUserServices: '还没有用户服务',
-    ctaGenerate: '跟 AI 对话生成一个',
-  },
   chat: {
     newSession: '新会话',
     delete: '删除',
@@ -179,6 +167,9 @@ const zhCN: LocalesSchema = {
       deleting: '删除中…',
       deleteSessionsHint: '删除聊天记录不影响服务和记忆，清除所有数据不可恢复',
       clearAllData: '清除所有数据',
+      reinstallPrebuilt: '重新安装内置服务',
+      reinstallPrebuiltHint: '重新安装所有预置服务（如误删后需恢复）',
+      reinstalling: '安装中…',
     },
     logs: {
       title: '日志管理',

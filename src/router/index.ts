@@ -7,7 +7,6 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/', name: 'chat', component: () => import('../pages/ChatPage.vue') },
-    { path: '/home', name: 'home', component: () => import('../pages/HomePage.vue') },
     { path: '/services', name: 'services', component: () => import('../pages/ServiceBrowsePage.vue') },
     { path: '/settings', name: 'settings', component: () => import('../pages/SettingsPage.vue') },
     { path: '/memory', name: 'memory', component: () => import('../pages/MemoryPage.vue') },

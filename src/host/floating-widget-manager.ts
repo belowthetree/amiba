@@ -75,7 +75,7 @@ export function unregisterServiceWidgets(serviceId: string): void {
   }
 }
 
-const knownRoutes = new Set(['chat', 'home', 'services', 'settings', 'memory', 'service'])
+const knownRoutes = new Set(['chat', 'services', 'settings', 'memory', 'service'])
 function isRouteToken(t: string) { return knownRoutes.has(t) }
 
 export function setWidgetVisible(id: string, visible: boolean): void {

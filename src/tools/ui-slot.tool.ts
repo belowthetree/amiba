@@ -25,21 +25,6 @@ const SLOT_DEFS: Array<{ name: string; description: string; tips: string }> = [
     tips: '适合放快捷操作按钮、通知图标等。内容推荐宽 40-160px、高 ≤ 40px。',
   },
   {
-    name: 'home.above-welcome',
-    description: '首页欢迎卡片上方',
-    tips: '适合放公告、快捷入口、自定义 banner。',
-  },
-  {
-    name: 'home.below-features',
-    description: '首页系统功能卡片下方、最近使用上方',
-    tips: '适合放快捷入口、统计面板。',
-  },
-  {
-    name: 'home.above-recent',
-    description: '首页最近使用列表上方',
-    tips: '适合放搜索框、筛选按钮。',
-  },
-  {
     name: 'chat.above-messages',
     description: '聊天页消息列表上方、会话选择栏下方',
     tips: '适合放快捷指令按钮、上下文提示。',
@@ -115,7 +100,7 @@ toolRegistry.register({
         properties: {
           slot: {
             type: 'string',
-            description: '插槽名称，如 "topbar.left"、"home.below-features"。用 ui_slot_list 查看所有可用名称。',
+            description: '插槽名称，如 "topbar.left"、"chat.below-input"。用 ui_slot_list 查看所有可用名称。',
           },
         },
         required: ['slot'],
@@ -195,7 +180,7 @@ toolRegistry.register({
         properties: {
           slot: {
             type: 'string',
-            description: '插槽名称，如 "topbar.left"、"home.below-features"',
+            description: '插槽名称，如 "topbar.left"、"chat.below-input"',
           },
         },
         required: ['slot'],

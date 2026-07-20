@@ -5,7 +5,6 @@
 export interface LocalesSchema {
   app: {
     title: string
-    home: string
     settings: string
     memory: string
     service: string
@@ -18,18 +17,6 @@ export interface LocalesSchema {
   quick: {
     title: string
     emptyHint: string
-  }
-  home: {
-    heading: string
-    subtitle: string
-    sysFeatures: string
-    chat: { name: string; desc: string }
-    services: { name: string; desc: string }
-    settings: { name: string; desc: string }
-    memory: { name: string; desc: string }
-    recentUse: string
-    noUserServices: string
-    ctaGenerate: string
   }
   chat: {
     newSession: string
@@ -192,6 +179,9 @@ export interface LocalesSchema {
       deleting: string
       deleteSessionsHint: string
       clearAllData: string
+      reinstallPrebuilt: string
+      reinstallPrebuiltHint: string
+      reinstalling: string
     }
     logs: {
       title: string

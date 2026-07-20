@@ -6,7 +6,6 @@ import type { LocalesSchema } from '../types'
 const en: LocalesSchema = {
   app: {
     title: 'Amiba',
-    home: 'Home',
     settings: 'Settings',
     memory: 'Memory',
     service: 'Service',
@@ -19,18 +18,6 @@ const en: LocalesSchema = {
   quick: {
     title: 'Quick Page',
     emptyHint: 'This is a customizable quick page. Tell the AI what you want, and it will personalize this space for you.',
-  },
-  home: {
-    heading: 'Amiba',
-    subtitle: 'AI-Powered Instant App Platform',
-    sysFeatures: 'System Features',
-    chat: { name: 'AI Chat', desc: 'Chat with AI assistant to generate and manage services' },
-    services: { name: 'Service Manager', desc: 'Manage installed services' },
-    settings: { name: 'Settings', desc: 'API Key & Configuration' },
-    memory: { name: 'Memory', desc: 'AI Memory & Profile' },
-    recentUse: 'Recently Used',
-    noUserServices: 'No user services yet',
-    ctaGenerate: 'Generate one with AI',
   },
   chat: {
     newSession: 'New Session',
@@ -179,6 +166,9 @@ const en: LocalesSchema = {
       deleting: 'Deleting...',
       deleteSessionsHint: 'Deleting chat history does not affect services or memory. Clearing all data is irreversible.',
       clearAllData: 'Clear All Data',
+      reinstallPrebuilt: 'Reinstall Built-in Services',
+      reinstallPrebuiltHint: 'Reinstall all prebuilt services (e.g. after accidental deletion)',
+      reinstalling: 'Installing...',
     },
     logs: {
       title: 'Log Management',
