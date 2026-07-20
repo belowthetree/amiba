@@ -1,15 +1,14 @@
 // ============================================================
 // 变形虫 (Amiba) — FileAccessGrants
 // ============================================================
-// 管理服务的文件访问授权。授权仅本次应用生命周期有效，不落盘。
-//
-// 使用 Tauri 官方 typed API（非裸 invoke），参照：
-//   https://v2.tauri.app/plugin/file-system/
+// 管理服务的文件访问授权。Android 端通过 tauri-plugin-android-fs
+// 的 SAF API 操作；桌面端使用 tauri-plugin-fs；浏览器不可用。
+// 授权仅本次应用生命周期有效，不落盘。
 // ============================================================
 
 import type { FileAccessRequest, FileAccessGrant, FileInfo } from '../types/service'
-import type { DirEntry } from '@tauri-apps/plugin-fs'
 import { pickFolder } from '../config/folder-picker'
+import type { AndroidFsUri } from 'tauri-plugin-android-fs-api'
 
 interface GrantEntry {
   grant: FileAccessGrant
@@ -37,22 +36,18 @@ export function revokeService(serviceId: string): void {
     if (entry.serviceId === serviceId) {
       _grants.delete(token)
       console.log('[FileAccess] 吊销: ' + serviceId)
+      // Android: 释放持久化权限
+      releaseAndroidPermission(entry.grant).catch(() => {})
     }
   }
 }
-
-// ---- 内部工具 ----
 
 function _generateToken(): string {
   return 'fa_' + Math.random().toString(36).slice(2) + '_' + Date.now().toString(36)
 }
 
-/**
- * Uint8Array → Base64。使用分块方式避免大文件 O(n²) 字符串拼接。
- * 参照 MDN btoa 大字符串最佳实践。
- */
 function _arrayToBase64(bytes: Uint8Array): string {
-  const CHUNK = 0x8000 // 32KB chunks — 避免 call stack overflow
+  const CHUNK = 0x8000
   const chunks: string[] = []
   for (let i = 0; i < bytes.length; i += CHUNK) {
     chunks.push(String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + CHUNK))))
@@ -60,80 +55,90 @@ function _arrayToBase64(bytes: Uint8Array): string {
   return btoa(chunks.join(''))
 }
 
-// ---- Glob 匹配 ----
-
 function _matchesPattern(testPath: string, pattern: string): boolean {
   if (!pattern) return false
-  // **/*.ext or **/{*.ext1,*.ext2} → 先剥离 **/ 前缀再匹配
-  if (pattern.startsWith('**/')) {
-    return _matchesPattern(testPath, pattern.slice(3))
-  }
-  // **/*.ext
+  if (pattern.startsWith('**/')) return _matchesPattern(testPath, pattern.slice(3))
   const globMatch = pattern.match(/^\*\*\/\*(\.\w+)$/)
-  if (globMatch) {
-    return testPath.toLowerCase().endsWith(globMatch[1].toLowerCase())
-  }
-  // {*.ext1,*.ext2}
+  if (globMatch) return testPath.toLowerCase().endsWith(globMatch[1].toLowerCase())
   if (pattern.startsWith('{') && pattern.endsWith('}')) {
     const exts = pattern.slice(1, -1).split(',').map(s => s.trim().toLowerCase())
     return exts.some(ext => testPath.toLowerCase().endsWith(ext.replace('*', '').toLowerCase()))
   }
-  // *.ext
-  if (pattern.startsWith('*.')) {
-    return testPath.toLowerCase().endsWith(pattern.slice(1).toLowerCase())
-  }
+  if (pattern.startsWith('*.')) return testPath.toLowerCase().endsWith(pattern.slice(1).toLowerCase())
   return testPath === pattern
 }
 
+// ---- Android SAF 工具 ----
+
+let _androidFs: any = null
+async function _getAndroidFs() {
+  if (!_androidFs) {
+    const mod = await import('tauri-plugin-android-fs-api')
+    if (!mod.isAndroid()) throw new Error('Android FS 插件仅在 Android 平台可用')
+    _androidFs = mod.AndroidFs
+  }
+  return _androidFs
+}
+
+async function releaseAndroidPermission(grant: FileAccessGrant): Promise<void> {
+  try {
+    const AndroidFs = await _getAndroidFs()
+    // 尝试释放持久化权限（best-effort）
+    await AndroidFs.releasePersistedPickerUriPermission({ uri: grant.path, documentTopTreeUri: null })
+  } catch { /* 非 Android 或权限非持久化 */ }
+}
+
 // ---- 目录扫描 ----
-// 使用 Tauri 官方 typed API readDir（@tauri-apps/plugin-fs）。
-// 官方 API 不暴露 recursive 参数；参照官方示例通过 isDirectory 手动递归。
-// 参照：https://v2.tauri.app/plugin/file-system/#read-1
 
 async function _scanDir(basePath: string, pattern: string, results: FileInfo[]): Promise<void> {
+  // Android: 使用 SAF readDir
+  try {
+    const AndroidFs = await _getAndroidFs()
+    const recursive = pattern.includes('**')
+    const androidUri: AndroidFsUri = { uri: basePath, documentTopTreeUri: null }
+
+    const walk = async (dirUri: AndroidFsUri, relativeDir: string): Promise<void> => {
+      try {
+        const entries = await AndroidFs.readDir(dirUri)
+        for (const entry of entries) {
+          const relPath = relativeDir ? `${relativeDir}/${entry.name}` : entry.name
+          if (entry.type === 'Dir') {
+            if (recursive) {
+              const childUri = await AndroidFs.getUri(`${dirUri.uri}%2F${encodeURIComponent(entry.name)}`)
+              await walk(childUri, relPath)
+            }
+          } else if (_matchesPattern(relPath, pattern) || _matchesPattern(entry.name, pattern)) {
+            results.push({ name: entry.name, path: relPath, size: entry.size ?? 0, isDir: false })
+          }
+        }
+      } catch (e: any) {
+        console.warn('[FileAccess] 无法读取子目录: ' + (e?.message || String(e)))
+      }
+    }
+    await walk(androidUri, '')
+    return
+  } catch { /* 回退到桌面 tauri-plugin-fs */ }
+
+  // 桌面: 使用 tauri-plugin-fs
   const [{ readDir }, { join }] = await Promise.all([
     import('@tauri-apps/plugin-fs'),
     import('@tauri-apps/api/path'),
   ])
 
   const recursive = pattern.includes('**')
-
-  /**
-   * 官方推荐方式：手动递归遍历。
-   * 参照 Tauri 官方 readDir 示例中的 processEntriesRecursively 模式：
-   *   for entry of entries:
-   *     if entry.isDirectory → readDir(dir) → processEntriesRecursively(...)
-   */
-  const walk = async (dirPath: string, relativeDir: string): Promise<void> => {
-    let entries: DirEntry[]
-    try {
-      entries = await readDir(dirPath)
-    } catch (e: any) {
-      console.warn('[FileAccess] 无法读取子目录: ' + dirPath + ' — ' + (e?.message || String(e)))
-      return
-    }
-
-    for (const entry of entries) {
-      const relPath = relativeDir ? await join(relativeDir, entry.name) : entry.name
-
-      if (entry.isDirectory) {
-        if (recursive) {
-          const nextDir = await join(dirPath, entry.name)
-          await walk(nextDir, relPath)
-        }
-      } else if (entry.isFile || entry.isSymlink) {
-        if (_matchesPattern(relPath, pattern) || _matchesPattern(entry.name, pattern)) {
-          results.push({
-            name: entry.name,
-            path: relPath,
-            size: 0, // DirEntry 不含 size；如需文件大小可额外调用 stat()
-            isDir: false,
-          })
-        }
+  const w = async (dirPath: string, relDir: string): Promise<void> => {
+    let entries: any[]
+    try { entries = await readDir(dirPath) } catch { return }
+    for (const e of entries) {
+      const rp = relDir ? await join(relDir, e.name) : e.name
+      if (e.isDirectory) {
+        if (recursive) await w(await join(dirPath, e.name), rp)
+      } else if (_matchesPattern(rp, pattern) || _matchesPattern(e.name, pattern)) {
+        results.push({ name: e.name, path: rp, size: 0, isDir: false })
       }
     }
   }
-  await walk(basePath, '')
+  await w(basePath, '')
 }
 
 // ---- 公共 API ----
@@ -142,47 +147,29 @@ export async function requestAccess(serviceId: string, req: FileAccessRequest): 
   let folderPath = req.path
 
   if (!folderPath) {
-    let isTauri = false
-    try { await import('@tauri-apps/api/core'); isTauri = true } catch { /* web */ }
-    if (isTauri) {
-      const picked = await pickFolder('选择文件夹')
-      if (!picked) throw new Error('未选择文件夹')
-      folderPath = picked
-    } else {
-      folderPath = prompt('请输入文件夹路径:', '') || undefined
-      if (!folderPath) throw new Error('未指定文件夹路径')
-    }
+    folderPath = (await pickFolder('选择文件夹')) ?? undefined
+    if (!folderPath) throw new Error('未选择文件夹')
   }
-
-  if (!folderPath) throw new Error('未指定文件夹路径')
 
   const pattern = req.pattern || '*'
 
   if (!req.silent) {
-    const purpose = req.purpose || '读取文件'
     const confirmed = confirm(
-      '服务请求访问文件夹\n\n' +
-      '路径: ' + folderPath + '\n' +
-      '用途: ' + purpose + '\n' +
-      '模式: ' + pattern + '\n\n' +
-      '允许访问？'
+      `服务请求访问文件夹\n\n路径: ${folderPath}\n用途: ${req.purpose || '读取文件'}\n模式: ${pattern}\n\n允许访问？`
     )
     if (!confirmed) throw new Error('用户拒绝了文件访问')
-  } else {
-    console.log('[FileAccess] 静默授权: ' + serviceId + ' -> ' + folderPath + ' (' + pattern + ')')
   }
+
+  // Android: 持久化权限
+  try {
+    const AndroidFs = await _getAndroidFs()
+    await AndroidFs.persistPickerUriPermission({ uri: folderPath, documentTopTreeUri: null })
+  } catch { /* 非 Android 或非 picker URI */ }
 
   const token = _generateToken()
-  const grant: FileAccessGrant = {
-    token,
-    path: folderPath,
-    pattern,
-    createdAt: new Date().toISOString(),
-  }
-
+  const grant: FileAccessGrant = { token, path: folderPath, pattern, createdAt: new Date().toISOString() }
   _grants.set(token, { grant, serviceId })
-  console.log('[FileAccess] ✓ 授权: ' + serviceId + ' -> ' + grant.path + ' (' + grant.pattern + ')')
-
+  console.log('[FileAccess] ✓ 授权:', serviceId, '->', folderPath)
   return grant
 }
 
@@ -198,33 +185,40 @@ export async function readTextFile(serviceId: string, token: string, relativePat
   const grant = validate(serviceId, token)
   if (!grant) throw new Error('文件访问授权无效或已过期')
 
+  // 尝试 Android SAF
+  try {
+    const AndroidFs = await _getAndroidFs()
+    const androidUri: AndroidFsUri = { uri: grant.path, documentTopTreeUri: null }
+    const childUri = await AndroidFs.getUri(`${androidUri.uri}%2F${encodeURIComponent(relativePath)}`)
+    return await AndroidFs.readTextFile(childUri)
+  } catch { /* fall through */ }
+
+  // 桌面/fallback
   const [{ readTextFile: fsReadTextFile }, { join }] = await Promise.all([
     import('@tauri-apps/plugin-fs'),
     import('@tauri-apps/api/path'),
   ])
-  const fullPath = await join(grant.path, relativePath)
-
-  try {
-    return await fsReadTextFile(fullPath)
-  } catch (e: any) {
-    throw new Error('无法读取文件: ' + (e?.message || String(e)))
-  }
+  return await fsReadTextFile(await join(grant.path, relativePath))
 }
 
 export async function readBinaryFile(serviceId: string, token: string, relativePath: string): Promise<string> {
   const grant = validate(serviceId, token)
   if (!grant) throw new Error('文件访问授权无效或已过期')
 
+  // 尝试 Android SAF
+  try {
+    const AndroidFs = await _getAndroidFs()
+    const androidUri: AndroidFsUri = { uri: grant.path, documentTopTreeUri: null }
+    const childUri = await AndroidFs.getUri(`${androidUri.uri}%2F${encodeURIComponent(relativePath)}`)
+    const bytes = await AndroidFs.readFile(childUri)
+    return _arrayToBase64(bytes)
+  } catch { /* fall through */ }
+
+  // 桌面/fallback
   const [{ readFile: fsReadFile }, { join }] = await Promise.all([
     import('@tauri-apps/plugin-fs'),
     import('@tauri-apps/api/path'),
   ])
-  const fullPath = await join(grant.path, relativePath)
-
-  try {
-    const bytes = await fsReadFile(fullPath)
-    return _arrayToBase64(bytes)
-  } catch (e: any) {
-    throw new Error('无法读取文件: ' + (e?.message || String(e)))
-  }
+  const bytes = await fsReadFile(await join(grant.path, relativePath))
+  return _arrayToBase64(bytes)
 }

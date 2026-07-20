@@ -199,6 +199,7 @@ pub fn run() {
       app.handle().plugin(tauri_plugin_dialog::init())?;
       app.handle().plugin(tauri_plugin_opener::init())?;
       app.handle().plugin(tauri_plugin_android_installer::init())?;
+      app.handle().plugin(tauri_plugin_android_fs::init())?;
 
       // 初始化 SQLite session DB
       let db_path = app
@@ -307,8 +308,6 @@ pub fn run() {
       network_session::network_start_listener,
       network_session::network_stop_listener,
       network_visibility::network_get_device_id,
-      #[cfg(target_os = "android")]
-      picker::pick_folder,
       picker::read_tombstone,
     ])
     .run(tauri::generate_context!())

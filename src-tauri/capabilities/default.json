@@ -23,6 +23,12 @@
       "identifier": "opener:allow-open-path",
       "allow": [{ "path": "$APPDATA/**" }, { "path": "$HOME/**" }, { "path": "$TEMP/**" }]
     },
-    "android-installer:default"
+    "android-installer:default",
+    "android-fs:default",
+    "android-fs:allow-show-open-dir-picker",
+    "android-fs:allow-read-dir",
+    "android-fs:allow-read-text-file",
+    "android-fs:allow-read-file",
+    "android-fs:allow-get-fs-path"
   ]
 }

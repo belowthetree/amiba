@@ -70,11 +70,6 @@ class MainActivity : TauriActivity() {
     instance = null
   }
 
-  override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-    super.onActivityResult(requestCode, resultCode, data)
-    FolderPickerHelper.onActivityResult(requestCode, resultCode, data)
-  }
-
   // 处理 Android 10- 运行时权限请求结果
   override fun onRequestPermissionsResult(
     requestCode: Int,
