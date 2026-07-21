@@ -56,7 +56,7 @@
       <div
         v-if="previewComponent"
         class="preview-peek"
-        :class="previewOnLeft ? 'peek-left' : 'peek-right'"
+        :class="[previewOnLeft ? 'peek-left' : 'peek-right', { 'swipe-animating': swipeAnimating }]"
         :style="{ transform: `translateX(${swipeOffsetX}px)` }"
       >
         <component :is="previewComponent" />
@@ -335,37 +335,38 @@ onMounted(() => {
 </script>
 
 <style>
-/* === Global Reset & Variables === */
+/* === Global Reset & Design Tokens === */
+/* 精致柔和风设计系统：现代靛蓝主色、大圆角、柔和分层阴影 */
 :root {
-  --color-primary: #1976D2;
-  --color-primary-hover: #1565C0;
-  --color-primary-light: #E3F2FD;
-  --color-bg: #f5f5f5;
-  --color-surface: #ffffff;
-  --color-text: #333333;
-  --color-text-secondary: #999999;
-  --color-text-muted: #ccc;
-  --color-success: #4CAF50;
-  --color-success-light: #E8F5E9;
-  --color-warning: #FF9800;
-  --color-warning-light: #FFF3E0;
-  --color-error: #e53935;
-  --color-error-dark: #c62828;
-  --color-error-light: #ffebee;
-  --color-border: #e0e0e0;
-  --color-border-light: #f0f0f0;
-  --color-divider: #f5f5f5;
-  --color-hover-bg: #f0f0f0;
-  --color-disabled: #ccc;
-  --color-on-primary: #ffffff;
+  --color-primary: #6366F1;
+  --color-primary-hover: #4F46E5;
+  --color-primary-light: #EEF2FF;
+  --color-bg: #F5F6F8;
+  --color-surface: #FFFFFF;
+  --color-text: #1F2329;
+  --color-text-secondary: #6B7280;
+  --color-text-muted: #9CA3AF;
+  --color-success: #22C55E;
+  --color-success-light: #ECFDF3;
+  --color-warning: #F59E0B;
+  --color-warning-light: #FFFBEB;
+  --color-error: #EF4444;
+  --color-error-dark: #DC2626;
+  --color-error-light: #FEF2F2;
+  --color-border: #E5E7EB;
+  --color-border-light: #F1F3F5;
+  --color-divider: #F1F3F5;
+  --color-hover-bg: #F3F4F6;
+  --color-disabled: #D1D5DB;
+  --color-on-primary: #FFFFFF;
   --color-tool-msg-bg: #F3F4F6;
   --color-tool-msg-text: #6B7280;
-  --color-scrollbar-thumb: #c0c0c0;
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 16px;
-  --shadow-sm: 0 1px 4px rgba(0,0,0,0.06);
-  --shadow-md: 0 4px 16px rgba(0,0,0,0.1);
+  --color-scrollbar-thumb: #C7CBD1;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05), 0 1px 3px rgba(16, 24, 40, 0.04);
+  --shadow-md: 0 4px 8px -2px rgba(16, 24, 40, 0.06), 0 8px 20px -4px rgba(16, 24, 40, 0.08);
   --font-size-xs: 11px;
   --font-size-sm: 13px;
   --font-size-md: 15px;
@@ -427,7 +428,7 @@ button {
 
 ::-webkit-scrollbar-thumb {
   background: var(--color-scrollbar-thumb, #c0c0c0);
-  border-radius: 3px;
+  border-radius: 4px;
   border-right: 2px solid transparent;
   background-clip: padding-box;
 }
@@ -455,7 +456,7 @@ button {
   height: calc(var(--topbar-height) + var(--safe-top));
   padding: var(--safe-top) 12px 0 12px;
   background: var(--color-surface);
-  border-bottom: 1px solid var(--color-border, #eee);
+  border-bottom: 1px solid var(--color-border-light, #eee);
   flex-shrink: 0;
   z-index: 100;
   gap: 4px;
@@ -471,13 +472,19 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: 50%;
   color: var(--color-text);
   flex-shrink: 0;
+  transition: background 0.18s ease, transform 0.12s ease;
+}
+
+.nav-btn:hover {
+  background: var(--color-hover-bg, #f0f0f0);
 }
 
 .nav-btn:active {
   background: var(--color-hover-bg, #f0f0f0);
+  transform: scale(0.92);
 }
 
 .topbar-right-group {
@@ -521,6 +528,11 @@ button {
 
 /* 松手后的惯性 / 回弹动画 */
 .page-wrapper.swipe-animating {
+  transition: transform 0.28s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+/* 预览页与当前页同步过渡（跟手滑动 + 松手动画） */
+.preview-peek.swipe-animating {
   transition: transform 0.28s cubic-bezier(0.25, 0.1, 0.25, 1);
 }
 

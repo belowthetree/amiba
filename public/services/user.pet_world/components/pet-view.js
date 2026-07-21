@@ -120,7 +120,7 @@ PetView.render = function(state, app) {
   el.innerHTML =
     '<div class="pet-header">' +
       '<span class="pet-emoji">' + stageEmoji + '</span>' +
-      '<div class="pet-name-level">' + escapeHtml(pet.name) + ' <span style="color:#667eea">Lv.' + pet.level + '</span></div>' +
+      '<div class="pet-name-level">' + escapeHtml(pet.name) + ' <span style="color:#6366F1">Lv.' + pet.level + '</span></div>' +
       '<div class="pet-species-label">' + species.name + ' · 阶段' + (pet.currentStage + 1) + '/' + GameData.EVOLUTION_STAGES.length + '</div>' +
     '</div>' +
 
@@ -148,7 +148,7 @@ PetView.render = function(state, app) {
     '<div class="action-row">' +
       '<button class="btn primary small" onclick="PetView.doFeed(app)">🍞 喂食</button>' +
       '<button class="btn success small" onclick="PetView.doPlay(app)">🎾 玩耍</button>' +
-      '<button class="btn small" onclick="PetView.doRest(app)" style="background:#2196f3;color:#fff">😴 休息</button>' +
+      '<button class="btn small" onclick="PetView.doRest(app)" style="background:#6366F1;color:#fff">😴 休息</button>' +
       '<button class="btn danger small" onclick="PetView.doHeal(app)">🏥 治疗</button>' +
     '</div>' +
 

@@ -3,7 +3,7 @@
   var STORAGE_KEY = 'expense_records';
   var CATEGORIES = ['餐饮', '交通', '购物', '娱乐', '居家', '医疗', '其他'];
   var CAT_ICONS = { '餐饮': '🍜', '交通': '🚌', '购物': '🛍️', '娱乐': '🎮', '居家': '🏠', '医疗': '💊', '其他': '📦' };
-  var CHART_COLORS = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#C9CBCF'];
+  var CHART_COLORS = ['#6366F1', '#22C55E', '#F59E0B', '#EF4444', '#8B5CF6', '#0EA5E9', '#9CA3AF'];
 
   var createApp = window.Vue.createApp;
 
@@ -148,7 +148,7 @@
             datasets: [{
               label: '支出',
               data: sums,
-              backgroundColor: '#1976D2',
+              backgroundColor: '#6366F1',
               borderRadius: 4
             }]
           },

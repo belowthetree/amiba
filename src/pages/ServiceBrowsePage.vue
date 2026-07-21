@@ -39,7 +39,7 @@
           :class="{ disabled: !svc.enabled }"
           @click="openService(svc)"
         >
-          <div class="card-icon">{{ svcIcon(svc) }}</div>
+          <div class="card-icon-wrap"><span class="card-icon">{{ svcIcon(svc) }}</span></div>
           <div class="card-name">{{ svc.manifest.name }}</div>
           <div class="card-desc">{{ svc.manifest.description || $t('services.noDescription') }}</div>
           <div class="card-meta">{{ svc.manifest.id }} · v{{ svc.manifest.version }}</div>
@@ -251,8 +251,8 @@ async function importFromFolder() {
 
 <style scoped>
 .browse-page {
-  padding: 16px;
-  max-width: 600px;
+  padding: var(--spacing-md);
+  max-width: 640px;
   margin: 0 auto;
 }
 
@@ -260,17 +260,19 @@ async function importFromFolder() {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: var(--spacing-lg);
 }
 
 .header h2 {
-  font-size: 22px;
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  letter-spacing: -0.3px;
   color: var(--color-text);
 }
 
 .header-btns {
   display: flex;
-  gap: 8px;
+  gap: var(--spacing-sm);
 }
 
 .import-btn {
@@ -278,72 +280,100 @@ async function importFromFolder() {
   background: var(--color-surface);
   color: var(--color-primary);
   border: 1px solid var(--color-primary);
-  border-radius: 8px;
-  font-size: 13px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
   cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
+}
+
+.import-btn:hover {
+  background: var(--color-primary-light);
+  transform: translateY(-1px);
+}
+
+.import-btn:active {
+  transform: scale(0.97);
 }
 
 .share-btn {
   padding: 8px 12px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-size: 16px;
   cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
 }
 
 .share-btn:hover {
   background: var(--color-hover-bg);
+  transform: translateY(-1px);
+}
+
+.share-btn:active {
+  transform: scale(0.97);
 }
 
 .section {
-  margin-bottom: 20px;
+  margin-bottom: var(--spacing-lg);
 }
 
 .section-title {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--color-text-secondary);
-  margin-bottom: 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+  letter-spacing: 0.4px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--spacing-sm);
 }
 
 .count {
   background: var(--color-primary-light);
   color: var(--color-primary);
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
 }
 
 .service-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--spacing-sm);
 }
 
 .service-item {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px;
+  padding: 12px 14px;
   background: var(--color-surface);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   cursor: pointer;
-  box-shadow: 0 1px 4px var(--shadow-sm);
-  transition: background 0.2s;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
 }
 
 .service-item:hover {
-  background: var(--color-bg);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
 
 .svc-icon {
-  font-size: 24px;
+  font-size: 22px;
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-primary-light);
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
 }
 
 .svc-info {
@@ -360,22 +390,27 @@ async function importFromFolder() {
 
 .svc-desc {
   display: block;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
   margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .svc-meta {
   display: block;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-muted);
   margin-top: 2px;
 }
 
 .svc-badge {
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  flex-shrink: 0;
 }
 
 .svc-badge.system {
@@ -387,17 +422,17 @@ async function importFromFolder() {
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 10px;
+  gap: 12px;
 }
 
 .svc-card {
   background: var(--color-surface);
-  border-radius: 12px;
-  padding: 16px 12px;
+  border-radius: var(--radius-md);
+  padding: 18px 14px;
   text-align: center;
   cursor: pointer;
-  box-shadow: 0 2px 8px var(--shadow-sm);
-  transition: all 0.2s;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -406,7 +441,7 @@ async function importFromFolder() {
 
 .svc-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 16px var(--shadow-md);
+  box-shadow: var(--shadow-md);
 }
 
 .svc-card:active {
@@ -414,12 +449,23 @@ async function importFromFolder() {
 }
 
 .svc-card.disabled {
-  opacity: 0.5;
+  opacity: 0.55;
+}
+
+.svc-card .card-icon-wrap {
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-primary-light);
+  border-radius: var(--radius-md);
+  margin-bottom: 4px;
 }
 
 .svc-card .card-icon {
-  font-size: 36px;
-  margin-bottom: 2px;
+  font-size: 28px;
+  line-height: 1;
 }
 
 .svc-card .card-name {
@@ -429,7 +475,7 @@ async function importFromFolder() {
 }
 
 .svc-card .card-desc {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
   line-height: 1.4;
   display: -webkit-box;
@@ -439,14 +485,14 @@ async function importFromFolder() {
 }
 
 .svc-card .card-meta {
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-muted);
 }
 
 .svc-card .card-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--spacing-sm);
   margin-top: 4px;
 }
 
@@ -470,9 +516,9 @@ async function importFromFolder() {
   left: 0;
   right: 0;
   bottom: 0;
-  background: var(--color-text-muted);
+  background: var(--color-disabled);
   border-radius: 22px;
-  transition: 0.3s;
+  transition: 0.25s ease;
 }
 
 .toggle-slider::before {
@@ -484,7 +530,8 @@ async function importFromFolder() {
   bottom: 2px;
   background: var(--color-surface);
   border-radius: 50%;
-  transition: 0.3s;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.15);
+  transition: 0.25s ease;
 }
 
 .toggle input:checked + .toggle-slider {
@@ -501,24 +548,45 @@ async function importFromFolder() {
   cursor: pointer;
   font-size: 16px;
   padding: 4px;
+  border-radius: var(--radius-sm);
+  transition: background 0.2s ease;
+}
+
+.action-icon:hover {
+  background: var(--color-error-light);
 }
 
 .empty {
   text-align: center;
-  padding: 32px;
+  padding: 40px 24px;
   background: var(--color-surface);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
   color: var(--color-text-secondary);
+  font-size: 14px;
 }
 
 .cta-btn {
-  margin-top: 12px;
+  margin-top: 14px;
   padding: 10px 24px;
   background: var(--color-primary);
-  color: var(--color-surface);
+  color: var(--color-on-primary);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
+}
+
+.cta-btn:hover {
+  background: var(--color-primary-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.cta-btn:active {
+  transform: scale(0.97);
 }
 </style>

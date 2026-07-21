@@ -35,45 +35,45 @@ slots/                       ← 插槽内容，全局共享
 
 | 变量 | 默认值 | 影响区域 |
 |------|--------|----------|
-| `--color-primary` | `#1976D2` | 主色调：按钮、链接、选中态、欢迎卡片渐变 |
-| `--color-primary-hover` | `#1565C0` | 主色按钮悬停态 |
-| `--color-primary-light` | `#E3F2FD` | 主色浅底：选中项背景、标签背景 |
-| `--color-bg` | `#f5f5f5` | 全局页面背景色 |
-| `--color-surface` | `#ffffff` | 卡片、顶栏、模态框、面板等容器背景 |
-| `--color-text` | `#333333` | 全局正文文字颜色 |
-| `--color-text-secondary` | `#999999` | 辅助文字、描述、元信息 |
-| `--color-text-muted` | `#ccc` | 极弱文字：占位符、箭头、禁用态 |
-| `--color-success` | `#4CAF50` | 成功/确认类状态色 |
-| `--color-success-light` | `#E8F5E9` | 成功浅底 |
-| `--color-warning` | `#FF9800` | 警告/提醒类状态色 |
-| `--color-warning-light` | `#FFF3E0` | 警告浅底 |
-| `--color-error` | `#e53935` | 错误/危险/删除类状态色 |
-| `--color-error-dark` | `#c62828` | 错误深色：删除按钮悬停 |
-| `--color-error-light` | `#ffebee` | 错误浅底 |
-| `--color-border` | `#e0e0e0` | 边框、分隔线 |
-| `--color-border-light` | `#f0f0f0` | 弱边框、行底分隔 |
-| `--color-divider` | `#f5f5f5` | 列表项底部分隔 |
-| `--color-hover-bg` | `#f0f0f0` | 悬停/按下态背景 |
-| `--color-disabled` | `#ccc` | 禁用态（按钮、输入框） |
-| `--color-on-primary` | `#ffffff` | 主色背景上的文字 |
+| `--color-primary` | `#6366F1` | 主色调：按钮、链接、选中态、欢迎卡片渐变 |
+| `--color-primary-hover` | `#4F46E5` | 主色按钮悬停态 |
+| `--color-primary-light` | `#EEF2FF` | 主色浅底：选中项背景、标签背景 |
+| `--color-bg` | `#F5F6F8` | 全局页面背景色 |
+| `--color-surface` | `#FFFFFF` | 卡片、顶栏、模态框、面板等容器背景 |
+| `--color-text` | `#1F2329` | 全局正文文字颜色 |
+| `--color-text-secondary` | `#6B7280` | 辅助文字、描述、元信息 |
+| `--color-text-muted` | `#9CA3AF` | 极弱文字：占位符、箭头、禁用态 |
+| `--color-success` | `#22C55E` | 成功/确认类状态色 |
+| `--color-success-light` | `#ECFDF3` | 成功浅底 |
+| `--color-warning` | `#F59E0B` | 警告/提醒类状态色 |
+| `--color-warning-light` | `#FFFBEB` | 警告浅底 |
+| `--color-error` | `#EF4444` | 错误/危险/删除类状态色 |
+| `--color-error-dark` | `#DC2626` | 错误深色：删除按钮悬停 |
+| `--color-error-light` | `#FEF2F2` | 错误浅底 |
+| `--color-border` | `#E5E7EB` | 边框、分隔线 |
+| `--color-border-light` | `#F1F3F5` | 弱边框、行底分隔 |
+| `--color-divider` | `#F1F3F5` | 列表项底部分隔 |
+| `--color-hover-bg` | `#F3F4F6` | 悬停/按下态背景 |
+| `--color-disabled` | `#D1D5DB` | 禁用态（按钮、输入框） |
+| `--color-on-primary` | `#FFFFFF` | 主色背景上的文字 |
 | `--color-tool-msg-bg` | `#F3F4F6` | 工具调用消息背景 |
 | `--color-tool-msg-text` | `#6B7280` | 工具调用消息文字 |
-| `--color-scrollbar-thumb` | `#c0c0c0` | 滚动条滑块 |
+| `--color-scrollbar-thumb` | `#C7CBD1` | 滚动条滑块 |
 
 ### 圆角
 
 | 变量 | 默认值 | 影响区域 |
 |------|--------|----------|
-| `--radius-sm` | `6px` | 小圆角：按钮、输入框、标签 |
-| `--radius-md` | `10px` | 中圆角：卡片、面板 |
-| `--radius-lg` | `16px` | 大圆角：模态框、欢迎卡片 |
+| `--radius-sm` | `8px` | 小圆角：按钮、输入框、标签 |
+| `--radius-md` | `12px` | 中圆角：卡片、面板 |
+| `--radius-lg` | `18px` | 大圆角：模态框、欢迎卡片、消息气泡 |
 
 ### 阴影
 
 | 变量 | 默认值 | 影响区域 |
 |------|--------|----------|
-| `--shadow-sm` | `0 1px 4px rgba(0,0,0,0.06)` | 轻微阴影：列表项、小卡片 |
-| `--shadow-md` | `0 4px 16px rgba(0,0,0,0.1)` | 中等阴影：弹出卡片、悬浮面板 |
+| `--shadow-sm` | `0 1px 2px rgba(16,24,40,0.05), 0 1px 3px rgba(16,24,40,0.04)` | 轻微阴影：列表项、小卡片 |
+| `--shadow-md` | `0 4px 8px -2px rgba(16,24,40,0.06), 0 8px 20px -4px rgba(16,24,40,0.08)` | 中等阴影：弹出卡片、悬浮面板 |
 
 ### 字体
 

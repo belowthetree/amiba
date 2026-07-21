@@ -8,8 +8,11 @@
       <p>{{ $t('host.loading') }}</p>
     </div>
     <div v-else-if="error" class="error-state">
-      <p>❌ {{ error }}</p>
-      <button class="back-btn" @click="goBack">{{ $t('host.back') }}</button>
+      <div class="error-card">
+        <div class="error-icon">✕</div>
+        <p class="error-message">{{ error }}</p>
+        <button class="back-btn" @click="goBack">{{ $t('host.back') }}</button>
+      </div>
     </div>
     <iframe
       v-else
@@ -475,7 +478,7 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   border: none;
-  background: #fff;
+  background: var(--color-surface);
 }
 
 .loading-state,
@@ -486,14 +489,15 @@ onUnmounted(() => {
   justify-content: center;
   height: 100%;
   gap: 16px;
-  color: #666;
+  color: var(--color-text-secondary);
+  background: var(--color-bg);
 }
 
 .spinner {
   width: 40px;
   height: 40px;
-  border: 4px solid #e0e0e0;
-  border-top-color: #1976D2;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -502,14 +506,58 @@ onUnmounted(() => {
   to { transform: rotate(360deg); }
 }
 
+/* ---- 错误状态卡片 ---- */
+.error-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: 32px 40px;
+  max-width: 420px;
+  text-align: center;
+}
+
+.error-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--color-error-light);
+  color: var(--color-error);
+  font-size: 22px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.error-message {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+  word-break: break-all;
+}
+
 .back-btn {
   padding: 8px 24px;
-  border: 1px solid #1976D2;
-  border-radius: 8px;
-  background: white;
-  color: #1976D2;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-primary);
   cursor: pointer;
   font-size: 14px;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.back-btn:hover {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary);
 }
 </style>
 
@@ -520,16 +568,16 @@ onUnmounted(() => {
   bottom: 80px;
   left: 50%;
   transform: translateX(-50%) translateY(20px);
-  background: #333;
-  color: white;
+  background: var(--color-text);
+  color: var(--color-surface);
   padding: 12px 24px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-size: 14px;
   z-index: 10000;
   opacity: 0;
   transition: all 0.3s ease;
   pointer-events: none;
   white-space: nowrap;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-md);
 }
 </style>

@@ -243,7 +243,7 @@ Trade.renderTradeUI = function(app) {
     }
     itemRows +=
       '<div class="trade-offer-row">' +
-        '<span>' + itemDef.name + ' <span style="color:#999">x' + it.quantity + '</span></span>' +
+        '<span>' + itemDef.name + ' <span style="color:#9CA3AF">x' + it.quantity + '</span></span>' +
         '<span class="to-actions">' +
           '<button class="btn small ' + (inOffer ? 'danger' : 'ghost') + '" onclick="Trade.toggleItem(\'' + it.id + '\', app)">' +
             (inOffer ? '取消' : '放入') +
@@ -265,7 +265,7 @@ Trade.renderTradeUI = function(app) {
   arena.innerHTML =
     '<div class="trade-panel">' +
       '<div class="trade-side">' +
-        '<h4>📤 你的报价 <span style="float:right;font-size:13px;color:#999">(与 ' + escapeHtml(Trade.opponentName) + ' 交易)</span></h4>' +
+        '<h4>📤 你的报价 <span style="float:right;font-size:13px;color:#9CA3AF">(与 ' + escapeHtml(Trade.opponentName) + ' 交易)</span></h4>' +
         '<div class="trade-offer-row">' +
           '<span>💰 金币</span>' +
           '<span class="to-actions">' +

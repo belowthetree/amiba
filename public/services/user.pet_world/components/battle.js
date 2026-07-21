@@ -500,7 +500,7 @@ Battle.renderBattleUI = function(app) {
       '<button class="btn danger" onclick="Battle.performAction(\'flee\', undefined, app)" ' + (!Battle.isMyTurn ? 'disabled' : '') + '>🏃 逃跑</button>' +
     '</div>' +
 
-    '<div style="text-align:center;margin-top:6px;font-size:12px;color:#999">' +
+    '<div style="text-align:center;margin-top:6px;font-size:12px;color:#9CA3AF">' +
       (Battle.isMyTurn ? '🎯 你的回合' : '⏳ 等待对方行动...') +
       ' | 回合 ' + Battle.turnCount +
     '</div>'

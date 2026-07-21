@@ -67,14 +67,22 @@ watch(quickViewContent, (val) => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 80px var(--spacing-md);
+  padding: 96px var(--spacing-md);
   text-align: center;
 }
 
 .empty-icon {
-  font-size: 48px;
+  font-size: 34px;
+  width: 76px;
+  height: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-primary-light);
+  border-radius: var(--radius-lg);
   margin-bottom: var(--spacing-md);
-  opacity: 0.6;
+  box-shadow: var(--shadow-sm);
+  color: var(--color-primary);
 }
 
 .empty-state h2 {
@@ -88,6 +96,6 @@ watch(quickViewContent, (val) => {
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
   max-width: 360px;
-  line-height: 1.6;
+  line-height: 1.7;
 }
 </style>

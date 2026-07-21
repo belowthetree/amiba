@@ -215,6 +215,7 @@ const v = await __amiba__.storage.get('key')
 | **start 后验证状态** | `start()` 返回不代表就绪，建议再调一次 `getState()` 确认 `running: true` |
 | **状态同步用 storage** | 悬浮块无法直接接收后台 `postMessage`，后台应写入 `storage`，悬浮块轮询 |
 | **容量限制** | 最多 3 个并发，`settings.max_background_services` 控制 |
+| **遵循架构** | 所有修改都需要遵循架构和设计理念 |
 
 ## 文件访问 API 使用模式
 
