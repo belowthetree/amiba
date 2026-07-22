@@ -148,7 +148,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, onMounted, watch, computed } from 'vue'
+import { ref, nextTick, onMounted, onUnmounted, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { streamChat, buildMessages } from '../ai/agent'
 import { getApiKey, settings } from '../config/config'
@@ -355,7 +355,16 @@ async function send() {
 
   const apiKey = await getApiKey()
   if (!apiKey) {
-    errorMsg.value = t('chat.errorNoApiKey')
+    // 检测聊天记录：历史消息中已提示过未配置 API Key 则不再重复提示
+    const warnText = t('chat.errorNoApiKey')
+    const alreadyWarned = messages.value.some(
+      (m) => m.content.includes(warnText) || m.content.includes('请先在设置中配置 API Key')
+    )
+    if (!alreadyWarned) {
+      errorMsg.value = warnText
+      session.messages.value.push({ role: 'system', content: warnText, hidden: true })
+      saveHistory()
+    }
     return
   }
 
@@ -502,6 +511,16 @@ onMounted(async () => {
   await loadHistory()
   await refreshSessionList()
 
+  // 清理历史记录中残留的"未配置 API Key"提示消息（旧版本可能保存为可见消息）
+  const warnTexts = [t('chat.errorNoApiKey'), '请先在设置中配置 API Key']
+  let dirty = false
+  for (const m of session.messages.value) {
+    if (!m.hidden && warnTexts.some((w) => m.content.includes(w))) {
+      m.hidden = true
+      dirty = true
+    }
+  }
+  if (dirty) saveHistory()
   // 首次启动引导：注入人格创建指令
   if (await soulManager.isFirstLaunch()) {
     const directive = soulManager.getOnboardingDirective()
@@ -511,6 +530,11 @@ onMounted(async () => {
   }
 
   scrollToBottom()
+})
+
+// 离开聊天页时清除残留错误提示（errorMsg 为会话级状态，不清理会跨页面驻留）
+onUnmounted(() => {
+  errorMsg.value = ''
 })
 
 watch(
