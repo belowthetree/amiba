@@ -34,6 +34,8 @@ export interface StreamChatOptions {
   agentId?: string
   /** 中止信号（用于停止流式生成） */
   abortSignal?: AbortSignal
+  /** 额外注入的 system prompt 内容（追加在 stable+volatile 之后） */
+  extraInstructions?: string
 }
 
 const DEFAULT_OPTIONS = {
@@ -126,10 +128,20 @@ export async function* streamChat(
     systemContent += '\n\n' + customAgent.systemPrompt
   }
 
+  // 额外注入的 instructions（如 onboarding 引导指令）
+  if (opts.extraInstructions) {
+    systemContent += '\n\n' + opts.extraInstructions
+  }
+
   // === 转换消息为 ModelMessage（仅 user / assistant） ===
   const modelMessages: ModelMessage[] = messages
     .filter((m) => m.role === 'user' || m.role === 'assistant')
     .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
+
+  // 防御：如果没有 user/assistant 消息（如首次 onboarding），插入空 user 消息
+  if (modelMessages.length === 0) {
+    modelMessages.push({ role: 'user', content: '' })
+  }
 
   // === AI SDK streaming ===
   let hitLimit = false

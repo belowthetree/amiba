@@ -478,9 +478,14 @@ async function sendOnboardingMessage(directive: string) {
   abortController = new AbortController()
 
   try {
+    // 发送空 user 消息触发 AI 回复，引导指令通过 extraInstructions 注入 system prompt
     const chatMsgs: { role: string; content: string }[] = []
-    chatMsgs.push({ role: 'system', content: directive })
-    const gen = streamChat(chatMsgs as any, { turnCount: 0, abortSignal: abortController.signal })
+    chatMsgs.push({ role: 'user', content: '' })
+    const gen = streamChat(chatMsgs as any, {
+      turnCount: 0,
+      abortSignal: abortController.signal,
+      extraInstructions: directive,
+    })
 
     for await (const chunk of gen) {
       if (chunk.startsWith('\x00REASONING\x00')) {
