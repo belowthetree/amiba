@@ -201,6 +201,13 @@ export async function createSession(title?: string): Promise<SessionMeta> {
 
 /** 切换到指定 session */
 export async function switchToSession(id: string): Promise<void> {
+  // 切换 session 前停止正在运行的 Agent
+  const { stopGeneration, running } = await import('./agent-runner')
+  if (running.value) {
+    console.log('[Session] ⏹ 切换 session，停止当前 Agent')
+    stopGeneration()
+  }
+
   const session = getSession()
   _currentId = id
 
@@ -246,6 +253,13 @@ export async function renameSession(id: string, title: string): Promise<void> {
 
 /** 开始新会话（/new 命令） */
 export async function newSession(): Promise<string> {
+  // 新建 session 前停止正在运行的 Agent
+  const { stopGeneration, running: agentRunning } = await import('./agent-runner')
+  if (agentRunning.value) {
+    console.log('[Session] ⏹ 新建 session，停止当前 Agent')
+    stopGeneration()
+  }
+
   const session = getSession()
   const oldId = _currentId
 

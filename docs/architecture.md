@@ -78,6 +78,7 @@ amiba/
 │   │   └── ShareDialog.vue      # 局域网服务分享弹窗
 │   ├── ai/                  # AI 核心
 │   │   ├── agent.ts           # LLM 对话（多工具循环）
+│   │   ├── agent-runner.ts    # 全局 Agent 执行器（页面切换不中断）
 │   │   ├── system-prompt.ts   # System Prompt 组装器（缓存+分层）
 │   │   ├── soul.ts            # 人格系统（SOUL.md 管理）
 │   │   ├── session.ts         # 会话管理（状态+持久化）

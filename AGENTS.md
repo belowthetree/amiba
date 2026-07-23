@@ -41,6 +41,7 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 | File | Role |
 |------|------|
 | `agent.ts` | OpenAI-compatible streaming chat loop with multi-tool dispatch, memory checkpoint injection |
+| `agent-runner.ts` | **Global singleton**: owns Agent lifecycle — `sendMessage`/`stopGeneration`/`continueGeneration`; survives page navigation; ChatPage observes reactive state (`running`/`streamingReasoning`/`showStepLimit`) |
 | `system-prompt.ts` | Two-layer assembler: stable (identity+rules+skills, cached) + volatile (memory snapshot+time+nudge, rebuilt each call) |
 | `soul.ts` | Personality system: `souls/<name>.md` files, `soul_save` tool integration, onboarding directive |
 | `session.ts` | **v2 multi-session**: `createSession`/`switchToSession`/`deleteSession`/`listSessions`, per-session `sessions/<id>.json` storage, legacy migration, 300ms debounced save |

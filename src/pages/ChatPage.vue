@@ -151,17 +151,21 @@
 <script setup lang="ts">
 import { ref, nextTick, onMounted, onUnmounted, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { streamChat, buildMessages } from '../ai/agent'
 import { getApiKey, settings } from '../config/config'
-import { detectSlashCommand, buildSkillInvocationMessage } from '../ai/skill-commands'
+import {
+  sendMessage,
+  stopGeneration as stopStreaming,
+  continueGeneration as continueAgent,
+  running as agentRunning,
+  streamingReasoning,
+  showStepLimit,
+  stepLimitCount,
+} from '../ai/agent-runner'
 import { matchCommand } from '../ai/commands'
 import {
   getSession,
   loadHistory,
   saveHistory,
-  addUserMessage,
-  addAssistantMessage,
-  addToolMessage,
   flashError,
   getVisibleMessages,
   listSessions,
@@ -195,17 +199,16 @@ const showStats = ref(false)
 const showSessions = ref(false)
 const sessionList = ref<SessionMeta[]>([])
 const currentId = ref<string | null>(null)
-const streamingReasoning = ref('')
-let abortController: AbortController | null = null
-const showStepLimit = ref(false)
-const stepLimitCount = ref(0)
 
-function stopStreaming() {
-  if (abortController) {
-    abortController.abort()
-    abortController = null
+// Agent 执行状态由 agent-runner 全局管理；ChatPage 只读绑定
+
+// ==== 自动滚屏：Agent 流式输出时跟随 ====
+watch(
+  () => streamingContent.value,
+  () => {
+    if (agentRunning.value) scrollToBottom()
   }
-}
+)
 
 // ==== 输入框键盘处理 ====
 
@@ -238,75 +241,11 @@ function syncKeyboardInset() {
   if (keyboardInset.value > 0) scrollToBottom()
 }
 
-function continueGeneration() {
+/** 步数限制后继续 — 委托给 agent-runner */
+async function continueGeneration() {
   if (isReviewing.value) return
-  showStepLimit.value = false
-  addUserMessage(t('chat.stepLimitContinueMsg'))
-  saveHistory()
   scrollToBottom()
-  // 复用发送逻辑，但不 reset 用户输入
-  sending.value = true
-  streaming.value = true
-  streamingContent.value = ''
-  streamingReasoning.value = ''
-  abortController = new AbortController()
-  streamContinue()
-}
-
-async function streamContinue() {
-  try {
-    const history = messages.value
-      .filter((m) => !m.hidden && m.role !== 'tool')
-      .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
-    const chatMsgs = buildMessages(history)
-
-    const gen = streamChat(chatMsgs, { turnCount: turnCount.value, abortSignal: abortController!.signal })
-
-    for await (const chunk of gen) {
-      if (chunk.startsWith('\x00REASONING\x00')) {
-        streamingReasoning.value += chunk.slice(11)
-      } else if (chunk.startsWith('\x00TOOL:') && chunk.endsWith('\x00')) {
-        const toolName = chunk.slice(6, -1)
-        console.log('[ChatPage] 🔧', toolName)
-        if (streamingContent.value || streamingReasoning.value) {
-          addAssistantMessage(streamingContent.value, streamingReasoning.value || undefined)
-          streamingContent.value = ''
-          streamingReasoning.value = ''
-        }
-        addToolMessage(toolName)
-        saveHistory()
-      } else if (chunk.startsWith('\x00STEP_LIMIT:')) {
-        const n = parseInt(chunk.split(':')[1])
-        if (streamingContent.value) {
-          addAssistantMessage(streamingContent.value, streamingReasoning.value || undefined)
-          streamingContent.value = ''
-          streamingReasoning.value = ''
-        }
-        stepLimitCount.value = n
-        showStepLimit.value = true
-      } else {
-        streamingContent.value += chunk
-      }
-      scrollToBottom()
-    }
-
-    if (streamingContent.value) {
-      addAssistantMessage(streamingContent.value, streamingReasoning.value || undefined)
-      streamingReasoning.value = ''
-      saveHistory()
-    }
-  } catch (e: any) {
-    if (e.name !== 'AbortError') {
-      errorMsg.value = `${t('chat.errorPrefix')}: ${e.message}`
-    }
-  } finally {
-    abortController = null
-    sending.value = false
-    streaming.value = false
-    streamingContent.value = ''
-    streamingReasoning.value = ''
-    scrollToBottom()
-  }
+  await continueAgent()
 }
 
 const visibleMessages = computed(() => getVisibleMessages())
@@ -412,90 +351,9 @@ async function send() {
     return
   }
 
-  addUserMessage(text)
-  saveHistory() // 实时保存用户消息
-
-  // ---- Slash 命令检测 ----
-  let injectedUserMsg: string = text
-  if (text.startsWith('/')) {
-    const detected = await detectSlashCommand(text)
-    if (detected) {
-      console.log(`[Skill] === 用户斜杠命令触发: /${detected.skill.slug} (${detected.skill.name}) ===`)
-      const expanded = await buildSkillInvocationMessage(
-        detected.skill.slug,
-        detected.userInstruction
-      )
-      if (expanded) {
-        injectedUserMsg = expanded
-      }
-    }
-  }
-
+  // 委托给全局 Agent 执行器
   scrollToBottom()
-
-  sending.value = true
-  streaming.value = true
-  streamingContent.value = ''
-  streamingReasoning.value = ''
-
-  // 创建中止控制器
-  abortController = new AbortController()
-
-  try {
-    // 过滤掉隐藏的系统消息，只传 user/assistant 给 API
-    const history = messages.value
-      .filter((m) => !m.hidden && m.role !== 'tool')
-      .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
-    const chatMsgs = buildMessages(history.slice(0, -1))
-    chatMsgs.push({ role: 'user', content: injectedUserMsg })
-
-    const gen = streamChat(chatMsgs, { turnCount: turnCount.value, abortSignal: abortController.signal })
-
-    for await (const chunk of gen) {
-      if (chunk.startsWith('\x00REASONING\x00')) {
-        streamingReasoning.value += chunk.slice(11)
-      } else if (chunk.startsWith('\x00TOOL:') && chunk.endsWith('\x00')) {
-        const toolName = chunk.slice(6, -1)
-        console.log('[ChatPage] 🔧', toolName)
-        if (streamingContent.value || streamingReasoning.value) {
-          addAssistantMessage(streamingContent.value, streamingReasoning.value || undefined)
-          streamingContent.value = ''
-          streamingReasoning.value = ''
-        }
-        addToolMessage(toolName)
-        saveHistory()
-      } else if (chunk.startsWith('\x00STEP_LIMIT:')) {
-        const n = parseInt(chunk.split(':')[1])
-        if (streamingContent.value) {
-          addAssistantMessage(streamingContent.value, streamingReasoning.value || undefined)
-          streamingContent.value = ''
-          streamingReasoning.value = ''
-        }
-        stepLimitCount.value = n
-        showStepLimit.value = true
-      } else {
-        streamingContent.value += chunk
-      }
-      scrollToBottom()
-    }
-
-    if (streamingContent.value) {
-      addAssistantMessage(streamingContent.value, streamingReasoning.value || undefined)
-      streamingReasoning.value = ''
-      saveHistory() // 实时保存 AI 回复
-    }
-  } catch (e: any) {
-    if (e.name !== 'AbortError') {
-      errorMsg.value = `${t('chat.errorPrefix')}: ${e.message}`
-    }
-  } finally {
-    abortController = null
-    sending.value = false
-    streaming.value = false
-    streamingContent.value = ''
-    streamingReasoning.value = ''
-    scrollToBottom()
-  }
+  await sendMessage(text)
 }
 
 onMounted(async () => {
