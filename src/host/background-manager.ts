@@ -15,7 +15,13 @@ import {
   readTextFile,
   readBinaryFile,
 } from './file-access-grants'
-import type { BackgroundConfig } from '../types/service'
+import {
+  registerWidget,
+  unregisterWidget,
+  setWidgetVisible,
+} from './floating-widget-manager'
+import router from '../router'
+import type { BackgroundConfig, FloatingWidgetConfig } from '../types/service'
 
 // ---- 类型 ----
 
@@ -36,21 +42,80 @@ interface BackgroundWorker {
 const _workers = new Map<string, BackgroundWorker>()
 let _hiddenContainer: HTMLDivElement | null = null
 
-// ---- 全局监听：接收 widget 等非标准 iframe 的 background API 调用 ----
+// ---- 全局监听：统一处理 widget / 非标准 iframe 的 API 调用 ----
+// widget iframe 没有 service-container 的 bridge，需要宿主层全局转发。
+// 后台 iframe 的 storage / background 也有独立的 handleBgAPI 处理，
+// 此处通过 event.source 检查避免双重处理。
 
 window.addEventListener('message', (event: MessageEvent) => {
   const data = event.data
-  if (!data || data.type !== 'api' || data.module !== 'background') return
-  const svcId = data.params?.serviceId
-  if (!svcId) { console.log('[BgManager] 收到 background API 但无 serviceId:', data.method); return }
+  if (!data || data.type !== 'api') return
 
-  const { method, params, requestId } = data
-  console.log('[BgManager] 全局 background API: svcId=' + svcId + ' method=' + method)
-  const worker = _workers.get(svcId)
+  const { module, method, params, requestId } = data
+  const svcId: string | undefined = params?.serviceId
+  if (!svcId) return // widget / 后台消息必须有 serviceId
+
+  // 跳过已知后台 worker iframe 的消息（由 handleBgAPI 单独处理）
+  for (const worker of _workers.values()) {
+    try {
+      if (worker.iframe.contentWindow === event.source) return
+    } catch { /* contentWindow 可能不可用 */ }
+  }
+
   const reply = (result?: any, error?: string) => {
     try { (event.source as WindowProxy)?.postMessage({ type: 'api-response', requestId, result, error }, '*') } catch { /* ignore */ }
   }
 
+  handleGlobalAPI(event.source as WindowProxy, module, method, params, requestId, svcId, reply)
+})
+
+function handleGlobalAPI(
+  source: WindowProxy,
+  module: string,
+  method: string,
+  params: Record<string, any>,
+  requestId: string,
+  svcId: string,
+  reply: (result?: any, error?: string) => void
+): void {
+  switch (module) {
+    case 'background':
+      handleGlobalBackground(method, params, requestId, svcId, reply)
+      return
+    case 'storage':
+      handleGlobalStorage(method, params, requestId, svcId, reply)
+      return
+    case 'notification':
+      handleGlobalNotification(method, params, requestId, reply)
+      return
+    case 'ui':
+      handleGlobalUI(method, params, requestId, reply)
+      return
+    case 'widgets':
+      handleGlobalWidgets(method, params, requestId, svcId, reply)
+      return
+    case 'network':
+      handleGlobalNetwork(method, params, requestId, svcId, source, reply)
+      return
+    case 'fileAccess':
+      handleGlobalFileAccess(method, params, requestId, svcId, reply)
+      return
+    case 'fetch':
+      handleGlobalFetch(method, params, requestId, reply)
+      return
+    default:
+      reply(undefined, 'Unknown module: ' + module)
+  }
+}
+
+// ---- 各模块处理器 ----
+
+function handleGlobalBackground(
+  method: string, params: Record<string, any>, requestId: string,
+  svcId: string, reply: (result?: any, error?: string) => void
+): void {
+  console.log('[BgManager] 全局 background API: svcId=' + svcId + ' method=' + method)
+  const worker = _workers.get(svcId)
   switch (method) {
     case 'postMessage': {
       if (worker && worker.state === 'running') {
@@ -77,23 +142,15 @@ window.addEventListener('message', (event: MessageEvent) => {
       stopService(svcId).then(() => reply(undefined))
       return
     }
+    default:
+      reply(undefined, 'Unknown background method: ' + method)
   }
-})
+}
 
-// ---- 全局监听：接收 widget iframe 的 storage API 调用 ----
-// widget iframe 没有 service-container 的 bridge，需要宿主层全局转发
-
-window.addEventListener('message', async (event: MessageEvent) => {
-  const data = event.data
-  if (!data || data.type !== 'api' || data.module !== 'storage') return
-  const svcId = data.params?.serviceId
-  if (!svcId) return
-
-  const { method, params, requestId } = data
-  const reply = (result?: any, error?: string) => {
-    try { (event.source as WindowProxy)?.postMessage({ type: 'api-response', requestId, result, error }, '*') } catch { /* ignore */ }
-  }
-
+async function handleGlobalStorage(
+  method: string, params: Record<string, any>, requestId: string,
+  svcId: string, reply: (result?: any, error?: string) => void
+): Promise<void> {
   try {
     switch (method) {
       case 'setStorage':
@@ -115,7 +172,228 @@ window.addEventListener('message', async (event: MessageEvent) => {
   } catch (e: any) {
     reply(undefined, e?.message || String(e))
   }
-})
+}
+
+function handleGlobalNotification(
+  method: string, params: Record<string, any>, requestId: string,
+  reply: (result?: any, error?: string) => void
+): void {
+  switch (method) {
+    case 'showToast': {
+      const iconMap: Record<string, string> = { success: '\u2705', error: '\u274C', loading: '\u23F3', none: '' }
+      const toast = document.createElement('div')
+      toast.className = 'amiba-toast'
+      toast.innerHTML = (iconMap[params.icon] || '') + ' ' + params.title
+      document.body.appendChild(toast)
+      requestAnimationFrame(() => { toast.style.opacity = '1'; toast.style.transform = 'translateY(0)' })
+      setTimeout(() => {
+        toast.style.opacity = '0'; toast.style.transform = 'translateY(20px)'
+        setTimeout(() => toast.remove(), 300)
+      }, 2000)
+      reply(undefined)
+      return
+    }
+    default:
+      reply(undefined, 'Unknown notification method: ' + method)
+  }
+}
+
+function handleGlobalUI(
+  method: string, params: Record<string, any>, requestId: string,
+  reply: (result?: any, error?: string) => void
+): void {
+  switch (method) {
+    case 'navigateTo':
+      if (params.url) router.push(params.url)
+      reply(undefined)
+      return
+    case 'navigateBack':
+      router.back()
+      reply(undefined)
+      return
+    default:
+      reply(undefined, 'Unknown ui method: ' + method)
+  }
+}
+
+async function handleGlobalWidgets(
+  method: string, params: Record<string, any>, requestId: string,
+  svcId: string, reply: (result?: any, error?: string) => void
+): Promise<void> {
+  try {
+    switch (method) {
+      case 'registerWidget': {
+        const config = params.config
+        if (!config || !config.id || !config.page) {
+          reply(undefined, 'Invalid widget config: id and page required')
+          return
+        }
+        // 从服务文件读取 widget HTML
+        const widgetHtml = await readServiceFile(svcId, config.page)
+        if (!widgetHtml) {
+          reply(undefined, 'Widget page not found: ' + config.page)
+          return
+        }
+        // 注入 bridge 脚本 + serviceId
+        const processed = widgetHtml.replace(
+          '<!-- AMIBA_BRIDGE -->',
+          '<script>window.__amiba_service_id__ = "' + svcId + '"</' + 'script>' +
+          '<script>' + BRIDGE_SCRIPT + '<\/script>'
+        )
+        const fullConfig: FloatingWidgetConfig = { ...config, serviceId: svcId }
+        registerWidget(fullConfig, processed)
+        console.log('[BgManager] 全局 registerWidget: ' + config.id + ' (svc=' + svcId + ')')
+        reply(undefined)
+        return
+      }
+      case 'removeWidget':
+        unregisterWidget(params.id)
+        reply(undefined)
+        return
+      case 'showWidget':
+        setWidgetVisible(params.id, true)
+        reply(undefined)
+        return
+      case 'hideWidget':
+        setWidgetVisible(params.id, false)
+        reply(undefined)
+        return
+      default:
+        reply(undefined, 'Unknown widgets method: ' + method)
+    }
+  } catch (e: any) {
+    reply(undefined, e?.message || String(e))
+  }
+}
+
+async function handleGlobalNetwork(
+  method: string, params: Record<string, any>, requestId: string,
+  svcId: string, source: WindowProxy,
+  reply: (result?: any, error?: string) => void
+): Promise<void> {
+  try {
+    switch (method) {
+      case 'setVisibility':
+        await setVisibility(params.visibility || { lan: true, ble: false })
+        reply(undefined)
+        return
+      case 'getVisibility': {
+        const v = await getVisibility()
+        reply(v)
+        return
+      }
+      case 'startDiscovery':
+        await startDiscovery(params.transport || 'all')
+        reply(undefined)
+        return
+      case 'stopDiscovery':
+        await stopDiscovery(params.transport || 'all')
+        reply(undefined)
+        return
+      case 'getVisibleDevices': {
+        const d = getVisibleDevices()
+        reply(d)
+        return
+      }
+      case 'connect': {
+        const session = await connect(params.peerId, params.serviceKey)
+        session.on('message', (msg: string) => {
+          source.postMessage({ type: 'event', name: 'session-event', data: { sessionId: session.id, event: 'message', data: msg } }, '*')
+        })
+        session.on('close', () => {
+          source.postMessage({ type: 'event', name: 'session-event', data: { sessionId: session.id, event: 'close', data: null } }, '*')
+        })
+        reply({ sessionId: session.id, peerId: session.peerId, peerName: session.peerName })
+        return
+      }
+      case 'sessionSend': {
+        const s = sessions.get(params.sessionId)
+        if (!s) { reply(undefined, '会话不存在'); return }
+        await s.send(params.message)
+        reply(undefined)
+        return
+      }
+      case 'sessionClose': {
+        const s = sessions.get(params.sessionId)
+        if (s) await s.close()
+        reply(undefined)
+        return
+      }
+      case 'startListening':
+        await startListening(params.serviceKey)
+        reply(undefined)
+        return
+      case 'stopListening':
+        await stopListening(params.serviceKey)
+        reply(undefined)
+        return
+      default:
+        reply(undefined, 'Unknown network method: ' + method)
+    }
+  } catch (e: any) {
+    reply(undefined, e?.message || String(e))
+  }
+}
+
+async function handleGlobalFileAccess(
+  method: string, params: Record<string, any>, requestId: string,
+  svcId: string, reply: (result?: any, error?: string) => void
+): Promise<void> {
+  try {
+    switch (method) {
+      case 'requestAccess': {
+        const result = await requestAccess(svcId, params.opts || {})
+        reply(result)
+        return
+      }
+      case 'listFiles': {
+        const result = await listFiles(svcId, params.token)
+        reply(result)
+        return
+      }
+      case 'readText': {
+        const result = await readTextFile(svcId, params.token, params.path)
+        reply(result)
+        return
+      }
+      case 'readBinary': {
+        const result = await readBinaryFile(svcId, params.token, params.path)
+        reply(result)
+        return
+      }
+      default:
+        reply(undefined, 'Unknown fileAccess method: ' + method)
+    }
+  } catch (e: any) {
+    reply(undefined, e?.message || String(e))
+  }
+}
+
+async function handleGlobalFetch(
+  method: string, params: Record<string, any>, requestId: string,
+  reply: (result?: any, error?: string) => void
+): Promise<void> {
+  try {
+    switch (method) {
+      case 'request': {
+        const result = await import('@tauri-apps/api/core').then(m =>
+          m.invoke('service_http_request', {
+            url: params.url,
+            method: params.method || 'GET',
+            headers: params.headers || {},
+            body: params.body || null,
+          })
+        )
+        reply(result)
+        return
+      }
+      default:
+        reply(undefined, 'Unknown fetch method: ' + method)
+    }
+  } catch (e: any) {
+    reply(undefined, e?.message || String(e))
+  }
+}
 
 function getHiddenContainer(): HTMLDivElement {
   if (!_hiddenContainer) {
@@ -218,6 +496,12 @@ async function handleBgAPI(req: { module: string; method: string; params: Record
         case 'getState':
           _sendResponse(worker, requestId, getBackgroundState(svcId))
           return
+        case 'start':
+          startService(svcId).then(() => _sendResponse(worker, requestId)).catch((e: any) => _sendResponse(worker, requestId, undefined, e?.message || String(e)))
+          return
+        case 'stop':
+          stopService(svcId).then(() => _sendResponse(worker, requestId))
+          return
         case 'postMessage': {
           const handler = _foregroundHandlers.get(svcId)
           if (handler) { handler(params.message) }
@@ -315,6 +599,25 @@ async function handleBgAPI(req: { module: string; method: string; params: Record
             return
           }
           default: _sendResponse(worker, requestId, undefined, 'Unknown fileAccess method: ' + method); return
+        }
+      } catch (e: any) { _sendResponse(worker, requestId, undefined, e?.message || String(e)); return }
+    }
+    case 'fetch': {
+      try {
+        switch (method) {
+          case 'request': {
+            const result = await import('@tauri-apps/api/core').then(m =>
+              m.invoke('service_http_request', {
+                url: params.url,
+                method: params.method || 'GET',
+                headers: params.headers || {},
+                body: params.body || null,
+              })
+            )
+            _sendResponse(worker, requestId, result)
+            return
+          }
+          default: _sendResponse(worker, requestId, undefined, 'Unknown fetch method: ' + method); return
         }
       } catch (e: any) { _sendResponse(worker, requestId, undefined, e?.message || String(e)); return }
     }

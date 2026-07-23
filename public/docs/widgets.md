@@ -9,6 +9,8 @@ category: guide
 
 服务可附带悬浮快捷块（widget），以 emoji 图标吸附在屏幕边缘，点击展开面板。
 
+> 📖 **AI 生成 Widget 代码时请查阅 `widget-dev` 内置 skill**（`public/catalog/skills/widget-dev/SKILL.md`），包含完整规范、示例和检查清单。本文档为 API 参考。
+
 ## 权限声明
 
 manifest.permissions 必须包含 `"widgets"`。
@@ -53,6 +55,23 @@ manifest.permissions 必须包含 `"widgets"`。
 | `"persistent"` | 跨路由驻留，不随服务页面卸载 | 用户点击图标上 ✕ 或面板内 ✕ 关闭 |
 
 `persistent` 适用于：音乐播放器、快捷笔记、剪贴板等需要跨页面常驻的轻量工具。图标右上角会显示一个小关闭按钮，面板标题栏的 ✕ 也会彻底移除 widget。
+
+## Widget 内可用 API
+
+Widget iframe 内可使用**全部 `__amiba__` API 模块**（8 个），与服务主页面完全一致：
+
+| 模块 | 常用方法 |
+|------|---------|
+| `__amiba__.storage` | `set(key, data)`, `get(key)`, `remove(key)` |
+| `__amiba__.showToast` | `(title, icon?)` |
+| `__amiba__.navigateTo` / `navigateBack` | `(url)` / `(delta?)` |
+| `__amiba__.widgets` | `register(config)`, `remove(id)`, `show(id)`, `hide(id)` |
+| `__amiba__.network` | `setVisibility`, `connect`, `startListening`, session API 等 |
+| `__amiba__.background` | `start()`, `stop()`, `getState()`, `postMessage(msg)`, `onMessage(cb)`, `on(event, cb)` |
+| `__amiba__.fileAccess` | `requestAccess(opts)`, `listFiles(token)`, `readText(token, path)` 等 |
+| `__amiba__.fetch` | `request({ url, method?, headers?, body? })` |
+
+API 调用自动携带 `serviceId`（由 BRIDGE_SCRIPT 注入），宿主通过 `background-manager.ts` 全局处理器路由。
 
 ## Widget HTML 模板
 

@@ -139,6 +139,8 @@ removeServiceData(serviceId, key): void
 
 **服务需声明 `widgets` 权限** 才能使用悬浮块功能（包括 widget.json 和编程式 API）。
 
+**Widget API 能力**：Widget iframe 内可使用全部 `__amiba__` API 模块（storage / notification / ui / widgets / network / background / fileAccess / fetch），与服务 iframe 能力一致。API 调用通过 `background-manager.ts` 的全局消息处理器路由，`callHost` 自动在 params 中注入 `serviceId` 以识别来源服务。
+
 **Widget UI 文件规范**：
 
 | 约定 | 说明 |
@@ -253,3 +255,5 @@ __amiba__.background.onMessage((msg) => {
 - **2026-07-09**: `notifyFront` 的 storage 写入防抖用 `clearTimeout` + 重设定时器是**错误的**。HTML5 Audio 的 `timeupdate` 事件每 ~250ms 触发一次，而防抖阈值 300ms 大于事件间隔 → 定时器被无限重置，storage 永远写不进去，widget 轮询永远读到过期数据。正确做法：检查定时器是否存在，若已存在则仅更新 pending 数据不清除定时器，保证首次写入在 300ms 内完成。
 
 - **2026-07-09**: Widget iframe 只有 `background` 模块有全局 `window` message listener（`background-manager.ts`），`storage`/`fileAccess` 等模块**只在 `service-container.vue` 的 bridge 中处理**。Widget 的 `__amiba__.storage.get()` 发出去的 `postMessage` 无人响应 → Promise 静默超时。修复：`bridge.ts` 的 `storage.*` 调用携带 `serviceId`（`window.__amiba_service_id__`），`background-manager.ts` 新增全局 storage listener 处理 widget 的读写请求。
+
+- **2025-07-23**: Widget 快捷页面 API 能力从仅 `storage`+`background` 2 模块扩展到全部 8 模块（与服务 iframe 一致）。实现方式：(1) `BRIDGE_SCRIPT` 中 `callHost` 自动从 `window.__amiba_service_id__` 注入 `serviceId` 到所有 API 调用的 params；(2) `background-manager.ts` 合并两个分散的全局 listener 为统一的 `handleGlobalAPI`，按 module 路由到 8 个子处理器；(3) 全局处理器通过 `_workers` 的 `event.source` 检查跳过后台 iframe 消息，避免与 `handleBgAPI` 双重处理。Widget 现在可调用 `__amiba__.showToast()`、`__amiba__.navigateTo()`、`__amiba__.widgets.*`、`__amiba__.network.*`、`__amiba__.fileAccess.*`、`__amiba__.fetch.*` 等全部 API。

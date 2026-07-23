@@ -20,11 +20,17 @@ export const BRIDGE_SCRIPT = `
       const id = 'r_' + (++reqId) + '_' + Math.random().toString(36).slice(2);
       pending.set(id, { resolve, reject });
 
+      // 自动附加 serviceId（如果上下文中已设置且未显式传递）
+      var payloadParams = params || {};
+      if (window.__amiba_service_id__ && !payloadParams.serviceId) {
+        payloadParams = Object.assign({}, payloadParams, { serviceId: window.__amiba_service_id__ });
+      }
+
       window.parent.postMessage({
         type: 'api',
         module: module,
         method: method,
-        params: params || {},
+        params: payloadParams,
         requestId: id
       }, '*');
 

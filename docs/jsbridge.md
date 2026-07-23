@@ -224,6 +224,10 @@ __amiba__.showToast('保存成功', 'success')
 
 ## 通信流程
 
+服务 iframe 和 widget iframe 走不同的宿主侧处理路径：
+
+### 服务 iframe（service-container.vue）
+
 ```
 服务 (iframe)                    宿主 (Vue SPA)
      │                                │
@@ -231,15 +235,36 @@ __amiba__.showToast('保存成功', 'success')
      │    module, method, params,     │
      │    requestId })                │
      │ ──────────────────────────────>│
-     │                                │ 1. 验证 origin
-     │                                │ 2. 检查权限
-     │                                │ 3. 执行 handler
+     │                                │ 1. createBridge 验证 event.source
+     │                                │ 2. 检查 manifest.permissions 权限
+     │                                │ 3. makeApiHandler 执行（闭包捕获 serviceId）
      │  postMessage({ type:'api-      │
      │    response', requestId,       │
      │    result })                   │
      │ <──────────────────────────────│
      │                                │
 ```
+
+### Widget / 后台 iframe（background-manager.ts 全局处理器）
+
+```
+Widget/后台 iframe                 宿主 (Vue SPA)
+     │                                │
+     │  postMessage({ type:'api',     │
+     │    module, method, params,     │
+     │    requestId })                │    params 自动携带 serviceId
+     │ ──────────────────────────────>│      (BRIDGE_SCRIPT callHost 注入)
+     │                                │ 1. 从 params.serviceId 识别来源服务
+     │                                │ 2. 跳过已知后台 worker iframe（避免双重处理）
+     │                                │ 3. handleGlobalAPI 按模块路由到子处理器
+     │  postMessage({ type:'api-      │
+     │    response', requestId,       │
+     │    result })                   │
+     │ <──────────────────────────────│
+     │                                │
+```
+
+**Widget 现在支持全部 8 个模块**（storage / notification / ui / widgets / network / background / fileAccess / fetch），与服务 iframe 能力一致。唯一的区别是 widget 无 `allow-same-origin` 沙箱属性，无法加载宿主同源脚本。
 
 ## 安全措施
 

@@ -39,6 +39,9 @@ keywords:
 | 需要弹 Toast 通知 | `"notification"` |
 | 需要悬浮块 | `"widgets"` |
 | 多人/聊天/协作/联机/房间/局域网 | `"network"` |
+| 需要后台定时任务/事件监听 | `"background"` |
+| 需要读取本地磁盘文件 | `"fileAccess"` |
+| 需要 HTTP 请求外部 API | `"fetch"` |
 | 以上组合 | 多项并列，如 `["storage","network"]` |
 
 **生成前务必先检查：**
@@ -76,7 +79,7 @@ keywords:
 | `name` | string | 显示名称（中文优先） |
 | `version` | string | 语义化版本，如 `"1.0.0"` |
 | `description` | string | 简短描述（≤30 字） |
-| `permissions` | string[] | 允许的值：`"storage"`、`"notification"`、`"widgets"`、`"network"` |
+| `permissions` | string[] | 允许的值：`"storage"`、`"notification"`、`"widgets"`、`"network"`、`"background"`、`"fileAccess"`、`"fetch"` |
 
 ---
 
@@ -121,6 +124,9 @@ keywords:
 | 页面跳转 | `__amiba__.navigateTo(url)` / `navigateBack(delta)` — 无需权限 |
 | Widget | `__amiba__.widgets.register/remove/show/hide(...)` — 需 `widgets` 权限，详见 doc_read("widgets.md") |
 | 局域网 P2P | `__amiba__.network.*` — 需 `network` 权限，详见 doc_read("network.md") |
+| 后台服务 | `__amiba__.background.start/stop/getState/postMessage(...)` — 需 `background` 权限 |
+| 文件访问 | `__amiba__.fileAccess.requestAccess/listFiles/readText(...)` — 需 `fileAccess` 权限 |
+| HTTP 请求 | `__amiba__.fetch.request({ url, method?, headers?, body? })` — 需 `fetch` 权限 |
 
 - **禁止** `alert()`、`prompt()`、`localStorage`、`BroadcastChannel`
 - **禁止** `fetch()` 访问外部 API（CORS + 沙箱限制）
@@ -193,7 +199,7 @@ init();
 
 - ❌ 在 HTML 中内联 `<script>` 和 `<style>` → 必须用独立文件
 - ❌ `manifest.id` 不以 `"user."` 开头
-- ❌ `permissions` 使用了 `"storage"` / `"notification"` / `"widgets"` / `"network"` 以外的值
+- ❌ `permissions` 使用了 `"storage"` / `"notification"` / `"widgets"` / `"network"` / `"background"` / `"fileAccess"` / `"fetch"` 以外的值
 - ❌ 使用 `localStorage` / `sessionStorage` → 必须用 `__amiba__.storage.*`
 - ❌ 使用 `BroadcastChannel` / `SharedWorker` → 多人通信必须用 `network` 权限 + P2P API
 - ❌ 使用 `alert()` / `confirm()` / `prompt()` → 用 `__amiba__.showToast()` 替代
@@ -493,12 +499,15 @@ createApp({
 
 当用户需求涉及「快捷入口」「悬浮按钮」「侧边栏小工具」「快速查看」「常驻显示」等场景时，在服务中附带悬浮块。
 
+> 📖 **Widget 开发请优先查阅 `widget-dev` 内置 skill**（`public/catalog/skills/widget-dev/SKILL.md`），包含完整模板、8 模块 API 示例和检查清单。
+
 **完整规范用 doc_read("widgets.md") 查看。** 要点：
 - manifest.permissions 需包含 `"widgets"`
 - 在 files 中添加 `widget.json` 声明配置
 - Widget HTML 放在 `widgets/<name>.html`，第一行写 `<!-- AMIBA_BRIDGE -->`
 - 不含 `<html>/<body>` 标签，直接以 `<div class="widget-root">` 开始
 - 也可通过 `__amiba__.widgets.register(config)` 运行时动态注册
+- **Widget 内可使用全部 `__amiba__` API（8 模块），与服务主页面完全一致**
 
 ---
 

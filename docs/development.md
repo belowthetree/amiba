@@ -148,7 +148,7 @@ src/
   │   ├── floating-widget-manager.ts
   │   ├── floating-widget-container.vue
   │   ├── widget-lifecycle.ts
-  │   ├── background-manager.ts  # 后台服务运行时管理
+  │   ├── background-manager.ts  # 后台服务运行时 + widget 全局 API 处理器
   │   └── webview-overlay-state.ts  # WebView 截图预览状态 + Tauri 事件监听
 ├── components/
 │   └── WebviewOverlay.vue  # 可拖拽 WebView 预览悬浮面板

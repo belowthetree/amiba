@@ -114,6 +114,29 @@ __amiba__.background.on('tick', async () => {
 
 **约束**：最多 3 个后台服务并发，必须显式 start()，崩溃静默重启。
 
+## 文件访问 (fileAccess)
+
+**权限**: `"fileAccess"`
+
+| 方法 | 参数 | 返回 | 说明 |
+|------|------|------|------|
+| `requestAccess(opts)` | `{ path?, pattern?, purpose? }` | `Promise<{token, path}>` | 请求文件访问授权 |
+| `listFiles(token)` | token: string | `Promise<Array>` | 扫描文件列表 |
+| `readText(token, path)` | token, path | `Promise<string>` | 读取文本文件 |
+| `readBinary(token, path)` | token, path | `Promise<string>` (base64) | 读取二进制文件 |
+
+## HTTP 请求 (fetch)
+
+**权限**: `"fetch"`
+
+| 方法 | 参数 | 返回 | 说明 |
+|------|------|------|------|
+| `request(opts)` | `{ url, method?, headers?, body? }` | `Promise<{status, body}>` | 代理 HTTP 请求（绕过 CORS） |
+
+## Widget 与服务 API 一致性
+
+Widget（悬浮块）iframe 与服务主页面 iframe 支持**完全相同的 `__amiba__` API**（以上全部 8 个模块）。Widget API 调用通过宿主全局消息处理器路由，自动注入 `serviceId` 识别来源服务。
+
 ## 禁止事项
 
 - ❌ 不要用 `localStorage` / `sessionStorage`

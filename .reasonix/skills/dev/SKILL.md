@@ -24,9 +24,11 @@ description: 引导 agent 在任务前后阅读/更新项目开发规范文档�
 | 后台服务/BackgroundServiceManager | `docs/services.md`（后台服务 节）、`docs/jbridge.md`（background 模块）、`docs/development.md`（后台服务 节） |
 | 文件访问/fileAccess API | `docs/jbridge.md`（fileAccess 模块）、`src/host/file-access-grants.ts` |
 | 悬浮块/widget UI | `docs/services.md`（悬浮块 节）、`src/host/floating-widget-container.vue`、见下方「悬浮块 UI 规范」 |
+| Widget 开发/AI 生成 widget | `public/catalog/skills/widget-dev/SKILL.md`（内置 Widget 开发 skill）、见下方「Widget 开发内置 Skill」节 |
 | 整体架构/模块关系 | `docs/architecture.md` |
 | 开发环境/构建/命名/多语言 | `docs/development.md` |
 | 预置服务（public/services/） | 见下方「预置用户服务」节 |
+| AI 生成代码/服务开发 | `public/catalog/skills/service-dev/SKILL.md`（内置服务开发 skill）、见下方「服务开发内置 Skill」节 |
 
 如果同时涉及多个方面，先阅读最核心的 1-2 份文档，不要一次性全读。
 
@@ -110,6 +112,23 @@ description: 引导 agent 在任务前后阅读/更新项目开发规范文档�
 ## 悬浮块 (Widget) UI 规范
 
 生成或修改悬浮块 HTML 时，必须遵循以下约定：
+
+### API 能力
+
+Widget iframe 内可使用**全部 8 个 `__amiba__` API 模块**，与服务 iframe 完全一致：
+
+| 模块 | 可用方法 |
+|------|---------|
+| `__amiba__.storage` | `set(key, data)`, `get(key)`, `remove(key)` |
+| `__amiba__.showToast` | `(title, icon)` |
+| `__amiba__.navigateTo` / `navigateBack` | `(url)` / `(delta?)` |
+| `__amiba__.widgets` | `register(config)`, `remove(id)`, `show(id)`, `hide(id)` |
+| `__amiba__.network` | `setVisibility`, `getVisibility`, `startDiscovery`, `stopDiscovery`, `getVisibleDevices`, `connect`, `startListening`, `stopListening`, session API |
+| `__amiba__.background` | `start()`, `stop()`, `getState()`, `postMessage(msg)`, `onMessage(cb)`, `on(event, cb)` |
+| `__amiba__.fileAccess` | `requestAccess(opts)`, `listFiles(token)`, `readText(token, path)`, `readBinary(token, path)` |
+| `__amiba__.fetch` | `request({ url, method?, headers?, body? })` |
+
+API 调用通过 `background-manager.ts` 的全局消息处理器路由，`BRIDGE_SCRIPT` 自动在 params 中注入 `serviceId`。
 
 ### 结构
 
@@ -247,3 +266,34 @@ var b64  = await __amiba__.fileAccess.readBinary(grant.token, 'song.mp3')
 | **token 即生命周期** | token 仅本次应用生命周期有效（内存 Map），重启需重新 `requestAccess` |
 | **path 不传则弹选择器** | `requestAccess({ path: undefined })` → 弹出系统文件夹选择对话框 |
 | **token 绑定 serviceId** | 不同服务各自独立授权，token 不可跨服务使用 |
+
+## 服务开发内置 Skill
+
+`public/catalog/skills/service-dev/SKILL.md` 是 **AI 生成服务代码的权威规范**，包含：
+
+- 权限选择指南（storage / notification / widgets / network / background / fileAccess / fetch）
+- HTML/JS/CSS 规范、Manifest 规范、Files 规范
+- Sandbox 约束（禁止 localStorage / alert / 外部 CDN）
+- Widget 开发完整规范（8 模块 API 全支持）
+- Chart.js / Vue 3 使用规范
+- P2P 网络服务开发模板
+- 常见错误清单（含 Vue 专项）
+- 服务迭代修改工作流
+
+当用户要求开发/创建/修改服务时，**必须先 `doc_read("service-dev.md")` 或通过 skill 系统查阅此规范**。
+
+此外 `public/catalog/skills/p2p-network/SKILL.md` 提供 P2P 网络开发专项指南，`public/catalog/skills/widget-dev/SKILL.md` 提供 Widget 开发专项指南，`public/docs/` 下有 `widgets.md`、`jbridge.md`、`network.md`、`sandbox.md` 等参考文档。
+
+## Widget 开发内置 Skill
+
+`public/catalog/skills/widget-dev/SKILL.md` 是 **AI 生成 Widget 代码的权威规范**，包含：
+
+- Widget 概述（与服务主页面的差异对比表）
+- widget.json 配置规范（trigger/lifecycle 模式详解）
+- HTML 模板硬约束（尺寸、背景、字体、Bridge 占位符）
+- 完整 8 模块 API 能力说明（storage / notification / ui / widgets / network / background / fileAccess / fetch）
+- 编程式 API（运行时动态注册）
+- 完整示例（基础笔记 + 进阶音乐播放器控件）
+- 常见错误清单 + 检查清单
+
+当用户要求开发/创建悬浮块/快捷页面时，**必须先查阅此规范**。

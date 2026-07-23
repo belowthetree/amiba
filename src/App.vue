@@ -37,13 +37,13 @@
       @touchstart.passive="onSwipeStart"
       @touchmove="onSwipeMove"
       @touchend="onSwipeEnd"
+      @touchcancel="onSwipeEnd"
     >
       <!-- 当前页（手势拖动层） -->
       <div
         ref="pageWrapper"
         class="page-wrapper"
-        :class="{ 'swipe-animating': swipeAnimating }"
-        :style="{ transform: `translateX(${swipeOffsetX}px)` }"
+        :style="swipeStyle"
       >
         <router-view v-slot="{ Component, route: r }">
           <transition :name="transitionName" :key="r.fullPath">
@@ -56,8 +56,8 @@
       <div
         v-if="previewComponent"
         class="preview-peek"
-        :class="[previewOnLeft ? 'peek-left' : 'peek-right', { 'swipe-animating': swipeAnimating }]"
-        :style="{ transform: `translateX(${swipeOffsetX}px)` }"
+        :class="[previewOnLeft ? 'peek-left' : 'peek-right']"
+        :style="swipeStyle"
       >
         <component :is="previewComponent" />
       </div>
@@ -144,14 +144,23 @@ const swipeOffsetX = ref(0)        // 实时 translateX 像素
 const swipeAnimating = ref(false)  // 松手后 CSS 动画中
 const swipeCommitted = ref(false)  // 动画完成待切路由
 const isSwiping = ref(false)       // 手势进行中
+const swipeAnimMs = ref(280)       // 松手动画时长（按剩余距离/速度动态计算）
+const swipeAnimEase = ref('cubic-bezier(0.25, 0.9, 0.3, 1)')
+
+// 当前页与预览页共用同一 transform/transition，保证两侧严格同步
+const swipeStyle = computed(() => ({
+  transform: `translateX(${swipeOffsetX.value}px)`,
+  transition: swipeAnimating.value
+    ? `transform ${swipeAnimMs.value}ms ${swipeAnimEase.value}`
+    : 'none',
+}))
 
 let swipeStartX = 0
 let swipeStartY = 0
-let swipeStartTime = 0
 let swipeLastX = 0
-let swipeLastTime = 0
-let swipeDir = 0 // 1=右滑(back), -1=左滑(forward)
+let swipeSide = 0 // 当前拖动侧：1=右滑(上一页), -1=左滑(下一页)
 let swipeTargetPath = ''
+let moveSamples: { t: number; x: number }[] = [] // 近期位移采样，用于末端速度
 
 // ==== 预览页面（手势时从边缘露出目标页） ====
 const previewComponent = shallowRef<any>(null)
@@ -168,13 +177,21 @@ function hidePreview() {
   previewComponent.value = null
 }
 
-const SWIPE_THRESHOLD_RATIO = 0.28   // 超过屏幕 28% 触发切换
-const SWIPE_VELOCITY_THRESHOLD = 0.3 // px/ms 快速滑动阈值
-const SWIPE_DAMP = 0.55              // 超出阈值后的阻尼系数
-const SWIPE_ANIM_DURATION = 280      // 松手后动画时长 ms
+const SWIPE_ACTIVATE_PX = 10       // 水平激活位移
+const SWIPE_COMMIT_RATIO = 0.33    // 位移超过屏宽比例触发切换
+const SWIPE_FLICK_VELOCITY = 0.4   // px/ms 末端快划速度阈值
+const EDGE_DAMP = 0.28             // 边缘橡皮筋阻尼系数
+const EDGE_MAX = 90                // 边缘橡皮筋最大位移 px
 
 function screenW(): number {
   return window.innerWidth
+}
+
+// 指定拖动侧的目标路由（无目标表示已到边缘）
+function sideTarget(dir: number): string {
+  const idx = getPageIndex(routePath(route.name))
+  if (idx < 0) return ''
+  return PAGE_ORDER[idx - dir] ?? ''
 }
 
 function onSwipeStart(e: TouchEvent) {
@@ -186,12 +203,11 @@ function onSwipeStart(e: TouchEvent) {
   const t = e.touches[0]
   swipeStartX = t.clientX
   swipeStartY = t.clientY
-  swipeStartTime = Date.now()
   swipeLastX = swipeStartX
-  swipeLastTime = swipeStartTime
   swipeOffsetX.value = 0
-  swipeDir = 0
+  swipeSide = 0
   swipeTargetPath = ''
+  moveSamples = []
   isSwiping.value = false
   swipeCommitted.value = false
   hidePreview()
@@ -202,44 +218,39 @@ function onSwipeMove(e: TouchEvent) {
   const dx = t.clientX - swipeStartX
   const dy = t.clientY - swipeStartY
 
-  // 未进入水平滑动模式时：需要超过垂直方向 1.5 倍 + 最小 8px 才激活
+  // 未激活时：超过最小位移且明显偏水平才进入滑动模式；偏垂直让位给页面滚动
   if (!isSwiping.value) {
-    if (Math.abs(dx) < 8) return
+    if (Math.abs(dx) < SWIPE_ACTIVATE_PX) return
     if (Math.abs(dy) * 1.5 > Math.abs(dx)) return
+    // 当前页不在主导航中（如服务详情页）不做手势
+    if (getPageIndex(routePath(route.name)) < 0) return
     isSwiping.value = true
-    swipeDir = dx > 0 ? 1 : -1
-
-    // 确定目标路由
-    const currentPath = routePath(route.name)
-    const idx = getPageIndex(currentPath)
-    if (idx >= 0) {
-      if (swipeDir < 0 && idx < PAGE_ORDER.length - 1) {
-        swipeTargetPath = PAGE_ORDER[idx + 1]
-      } else if (swipeDir > 0 && idx > 0) {
-        swipeTargetPath = PAGE_ORDER[idx - 1]
-      }
-    }
-    if (!swipeTargetPath) {
-      isSwiping.value = false
-      return
-    }
-    // 激活预览页渲染
-    showPreview(swipeTargetPath, swipeDir > 0)
+    swipeSide = 0
+    moveSamples = [{ t: Date.now(), x: swipeStartX }]
   }
 
-  // 如果目标路由不可达，忽略
-  if (!swipeTargetPath) return
+  // 拖动侧跟随手指方向实时切换（不锁定方向，可中途反向）
+  const dir = dx > 0.5 ? 1 : dx < -0.5 ? -1 : swipeSide
+  if (dir !== 0 && dir !== swipeSide) {
+    swipeSide = dir
+    swipeTargetPath = sideTarget(dir)
+    if (swipeTargetPath) showPreview(swipeTargetPath, dir > 0)
+    else hidePreview()
+  }
 
-  // 计算偏移量（带阻尼：超过 60% 屏宽后阻力增大）
-  const absDx = Math.abs(dx)
-  const limit = screenW() * 0.6
-  const offset = swipeDir > 0
-    ? (absDx > limit ? limit + (absDx - limit) * SWIPE_DAMP : absDx)
-    : -(absDx > limit ? limit + (absDx - limit) * SWIPE_DAMP : absDx)
-
-  swipeOffsetX.value = offset
+  // 采样最近 ~120ms 位移，估算松手瞬间速度
+  const now = Date.now()
+  moveSamples.push({ t: now, x: t.clientX })
+  while (moveSamples.length > 2 && now - moveSamples[0].t > 120) moveSamples.shift()
   swipeLastX = t.clientX
-  swipeLastTime = Date.now()
+
+  // 偏移：有目标时 1:1 跟手（限幅一屏）；到边缘时橡皮筋阻尼，松手回弹
+  const w = screenW()
+  if (swipeTargetPath) {
+    swipeOffsetX.value = Math.max(-w, Math.min(w, dx))
+  } else {
+    swipeOffsetX.value = Math.max(-EDGE_MAX, Math.min(EDGE_MAX, dx * EDGE_DAMP))
+  }
   e.preventDefault()
 }
 
@@ -247,39 +258,56 @@ function onSwipeEnd(_e: TouchEvent) {
   if (!isSwiping.value) return
   isSwiping.value = false
 
-  const offset = Math.abs(swipeOffsetX.value)
-  const elapsed = Date.now() - swipeLastTime
-  const velocity = elapsed > 0 ? offset / elapsed : 0
-  const threshold = screenW() * SWIPE_THRESHOLD_RATIO
+  // 末端速度：取最近 120ms 采样的平均速度，避免全程平均淹没问题
+  const now = Date.now()
+  const first = moveSamples[0]
+  const vx = first && now > first.t ? (swipeLastX - first.x) / (now - first.t) : 0
 
-  // 判断是否触发切换：位移超过阈值 或 快速滑动
-  const shouldCommit = offset > threshold || velocity > SWIPE_VELOCITY_THRESHOLD
+  const w = screenW()
+  const offset = swipeOffsetX.value
+  const dist = Math.abs(offset)
+  // 快划时以速度方向为准（支持轻拂切换），否则以位移方向为准
+  const dir = Math.abs(vx) > SWIPE_FLICK_VELOCITY
+    ? Math.sign(vx)
+    : (Math.sign(offset) || swipeSide)
+  const target = dir !== 0 ? sideTarget(dir) : ''
+  // 反向快划（拖出去又甩回来）视为取消
+  const sameDir = dist < 2 || dir === Math.sign(offset)
+  const shouldCommit =
+    !!target && sameDir && (dist > w * SWIPE_COMMIT_RATIO || Math.abs(vx) > SWIPE_FLICK_VELOCITY)
 
-  if (shouldCommit && swipeTargetPath) {
-    // 提交切换：CSS 动画到屏幕边缘
-    const targetOffset = swipeDir * screenW()
+  if (shouldCommit) {
+    // 提交切换：时长随剩余距离和末速度收缩，快划时迅速收尾
+    const remaining = w - dist
+    swipeAnimMs.value = Math.round(
+      Math.min(300, Math.max(130, remaining / Math.max(Math.abs(vx), 0.9)))
+    )
+    swipeAnimEase.value = 'cubic-bezier(0.2, 0.8, 0.3, 1)'
     swipeAnimating.value = true
     swipeCommitted.value = true
-    swipeOffsetX.value = targetOffset
-
-    // 动画结束后切路由
+    swipeOffsetX.value = dir * w
+    const path = target
     setTimeout(() => {
-      router.push(swipeTargetPath).then(() => {
+      router.push(path).then(() => {
         // 瞬间重置位置（关闭动画过渡）
         swipeAnimating.value = false
         swipeOffsetX.value = 0
         swipeCommitted.value = false
         hidePreview()
       })
-    }, SWIPE_ANIM_DURATION)
+    }, swipeAnimMs.value)
   } else {
-    // 回弹：CSS 动画回 0
+    // 回弹：时长随弹回距离缩放
+    swipeAnimMs.value = Math.round(
+      Math.min(320, Math.max(160, dist / Math.max(Math.abs(vx), 0.5)))
+    )
+    swipeAnimEase.value = 'cubic-bezier(0.3, 1.0, 0.4, 1)'
     swipeAnimating.value = true
     swipeOffsetX.value = 0
     setTimeout(() => {
       swipeAnimating.value = false
       hidePreview()
-    }, SWIPE_ANIM_DURATION)
+    }, swipeAnimMs.value)
   }
 }
 
@@ -524,16 +552,6 @@ button {
   height: 100%;
   will-change: transform;
   touch-action: pan-y; /* 允许垂直滚动，拦截水平滑动 */
-}
-
-/* 松手后的惯性 / 回弹动画 */
-.page-wrapper.swipe-animating {
-  transition: transform 0.28s cubic-bezier(0.25, 0.1, 0.25, 1);
-}
-
-/* 预览页与当前页同步过渡（跟手滑动 + 松手动画） */
-.preview-peek.swipe-animating {
-  transition: transform 0.28s cubic-bezier(0.25, 0.1, 0.25, 1);
 }
 
 /* ==== 预览页面（手势拖动时从边缘露出） ==== */
