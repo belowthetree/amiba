@@ -7,7 +7,7 @@ Vue 3 + TypeScript + Vite + Tauri desktop app. Users describe needs in natural l
 - **Stack:** Vue 3 (Composition API, `<script setup>`), Pinia, Vue Router, Vite 8, TypeScript 6, Tauri 2
 - **Entry:** `src/main.ts` → `bootstrap()` inits storage/config/registry/memory/skills/soul, discovers tools, then mounts `App.vue`
 - **Tauri:** `src-tauri/` — Rust glue (`lib.rs`) registers `tauri-plugin-log` + `tauri-plugin-fs`; `db.rs` — SQLite FTS5 session DB via `rusqlite`; `web.rs` — WebView 浏览器引擎（桌面 WebView + Android JNI/Kotlin + iOS WKWebView），提供 `web_fetch`/`web_browse` 等命令
-- **Android 特定:** Kotlin 辅助类在 `MainActivity.kt`（`JsCallback` + `WebViewHelper` + `FolderPickerHelper`（已废弃））; 文件夹选取通过 `tauri-plugin-android-fs` SAF Picker; JVM 通过 `libloading` 动态查找 `JNI_GetCreatedJavaVMs`; App ClassLoader 用于 native 线程加载 app 类; `AndroidJvm` state 仍被 `read_tombstone` 使用
+- **Android 特定:** Kotlin 辅助类在 `MainActivity.kt`（`JsCallback` + `WebViewHelper` + `FolderPickerHelper`（已废弃））; edge-to-edge 下通过 `setupWindowInsets()` 把 systemBars/IME inset 作为内容区 padding（软键盘弹出时界面上移，adjustResize 在 targetSdk 35+ 无效）; 文件夹选取通过 `tauri-plugin-android-fs` SAF Picker; JVM 通过 `libloading` 动态查找 `JNI_GetCreatedJavaVMs`; App ClassLoader 用于 native 线程加载 app 类; `AndroidJvm` state 仍被 `read_tombstone` 使用
 
 ## Commands
 
@@ -154,7 +154,7 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
   - `docs/` — user custom document files (override builtin `public/docs/`)
   - `theme/{name}/` — 主题目录（variables.json + custom.css）；`theme/slots/` — 插槽 HTML
   - `logs/` — 前端日志文件（JSON Lines，按大小轮转，设置页可查看/过滤/导出）
-- **Android 源码:** Kotlin 类在 `src-tauri/gen/android/app/src/main/java/com/amiba/desktop/MainActivity.kt`（`JsCallback` + `WebViewHelper` + `FolderPickerHelper`（已废弃，文件夹选取已迁移至 `tauri-plugin-android-fs`））；`tauri android init` 会重置 `gen/android`，自定义代码需在重置后重新写入
+- **Android 源码:** Kotlin 类在 `src-tauri/gen/android/app/src/main/java/com/amiba/desktop/MainActivity.kt`（`JsCallback` + `WebViewHelper` + `FolderPickerHelper`（已废弃，文件夹选取已迁移至 `tauri-plugin-android-fs`））；`setupWindowInsets()` 处理 edge-to-edge 下的状态栏/导航栏/软键盘遮挡；`tauri android init` 会重置 `gen/android`，自定义代码需在重置后重新写入
 - **Storage auto-mkdir:** `storageSet` creates parent directories automatically before writing
 - **JSON pretty-print:** all `storageSetJSON` writes use 2-space indentation
 - **Real-time save:** chat history saves on every message with 300ms debounce; `/new` flushes before switching

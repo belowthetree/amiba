@@ -17,6 +17,8 @@ import android.webkit.ValueCallback
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.enableEdgeToEdge
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.text.SimpleDateFormat
@@ -60,9 +62,35 @@ class MainActivity : TauriActivity() {
     instance = this
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
+    setupWindowInsets()
     // 崩溃诊断涉及跨进程 IPC + tombstone I/O，移到后台线程避免 ANR
     bgExecutor.execute { logPreviousExitReasons() }
     ensureStoragePermission()
+  }
+
+  // ============================================================
+  // 软键盘与系统栏遮挡适配
+  // edge-to-edge 模式下 adjustResize 无效（targetSdk 35+ 强制 edge-to-edge），
+  // 手动把 systemBars / IME 的 inset 作为 padding 应用到内容区：
+  // 软键盘弹出时整个界面上移（输入框顶到键盘上方），平时内容避开状态栏与导航栏。
+  // 注意: gen/android 会被 `tauri android init` 重置,重置后需重新写入本段
+  // ============================================================
+  private var lastImeVisible: Boolean? = null
+
+  private fun setupWindowInsets() {
+    val content = findViewById<android.view.View>(android.R.id.content) ?: return
+    ViewCompat.setOnApplyWindowInsetsListener(content) { v, insets ->
+      val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+      val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
+      v.setPadding(bars.left, bars.top, bars.right, maxOf(bars.bottom, ime.bottom))
+      // 仅记录键盘开关键转换，避免 IME 动画期间高频回调刷屏
+      val imeVisible = ime.bottom > 0
+      if (lastImeVisible != imeVisible) {
+        lastImeVisible = imeVisible
+        android.util.Log.i("[amiba]", "=== 软键盘${if (imeVisible) "弹出" else "收起"}: ime=${ime.bottom}px navBar=${bars.bottom}px ===")
+      }
+      WindowInsetsCompat.CONSUMED
+    }
   }
 
   override fun onDestroy() {

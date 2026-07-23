@@ -48,6 +48,8 @@ version: 1.0.0
 
 export class SoulManager {
   private currentSoul: Soul | null = null
+  /** 当前使用的 soul 是否为 fallback 默认值（文件不存在或加载失败） */
+  private _isDefaultFallback = true
 
   async init(): Promise<void> {
     try {
@@ -64,17 +66,20 @@ export class SoulManager {
         rawContent: DEFAULT_SOUL_CONTENT,
         frontmatter: { name: 'default', label: '默认人格' },
       }
+      this._isDefaultFallback = true
       console.log('[Soul] 浏览器模式，使用默认人格')
     }
   }
 
   async loadSoul(name: string): Promise<Soul> {
     let raw: string
+    let loaded = false
     try {
       const { readTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
       raw = await readTextFile(`${SOUL_DIR}${name}.md`, {
         baseDir: BaseDirectory.AppData,
       })
+      loaded = true
     } catch {
       raw = DEFAULT_SOUL_CONTENT
     }
@@ -87,6 +92,7 @@ export class SoulManager {
       rawContent: raw,
       frontmatter: parsed.frontmatter || {},
     }
+    this._isDefaultFallback = !loaded
 
     await this.saveActiveName(name)
     invalidateSystemPrompt()
@@ -99,6 +105,11 @@ export class SoulManager {
 
   getCurrentName(): string {
     return this.currentSoul?.name || 'default'
+  }
+
+  /** 同步检查：当前 soul 是否为 fallback 默认值（人格文件不存在） */
+  isUsingDefaultFallback(): boolean {
+    return this._isDefaultFallback
   }
 
   async listSouls(): Promise<Pick<Soul, 'name' | 'label' | 'frontmatter'>[]> {
@@ -136,6 +147,7 @@ export class SoulManager {
     }
     if (this.currentSoul?.name === name) {
       this.currentSoul.rawContent = content
+      this._isDefaultFallback = false
       invalidateSystemPrompt()
     }
   }

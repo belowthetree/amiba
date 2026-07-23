@@ -2,7 +2,7 @@
 变形虫 (Amiba) — ChatPage (AI 对话)
 ============================================================ -->
 <template>
-  <div class="chat-page">
+  <div class="chat-page" :style="{ paddingBottom: keyboardInset + 'px' }">
     <div class="chat-topbar">
       <div class="session-selector" @click="showSessions = !showSessions">
         <span class="session-title">{{ currentSessionTitle }}</span>
@@ -75,7 +75,8 @@
         :placeholder="isReviewing ? $t('chat.reviewRunning') : $t('chat.placeholder')"
         rows="2"
         :disabled="isReviewing"
-        @keydown.enter.exact.prevent="send"
+        @keydown="onInputKeydown"
+        @beforeinput="onInputBeforeInput"
       ></textarea>
       <button
         v-if="streaming"
@@ -161,7 +162,6 @@ import {
   addUserMessage,
   addAssistantMessage,
   addToolMessage,
-  addSystemMessage,
   flashError,
   getVisibleMessages,
   listSessions,
@@ -173,7 +173,6 @@ import {
   flushHistory,
 } from '../ai/session'
 import type { SessionMeta } from '../ai/session'
-import { soulManager } from '../ai/soul'
 import { isReviewing, lastReviewResult } from '../ai/skill-reviewer'
 import { peerList } from '../host/network-bridge'
 import { 
@@ -206,6 +205,37 @@ function stopStreaming() {
     abortController.abort()
     abortController = null
   }
+}
+
+// ==== 输入框键盘处理 ====
+
+// 回车发送；IME 组合中（中文选词）不触发，Shift+Enter 换行
+function onInputKeydown(e: KeyboardEvent) {
+  if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return
+  if (e.isComposing || e.keyCode === 229) return
+  e.preventDefault()
+  send()
+}
+
+// 部分手机输入法回车不派发标准 Enter keydown，通过 beforeinput 拦截换行改为发送
+const isCoarsePointer = window.matchMedia?.('(pointer: coarse)').matches ?? false
+function onInputBeforeInput(e: Event) {
+  if (!isCoarsePointer) return
+  const ie = e as InputEvent
+  if (ie.inputType === 'insertParagraph' || ie.inputType === 'insertLineBreak') {
+    e.preventDefault()
+    send()
+  }
+}
+
+// ==== 软键盘遮挡适配 ====
+// 通过 visualViewport 计算键盘高度，给页面加底部 padding 把输入框顶到键盘上方
+const keyboardInset = ref(0)
+function syncKeyboardInset() {
+  const vv = window.visualViewport
+  if (!vv) return
+  keyboardInset.value = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop))
+  if (keyboardInset.value > 0) scrollToBottom()
 }
 
 function continueGeneration() {
@@ -468,51 +498,12 @@ async function send() {
   }
 }
 
-/** 首次启动：以系统消息注入引导指令并触发 AI 回复 */
-async function sendOnboardingMessage(directive: string) {
-  sending.value = true
-  streaming.value = true
-  streamingContent.value = ''
-  streamingReasoning.value = ''
-
-  abortController = new AbortController()
-
-  try {
-    // 发送空 user 消息触发 AI 回复，引导指令通过 extraInstructions 注入 system prompt
-    const chatMsgs: { role: string; content: string }[] = []
-    chatMsgs.push({ role: 'user', content: '' })
-    const gen = streamChat(chatMsgs as any, {
-      turnCount: 0,
-      abortSignal: abortController.signal,
-      extraInstructions: directive,
-    })
-
-    for await (const chunk of gen) {
-      if (chunk.startsWith('\x00REASONING\x00')) {
-        streamingReasoning.value += chunk.slice(11)
-      } else {
-        streamingContent.value += chunk
-      }
-      scrollToBottom()
-    }
-
-    if (streamingContent.value) {
-      addAssistantMessage(streamingContent.value, streamingReasoning.value || undefined)
-      streamingReasoning.value = ''
-    }
-  } catch {
-    /* 静默处理 */
-  } finally {
-    abortController = null
-    sending.value = false
-    streaming.value = false
-    streamingContent.value = ''
-    streamingReasoning.value = ''
-    scrollToBottom()
-  }
-}
-
 onMounted(async () => {
+  // 软键盘监听：visualViewport 在键盘弹出/收起时触发 resize/scroll
+  window.visualViewport?.addEventListener('resize', syncKeyboardInset)
+  window.visualViewport?.addEventListener('scroll', syncKeyboardInset)
+  syncKeyboardInset()
+
   await loadHistory()
   await refreshSessionList()
 
@@ -526,13 +517,6 @@ onMounted(async () => {
     }
   }
   if (dirty) saveHistory()
-  // 首次启动引导：注入人格创建指令
-  if (await soulManager.isFirstLaunch()) {
-    const directive = soulManager.getOnboardingDirective()
-    addSystemMessage(directive)  // 记录但不显示
-    await sendOnboardingMessage(directive)
-    return
-  }
 
   scrollToBottom()
 })
@@ -540,6 +524,8 @@ onMounted(async () => {
 // 离开聊天页时清除残留错误提示（errorMsg 为会话级状态，不清理会跨页面驻留）
 onUnmounted(() => {
   errorMsg.value = ''
+  window.visualViewport?.removeEventListener('resize', syncKeyboardInset)
+  window.visualViewport?.removeEventListener('scroll', syncKeyboardInset)
 })
 
 watch(

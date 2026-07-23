@@ -122,7 +122,12 @@ export function setMemoryCheckpointFromCache(context: string): void {
 // ---- Stable: 身份定义（来自 SOUL.md） ----
 
 function buildIdentity(): string {
-  return soulManager.getCurrentContent()
+  const content = soulManager.getCurrentContent()
+  // 无人格文件时注入引导指令，让 AI 在用户说话后自然引导创建人格
+  if (soulManager.isUsingDefaultFallback()) {
+    return content + '\n\n' + soulManager.getOnboardingDirective()
+  }
+  return content
 }
 
 // ---- Stable: 平台能力提示（告诉人格能做什么） ----
