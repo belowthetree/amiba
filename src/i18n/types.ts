@@ -15,7 +15,6 @@ export interface LocalesSchema {
     quick: string
   }
   quick: {
-    title: string
     emptyHint: string
   }
   chat: {

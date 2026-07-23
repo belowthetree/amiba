@@ -16,7 +16,6 @@ const zhCN: LocalesSchema = {
     quick: '快捷',
   },
   quick: {
-    title: '快捷页面',
     emptyHint: '这是一个可自定义的快捷页面。告诉 AI 你想要什么，它会帮你定制这里的内容。',
   },
   chat: {

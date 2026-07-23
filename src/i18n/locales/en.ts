@@ -16,7 +16,6 @@ const en: LocalesSchema = {
     quick: 'Quick',
   },
   quick: {
-    title: 'Quick Page',
     emptyHint: 'This is a customizable quick page. Tell the AI what you want, and it will personalize this space for you.',
   },
   chat: {
