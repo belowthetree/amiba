@@ -3,11 +3,11 @@
 无顶栏布局：功能按钮收纳进输入区左侧滑出面板
 ============================================================ -->
 <template>
-  <div class="chat-page" :class="{ empty: isEmpty }" :style="{ paddingBottom: keyboardInset + 'px' }">
+  <div class="chat-page" :class="{ empty: isEmpty, sink: sinkAnim }" :style="{ paddingBottom: keyboardInset + 'px' }">
     <!-- 插槽: chat.above-messages -->
     <SlotRenderer name="chat.above-messages" :html="slotHtml('chat.above-messages')" />
 
-    <div class="chat-messages" ref="messagesEl">
+    <TransitionGroup name="msg" tag="div" class="chat-messages" ref="messagesEl">
       <div
         v-for="(msg, idx) in visibleMessages"
         :key="idx"
@@ -23,7 +23,7 @@
         </div>
       </div>
 
-      <div v-if="streaming" class="message assistant">
+      <div v-if="streaming" key="streaming" class="message assistant">
         <div class="message-content streaming">
           <details v-if="streamingReasoning" class="reasoning-block" open>
             <summary>{{ $t('chat.thinkingProgress') }}</summary>
@@ -33,10 +33,10 @@
         </div>
       </div>
 
-      <div v-if="errorMsg" class="message error">
+      <div v-if="errorMsg" key="error" class="message error">
         <div class="message-content">{{ errorMsg }}</div>
       </div>
-    </div>
+    </TransitionGroup>
 
     <!-- 输入区：空态时垂直居中，有消息后沉底 -->
     <div class="chat-input-zone">
@@ -210,7 +210,7 @@ const session = getSession()
 const { messages, turnCount, sending, streaming, streamingContent, errorMessage: errorMsg } = session
 
 const input = ref('')
-const messagesEl = ref<HTMLDivElement | null>(null)
+const messagesEl = ref<any>(null) // TransitionGroup 组件实例，取 DOM 用 .$el
 const showStats = ref(false)
 const showSessions = ref(false)
 const panelOpen = ref(false)
@@ -272,6 +272,15 @@ const isEmpty = computed(() =>
   visibleMessages.value.length === 0 && !streaming.value && !errorMsg.value
 )
 
+// 输入区沉降动画：仅在空态→非空态跳变时播放（切页重挂载不重放）
+const sinkAnim = ref(false)
+watch(isEmpty, (empty, prev) => {
+  if (prev === true && !empty) {
+    sinkAnim.value = true
+    setTimeout(() => { sinkAnim.value = false }, 450)
+  }
+})
+
 const NUDGE_INTERVAL = 10
 const nudgeCountdown = computed(() => {
   return NUDGE_INTERVAL - (turnCount.value % NUDGE_INTERVAL)
@@ -326,9 +335,8 @@ async function doDeleteSession(id: string) {
 
 function scrollToBottom() {
   nextTick(() => {
-    if (messagesEl.value) {
-      messagesEl.value.scrollTop = messagesEl.value.scrollHeight
-    }
+    const el = messagesEl.value?.$el ?? messagesEl.value
+    if (el) el.scrollTop = el.scrollHeight
   })
 }
 
@@ -470,8 +478,8 @@ watch(lastReviewResult, (result) => {
   margin-bottom: 0;
 }
 
-/* 非空态：输入区落底时的沉降动画 */
-.chat-page:not(.empty) .chat-input-zone {
+/* 空态→非空态跳变时输入区沉降动画（切页重挂载不重放） */
+.chat-page.sink .chat-input-zone {
   animation: inputSink 0.4s cubic-bezier(0.25, 0.9, 0.3, 1);
 }
 
@@ -598,7 +606,16 @@ watch(lastReviewResult, (result) => {
 
 .message {
   max-width: 85%;
-  animation: fadeIn 0.25s ease;
+}
+
+/* 新消息进入动画（TransitionGroup 仅对新增触发，历史/切页重挂载不重放） */
+.msg-enter-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.msg-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
 }
 
 @keyframes fadeIn {

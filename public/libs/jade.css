@@ -1,0 +1,257 @@
+/* ============================================================
+变形虫 (Amiba) — jade.css 玉石玻璃风基础样式（服务复用）
+
+用法（服务 index.html 的 <head> 中）：
+  <link href="/libs/jade.css" rel="stylesheet">
+
+然后在 <body> 最前面放玻璃背景节点：
+  <div class="glass-bg" aria-hidden="true">
+    <div class="gb-glow gb-glow-1"></div>
+    <div class="gb-glow gb-glow-2"></div>
+    <div class="gb-streak"></div>
+  </div>
+
+页面内容用 .page 容器包裹，组件类：.card / .btn-primary /
+.btn-ghost / .input / .tag / .modal-overlay + .modal-box
+============================================================ */
+
+/* ---- 设计令牌 ---- */
+:root {
+  /* 玉石色系 */
+  --color-primary: #2FA98C;        /* 玉青主色：按钮、链接、强调 */
+  --color-primary-hover: #238D75;  /* 主色加深（hover/active） */
+  --color-primary-light: #E1F3ED;  /* 主色浅底（选中态、标签底） */
+  --color-bg: #EDF3F0;             /* 玉白背景 */
+  --color-surface: rgba(255, 255, 255, 0.78);  /* 玻璃表面（半透明） */
+  --color-text: #1F2329;           /* 正文 */
+  --color-text-secondary: #6B7280; /* 次要文字 */
+  --color-text-muted: #9CA3AF;     /* 弱化文字 */
+  --color-success: #22C55E;
+  --color-warning: #F59E0B;
+  --color-error: #EF4444;
+  --color-on-primary: #FFFFFF;
+
+  /* 圆角 */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+
+  /* 柔和分层阴影 */
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05), 0 1px 3px rgba(16, 24, 40, 0.04);
+  --shadow-md: 0 4px 8px -2px rgba(16, 24, 40, 0.06), 0 8px 20px -4px rgba(16, 24, 40, 0.08);
+  --shadow-float: 0 10px 28px -8px rgba(16, 24, 40, 0.12), 0 2px 8px rgba(16, 24, 40, 0.05);
+
+  /* 字号 / 间距 */
+  --font-size-sm: 13px;
+  --font-size-md: 15px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  font-size: var(--font-size-md);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: #C7CBD1;
+  border-radius: 4px;
+  border-right: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+/* ==== 玻璃辉光背景（玉色辉光 + 流光） ==== */
+.glass-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  background: var(--color-bg);
+}
+
+.gb-glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  will-change: transform;
+}
+
+.gb-glow-1 {
+  width: 58vmax;
+  height: 58vmax;
+  top: -18vmax;
+  left: -14vmax;
+  background: radial-gradient(circle, rgba(140, 222, 194, 0.38) 0%, rgba(140, 222, 194, 0) 68%);
+  animation: gb-drift 26s ease-in-out infinite alternate;
+}
+
+.gb-glow-2 {
+  width: 52vmax;
+  height: 52vmax;
+  right: -16vmax;
+  bottom: -18vmax;
+  background: radial-gradient(circle, rgba(116, 196, 216, 0.30) 0%, rgba(116, 196, 216, 0) 68%);
+  animation: gb-drift 32s ease-in-out infinite alternate-reverse;
+}
+
+.gb-streak {
+  position: absolute;
+  left: -25%;
+  top: 20%;
+  width: 150%;
+  height: 120px;
+  transform: rotate(-16deg) translate3d(-38vw, 0, 0);
+  filter: blur(22px);
+  opacity: 0;
+  will-change: transform, opacity;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.42) 42%,
+    rgba(255, 255, 255, 0.55) 50%,
+    rgba(255, 255, 255, 0.42) 58%,
+    transparent 100%);
+  animation: gb-sweep 17s linear infinite;
+}
+
+@keyframes gb-sweep {
+  0%   { transform: rotate(-16deg) translate3d(-38vw, 0, 0); opacity: 0; }
+  12%  { opacity: 1; }
+  50%  { opacity: 1; }
+  88%  { opacity: 0; }
+  100% { transform: rotate(-16deg) translate3d(38vw, 0, 0); opacity: 0; }
+}
+
+@keyframes gb-drift {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to   { transform: translate3d(6vw, 4vh, 0) scale(1.08); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gb-glow, .gb-streak { animation: none; }
+  .gb-streak { opacity: 0.25; transform: rotate(-16deg); }
+}
+
+/* ==== 页面容器（内容居中收敛） ==== */
+.page {
+  position: relative;
+  z-index: 1;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+/* ==== 卡片 / 面板（玻璃感） ==== */
+.card {
+  background: var(--color-surface);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(31, 35, 41, 0.08);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 16px;
+}
+
+/* ==== 主按钮（玉青胶囊） ==== */
+.btn-primary {
+  padding: 10px 20px;
+  min-height: 40px;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border: none;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+}
+.btn-primary:hover { background: var(--color-primary-hover); box-shadow: var(--shadow-md); }
+.btn-primary:active { transform: scale(0.96); }
+.btn-primary:disabled { background: #D1D5DB; opacity: 0.7; cursor: not-allowed; }
+
+/* ==== 次要 / 幽灵按钮（玻璃） ==== */
+.btn-ghost {
+  padding: 10px 20px;
+  min-height: 40px;
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--color-text-secondary);
+  border: 1px solid rgba(31, 35, 41, 0.1);
+  border-radius: 999px;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.15s ease;
+}
+.btn-ghost:hover { background: var(--color-primary-light); color: var(--color-primary); }
+.btn-ghost:active { transform: scale(0.96); }
+
+/* ==== 输入框（悬浮玻璃） ==== */
+.input {
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(31, 35, 41, 0.08);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--color-text);
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.input:focus {
+  border-color: rgba(47, 169, 140, 0.55);
+  box-shadow: 0 12px 32px -8px rgba(47, 169, 140, 0.3), 0 2px 8px rgba(16, 24, 40, 0.06);
+}
+.input::placeholder { color: var(--color-text-muted); }
+
+/* ==== 标签（玉青浅底） ==== */
+.tag {
+  display: inline-block;
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 12px;
+}
+
+/* ==== 弹窗 / 模态 ==== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.modal-box {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(31, 35, 41, 0.08);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: 24px;
+  max-width: calc(100vw - 32px);
+}

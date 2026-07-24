@@ -32,8 +32,8 @@
         :style="swipeStyle"
       >
         <router-view v-slot="{ Component, route: r }">
-          <transition :name="transitionName" :key="r.fullPath">
-            <component :is="Component" />
+          <transition :name="transitionName" @after-enter="onPageEntered">
+            <component :is="Component" :key="r.fullPath" />
           </transition>
         </router-view>
       </div>
@@ -107,8 +107,11 @@ function getPageIndex(path: string): number {
 
 // ==== 全局导航守卫：自动计算过渡方向 ====
 router.beforeEach((to, from) => {
-  // 手势驱动时跳过 CSS transition（手势自身控制动画）
-  if (swipeCommitted.value) return
+  // 手势驱动时用空过渡（手势自身已完成位移动画，避免二次动画/闪屏）
+  if (swipeCommitted.value) {
+    transitionName.value = 'none'
+    return
+  }
 
   const toPath = routePath(to.name)
   const fromPath = routePath(from.name)
@@ -152,6 +155,7 @@ let swipeStartY = 0
 let swipeLastX = 0
 let swipeSide = 0 // 当前拖动侧：1=右滑(上一页), -1=左滑(下一页)
 let swipeTargetPath = ''
+let swipeCommitSeq = 0 // 提交序号：新手势使旧的待执行提交失效
 let moveSamples: { t: number; x: number }[] = [] // 近期位移采样，用于末端速度
 
 // ==== 预览页面（手势时从边缘露出目标页） ====
@@ -191,6 +195,7 @@ function onSwipeStart(e: TouchEvent) {
   if (swipeAnimating.value) {
     cancelSwipeAnimation()
   }
+  swipeCommitSeq++ // 使上一次提交遗留的待执行回调失效
 
   const t = e.touches[0]
   swipeStartX = t.clientX
@@ -279,15 +284,25 @@ function onSwipeEnd(_e: TouchEvent) {
     swipeCommitted.value = true
     swipeOffsetX.value = dir * w
     const path = target
-    setTimeout(() => {
-      router.push(path).then(() => {
-        // 瞬间重置位置（关闭动画过渡）
-        swipeAnimating.value = false
-        swipeOffsetX.value = 0
-        swipeCommitted.value = false
-        hidePreview()
-      })
-    }, swipeAnimMs.value)
+    const commitId = ++swipeCommitSeq
+    // 等滑出动画真正结束（transitionend）再切路由，避免定时器与视觉帧竞态导致的回弹
+    let pushed = false
+    const doPush = () => {
+      if (pushed || !swipeCommitted.value || commitId !== swipeCommitSeq) return
+      pushed = true
+      pageWrapper.value?.removeEventListener('transitionend', onTransitionEnd)
+      // 位移复位推迟到组件切换完成（onPageEntered），过早复位会让旧页闪回一帧
+      router.push(path).catch(() => {})
+      // 兜底：过渡回调未触发（导航被拦截等）时强制复位
+      setTimeout(() => {
+        if (swipeCommitted.value && commitId === swipeCommitSeq) resetSwipeState()
+      }, 500)
+    }
+    const onTransitionEnd = (e: TransitionEvent) => {
+      if (e.propertyName === 'transform') doPush()
+    }
+    pageWrapper.value?.addEventListener('transitionend', onTransitionEnd)
+    setTimeout(doPush, swipeAnimMs.value + 80) // 兜底：transitionend 未触发
   } else {
     // 回弹：时长随弹回距离缩放
     swipeAnimMs.value = Math.round(
@@ -309,6 +324,21 @@ function cancelSwipeAnimation() {
   swipeCommitted.value = false
   isSwiping.value = false
   hidePreview()
+}
+
+/** 手势提交后的统一复位（关闭动画、归零位移、隐藏预览） */
+function resetSwipeState() {
+  swipeAnimating.value = false
+  swipeOffsetX.value = 0
+  swipeCommitted.value = false
+  hidePreview()
+}
+
+// 页面过渡完成回调：重置主容器滚动位置；手势提交后在此复位位移（新页挂载后再归零，避免旧页闪回）
+function onPageEntered() {
+  if (mainRef.value) mainRef.value.scrollTop = 0
+  if (!swipeCommitted.value) return
+  resetSwipeState()
 }
 
 // ==== 版本更新横幅 ====
@@ -557,6 +587,7 @@ button {
 
 /* ==== 页面容器（手势拖动层） ==== */
 .page-wrapper {
+  position: relative;
   width: 100%;
   height: 100%;
   padding-top: max(var(--safe-top), 8px);
@@ -566,7 +597,7 @@ button {
 
 /* ==== 预览页面（手势拖动时从边缘露出） ==== */
 .preview-peek {
-  position: absolute;
+  position: fixed; /* fixed：长页面滚动后预览仍与视口对齐 */
   top: 0;
   width: 100%;
   height: 100%;
@@ -577,20 +608,24 @@ button {
 .peek-right { left: 100%; }
 .peek-left  { right: 100%; }
 
-/* ==== 非手势导航的 CSS 过渡 ==== */
-/* 仅在非手势触发的路由切换时生效（手势有自己的 JS 动画） */
-
+/* ==== 非手势导航的 CSS 过渡（与滑动手势一致的同步横滑） ==== */
+/* 过渡期间两页都脱离文档流绝对定位叠放，互不影响布局，结束后恢复正常流 */
 .page-forward-enter-active,
-.page-forward-leave-active {
-  transition: opacity 0.22s ease, transform 0.22s ease;
-}
-.page-forward-enter-from { opacity: 0; transform: translateX(30px); }
-.page-forward-leave-to   { opacity: 0; transform: translateX(-20px); }
-
+.page-forward-leave-active,
 .page-back-enter-active,
 .page-back-leave-active {
-  transition: opacity 0.22s ease, transform 0.22s ease;
+  position: absolute;
+  top: max(var(--safe-top), 8px);
+  left: 0;
+  width: 100%;
+  height: calc(100% - max(var(--safe-top), 8px));
+  overflow: hidden;
+  pointer-events: none;
+  transition: transform 0.28s cubic-bezier(0.25, 0.9, 0.3, 1), opacity 0.28s ease;
 }
-.page-back-enter-from { opacity: 0; transform: translateX(-30px); }
-.page-back-leave-to   { opacity: 0; transform: translateX(20px); }
+
+.page-forward-enter-from { transform: translateX(100%); }
+.page-forward-leave-to   { transform: translateX(-25%); opacity: 0.4; }
+.page-back-enter-from    { transform: translateX(-100%); }
+.page-back-leave-to      { transform: translateX(25%); opacity: 0.4; }
 </style>

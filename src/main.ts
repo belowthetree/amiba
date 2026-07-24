@@ -1,6 +1,7 @@
 // ============================================================
 // 变形虫 (Amiba) — Vue 入口
 // ============================================================
+import './config/polyfill'
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'

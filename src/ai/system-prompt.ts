@@ -193,6 +193,7 @@ const DOCS_GUIDANCE = `## 文档系统使用指引
 - 局域网 P2P 开发 → doc_read("network.md")
 - 存储 API → doc_read("storage.md")
 - Widget 开发 → doc_read("widgets.md")
+- 服务界面风格（玉石玻璃风，必遵） → doc_read("service-style.md")
 
 **工具：**
 - doc_list — 浏览所有可用文档
@@ -243,6 +244,7 @@ const SERVICE_GUIDANCE = `## 服务工具使用指引 ⚠️ 生成前必须先�
 - 服务运行在 iframe sandbox 中，禁止使用 localStorage、sessionStorage、BroadcastChannel、alert/confirm/prompt
 - 数据持久化必须用 __amiba__.storage.set/get/remove
 - 多人/协作/聊天/联机需求 → 必须声明 network 权限 + 使用 __amiba__.network.* P2P API
+- 界面风格必须遵循玉石玻璃风 → index.html 引入 <link href="/libs/jade.css"> 基础样式表，细节见 doc_read("service-style.md")
 - service_validate 可自动检测以上问题`
 
 const UI_GUIDANCE = `## 界面定制指引

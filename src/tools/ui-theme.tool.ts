@@ -111,7 +111,7 @@ toolRegistry.register({
           name: {
             type: 'string',
             description:
-              'CSS 变量名。常用：--color-primary（主色/按钮/链接）、--color-bg（页面背景）、--color-surface（卡片/顶栏背景）、--color-text（正文）、--radius-md（卡片圆角）、--font-size-md（正文大小）、--font-size-xl（主标题）。完整列表见 ui-customization.md。',
+              'CSS 变量名。常用：--color-primary（主色/按钮/链接）、--color-bg（页面背景）、--color-surface（卡片/模态框背景）、--color-text（正文）、--radius-md（卡片圆角）、--font-size-md（正文大小）、--font-size-xl（主标题）。完整列表见 ui-customization.md。',
           },
           value: {
             type: 'string',

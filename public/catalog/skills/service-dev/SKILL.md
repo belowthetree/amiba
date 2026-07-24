@@ -102,9 +102,10 @@ keywords:
 
 - 使用 HTML5 标准：`<!DOCTYPE html>` + `<meta charset="utf-8">`
 - viewport: `width=device-width, initial-scale=1.0`
-- UI 自由设计，参考平台风格：
-  - 主色 `#1976D2`、辅色 `#9C27B0`、背景 `#fafafa`、文字 `#333`
-  - 圆角 8–12px、间距 4/8/16/24/32、字体 13–14px
+- UI 必须遵循平台统一的玉石玻璃风格：**先用 doc_read("service-style.md") 读取《服务界面风格指南》**（含可直接复制的 CSS 令牌、玻璃背景、组件样式）
+  - 主色 `#2FA98C`（玉青）、背景 `#EDF3F0`（玉白）、表面半透明白 + 背景模糊
+  - 圆角 8/12/18px、柔和分层阴影、间距 4/8/16/24、字体 13–15px
+  - 简洁直出：不要重型顶栏/返回栏（宿主已提供左上角浮动返回按钮）
 - **不要使用外部 CDN 资源**（iframe 沙箱限制）
 
 ---
@@ -135,8 +136,8 @@ keywords:
 
 ## 6. CSS 规范
 
-- 自由设计，不必照搬 Catalog 组件
-- 推荐 CSS 变量定义主题色
+- **风格统一：在 index.html 中通过 `<link href="/libs/jade.css" rel="stylesheet">` 引入平台玉石玻璃风基础样式**（含设计令牌、玻璃辉光背景、.card/.btn-primary/.btn-ghost/.input/.modal 等类），服务的 style.css 只写业务布局，颜色/圆角/阴影一律引用 `var(--*)` 令牌
+- 细节与定制方法：doc_read("service-style.md")《服务界面风格指南》
 - 移动端优先，flexbox 布局
 - 按钮至少 40px 高度（触控友好）
 
@@ -153,14 +154,20 @@ keywords:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <title>计数器</title>
+  <link href="/libs/jade.css" rel="stylesheet">
   <link href="style.css" rel="stylesheet">
 </head>
 <body>
-  <div id="app">
+  <div class="glass-bg" aria-hidden="true">
+    <div class="gb-glow gb-glow-1"></div>
+    <div class="gb-glow gb-glow-2"></div>
+    <div class="gb-streak"></div>
+  </div>
+  <div id="app" class="page">
     <h1>计数器</h1>
     <p id="count">0</p>
-    <button id="plus">+1</button>
-    <button id="minus">-1</button>
+    <button id="plus" class="btn-primary">+1</button>
+    <button id="minus" class="btn-ghost">-1</button>
   </div>
   <script src="app.js"></script>
 </body>

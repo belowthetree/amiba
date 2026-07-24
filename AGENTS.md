@@ -127,6 +127,7 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 - **全局背景:** `src/components/GlassBackground.vue` — 玉色辉光 + 流光动画，fixed 铺满全局，随 `data-theme` 自适应，`prefers-reduced-motion` 时关闭动画
 - **服务页返回:** `service-container.vue` 左上角浮动玻璃返回按钮（无顶栏后的唯一返回入口）
 - **聊天页输入区:** 无聊天记录时输入框垂直居中（`.chat-page.empty`），有消息后沉底；输入条左侧 › 开关展开功能面板（新建会话/统计/会话列表），会话列表为输入条上方弹出层
+- **服务风格指南:** `public/docs/service-style.md` + `public/libs/jade.css`（可复用基础样式表：设计令牌 + 玻璃辉光背景 + 卡片/按钮/输入框/模态类，服务 `<link href="/libs/jade.css">` 引入）— service-dev skill、系统提示 DOCS/SERVICE 指引均已引用，AI 生成服务必须遵循
 
 - **Language:** Chinese comments with English identifiers. Section banners use `// ====...====` / `<!-- ====...==== -->`.
 - **Vue:** `<script setup lang="ts">` everywhere; scoped styles below template+script; CSS custom properties for colors/spacing in `:root`.
@@ -147,6 +148,7 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 ## Notes
 
 - **Vue 预置库:** 服务可加载 `/libs/vue.global.prod.js`（Vue 3 全局构建），实现响应式 UI；支持多文件组件目录结构（`components/*.js`、`styles/*.css`），所有引用文件由 packager 自动内联
+- **玉石玻璃风样式库:** 服务通过 `<link href="/libs/jade.css">` 引入 `public/libs/jade.css`（设计令牌 + 玻璃辉光背景 + 组件类），风格规范见 `public/docs/service-style.md`
 - **Storage layout:** `{AppData}/amiba/` →
   - `amiba_settings` — 统一配置（api_key, network_lan_visible, active_agent_id, device_id 等已合并至此）
   - `state.db` — SQLite (WAL mode) with sessions/messages tables + messages_fts FTS5 virtual table
