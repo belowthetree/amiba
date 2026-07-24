@@ -6,7 +6,7 @@ Vue 3 + TypeScript + Vite + Tauri desktop app. Users describe needs in natural l
 
 - **Stack:** Vue 3 (Composition API, `<script setup>`), Pinia, Vue Router, Vite 8, TypeScript 6, Tauri 2
 - **Entry:** `src/main.ts` → `config/polyfill.ts`（旧 Android WebView 兼容：Array/String `.at()`，须最先加载）→ `bootstrap()` inits storage/config/registry/memory/skills/soul, discovers tools, then mounts `App.vue`
-- **Tauri:** `src-tauri/` — Rust glue (`lib.rs`) registers `tauri-plugin-log` + `tauri-plugin-fs`; `db.rs` — SQLite FTS5 session DB via `rusqlite`; `web.rs` — WebView 浏览器引擎（桌面 WebView + Android JNI/Kotlin + iOS WKWebView），提供 `web_fetch`/`web_browse` 等命令
+- **Tauri:** `src-tauri/` — Rust glue (`lib.rs`) registers `tauri-plugin-log` + `tauri-plugin-fs`; `db.rs` — SQLite FTS5 session DB via `rusqlite`; `web.rs` — WebView 浏览器引擎（桌面 WebView + Android JNI/Kotlin + iOS WKWebView），提供 `web_fetch`（返回 `text` 可读文本 + `raw` 原始 HTML）/`web_browse` 等命令
 - **Android 特定:** Kotlin 辅助类在 `MainActivity.kt`（`JsCallback` + `WebViewHelper` + `FolderPickerHelper`（已废弃））; edge-to-edge 下通过 `setupWindowInsets()` 把 systemBars/IME inset 作为内容区 padding（软键盘弹出时界面上移，adjustResize 在 targetSdk 35+ 无效）; 文件夹选取通过 `tauri-plugin-android-fs` SAF Picker; JVM 通过 `libloading` 动态查找 `JNI_GetCreatedJavaVMs`; App ClassLoader 用于 native 线程加载 app 类; `AndroidJvm` state 仍被 `read_tombstone` 使用
 
 ## Commands
@@ -27,7 +27,7 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 | **AI Core** | `src/ai/` | LLM agent (multi-tool loop), system prompt assembler (system-prompt.ts: stable/volatile split cache + nudge), personality system (soul.ts), session manager v2 (session.ts: multi-session with create/switch/delete), memory store (memory-store.ts: real-time cache + frozen snapshot + threat scanning + context fencing), skill system (skills.ts + skill-parser + skill-commands + skill-usage + skill-curator + skill-consolidation-prompt + skill-reviewer + skill-packager + skill-zip), requirement store (requirement-store.ts: per-service + global REQUIREMENT.md), service validator (service-validator.ts: storage API check, sandbox API check, permission consistency), document index (doc-index.ts: builtin + user doc search/read), service packager (packager.ts: inline multi-file package into single HTML), catalog |
 | **Tools** | `src/tools/` | ToolRegistry (deferred-queue), auto-discovery, 5 toolsets (core/service/docs/ui), 30+ tool impls: memory, catalog_search, skill_view/list, skill_manage_*(5 tools), service_list/view/create, service_file_*(4 tools), service_validate, service_archive, service_rollback, doc_list/read/search, soul_save, requirement_*(3 tools), session_search, web_fetch, web_browse, ui_theme_*(6 tools), ui_slot_*(4 tools) |
 | **Host Runtime** | `src/host/` | iframe sandbox (`service-container.vue`), postMessage JSBridge (`bridge.ts`), service registry (`registry.ts`), LAN network bridge (`network-bridge.ts` + `network-session.ts`), service sharing (`service-share.ts`), skill sharing (`skill-share.ts`), version archive (`service-archive.ts`), floating widget manager, background service manager + widget global API handler (`background-manager.ts`), file access grants (`file-access-grants.ts`) |
-| **Web Bridge** | `src/config/web-bridge.ts` | 封装 Tauri `web_fetch`/`web_click`/`web_input_text`/`web_get_content`/`web_close` 命令，含超时和日志 |
+| **Web Bridge** | `src/config/web-bridge.ts` | 封装 Tauri `web_fetch`/`web_click`/`web_input_text`/`web_get_content`/`web_close` 命令，含超时和日志。`FetchResult` 含 `text`（提取文本）、`raw`（原始 HTML）、`title`、`content_type` |
 | **Updater** | `src/config/updater.ts` | 纯前端更新检查：调 GitHub Releases API，semver 比较，Rust reqwest 下载（绕过浏览器 CORS），全平台统一 |
 | **Pages** | `src/pages/` | 7 routes: Chat（`/`）、ServiceBrowse（`/services`）、Quick（`/quick`）、RemoteServices 仓库（`/registry`）、Settings、Memory + service 容器页（`/service/:id`）; ShareDialog (局域网服务分享弹窗), SkillShareDialog (局域网技能分享弹窗) |
 | **Config** | `src/config/` | Reactive settings persisted via Tauri FS plugin (`config.ts`), storage abstraction (`storage.ts`: auto-mkdir + pretty-print JSON), theme store (`theme-store.ts`: multi-theme management + prebuilt theme install), session-db wrapper (`session-db.ts`: Tauri invoke → Rust SQLite FTS5), folder-picker (`folder-picker.ts`: 统一文件夹选取 → Android tauri-plugin-android-fs SAF Picker / 桌面 plugin-dialog / 浏览器 prompt) |
@@ -93,7 +93,7 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 | `requirement_view` | core | Read per-service REQUIREMENT.md |
 | `requirement_update` | core | Add requirement/optimization/feedback/done entries |
 | `requirements_summary` | core | Read global REQUIREMENTS.md |
-| `web_fetch` | core | 获取网页可读文本（全平台 WebView，Android 走 Kotlin helper） |
+| `web_fetch` | core | 获取网页内容。返回 `text`（可读纯文本）和 `raw`（原始 HTML，仅 Rust HTTP 路径）。全平台 WebView，Android 走 Kotlin helper |
 | `web_browse` | core | 浏览器交互：navigate / click / input_text / get_content / close |
 | `ui_theme_view` | ui | 查看当前主题状态（CSS 变量、自定义 CSS、可用主题列表） |
 | `ui_theme_list` | ui | 列出所有主题（内置/用户，标记激活状态） |

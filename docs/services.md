@@ -97,6 +97,8 @@ removeServiceData(serviceId, key): void
 6. 注入 `__amiba__` 全局对象建立 JSBridge
 7. 根据 manifest 权限放行 API 调用
 
+> ⚠️ **index.html 格式规范**：`inlinePackage()` 会在 `<body>` 后自动注入 `<!-- AMIBA_BRIDGE -->` 占位符，宿主再替换为真实 bridge 脚本。因此 **index.html 中不得手动添加 `<!-- AMIBA_BRIDGE -->`**，否则会导致双标记——第一个标记被替换后 bridge 注入到 DOCTYPE 前触发浏览器怪异模式。Widget HTML 文件不经过 packager，**必须**在首行添加 `<!-- AMIBA_BRIDGE -->` 供宿主直接替换。
+
 ### 悬浮块（Widget）
 
 服务可通过 `widget.json` 声明式配置悬浮快捷展示块。服务加载时自动注册，卸载时自动清理。

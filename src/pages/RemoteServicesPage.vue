@@ -164,12 +164,12 @@ async function safeFetch(url: string): Promise<string> {
   // 尝试 Tauri Rust HTTP（绕过 CORS）
   try {
     const { invoke } = await import('@tauri-apps/api/core')
-    const result = await invoke<{ text: string; content_type: string }>('web_fetch', {
+    const result = await invoke<{ text: string; raw: string; content_type: string }>('web_fetch', {
       url,
       useWebview: false,
     })
     console.log('[Registry] Tauri fetch OK:', url)
-    return result.text
+    return result.raw || result.text
   } catch {
     // 降级到浏览器 fetch（同源或支持 CORS 的场景）
     console.log('[Registry] 降级浏览器 fetch:', url)

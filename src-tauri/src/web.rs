@@ -24,6 +24,7 @@ pub struct FetchResult {
     pub url: String,
     pub title: String,
     pub text: String,
+    pub raw: String,
     pub content_type: String,
 }
 
@@ -199,7 +200,7 @@ pub async fn http_fetch(url: &str) -> Result<FetchResult, String> {
     let title = extract_title(&html);
     let text = extract_text(&html);
     let text = if text.len() > 50000 { text[..50000].to_string() } else { text };
-    Ok(FetchResult { url: parsed.to_string(), title, text, content_type: ct })
+    Ok(FetchResult { url: parsed.to_string(), title, text, raw: html, content_type: ct })
 }
 
 fn extract_title(html: &str) -> String {
@@ -276,7 +277,7 @@ mod desktop {
         } else { (String::new(), json) };
 
         let text = if text.len() > 50000 { text[..50000].to_string() } else { text };
-        Ok(FetchResult { url: url.to_string(), title, text, content_type: "text/html".to_string() })
+        Ok(FetchResult { url: url.to_string(), title, text, raw: String::new(), content_type: "text/html".to_string() })
     }
 
     /// 桌面端 eval JS
@@ -486,7 +487,7 @@ mod mobile {
         } else { (format!("[iOS] {}", url), json) };
 
         let text = if text.len() > 50000 { text[..50000].to_string() } else { text };
-        Ok(FetchResult { url: url.to_string(), title, text, content_type: "text/html".to_string() })
+        Ok(FetchResult { url: url.to_string(), title, text, raw: String::new(), content_type: "text/html".to_string() })
     }
 
     pub fn mobile_eval_sync(js: &str) -> Result<String, String> {

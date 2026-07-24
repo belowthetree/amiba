@@ -55,7 +55,7 @@
 
 | 工具 | 文件 | 说明 |
 |------|------|------|
-| `web_fetch` | `web-browser.tool.ts` | 获取网页可读文本。桌面 WebView JS 渲染，移动端平台原生 WebView，失败降级 HTTP |
+| `web_fetch` | `web-browser.tool.ts` | 获取网页内容。`FetchResult` 含 `text`（提取后的可读文本）、`raw`（原始 HTML，仅 Rust HTTP 路径有效，WebView 路径为空）。桌面 WebView JS 渲染，移动端平台原生 WebView，失败降级 HTTP。如需下载原始文件，应使用 `raw` 字段 |
 | `web_browse` | `web-browser.tool.ts` | 浏览器交互操作：`navigate` 导航、`click` 点击 CSS 选择器、`input_text` 输入文本、`get_content` 提取页面 DOM 结构、`close` 关闭释放资源 |
 
 **架构**: `web-bridge.ts` 封装 Tauri invoke → `web.rs` 三平台引擎 → Android 上通过 `libloading` 获取 JVM → Kotlin `WebViewHelper` 主线程管理 WebView → `JsCallback` 跨线程返回 JS 结果。

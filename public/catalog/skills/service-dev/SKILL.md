@@ -102,6 +102,7 @@ keywords:
 
 - 使用 HTML5 标准：`<!DOCTYPE html>` + `<meta charset="utf-8">`
 - viewport: `width=device-width, initial-scale=1.0`
+- **禁止在 index.html 中手动添加 `<!-- AMIBA_BRIDGE -->`**——packager 在 `<body>` 后自动注入，手动添加会导致双标记、bridge 注入到 DOCTYPE 前触发怪异模式
 - UI 必须遵循平台统一的玉石玻璃风格：**先用 doc_read("service-style.md") 读取《服务界面风格指南》**（含可直接复制的 CSS 令牌、玻璃背景、组件样式）
   - 主色 `#2FA98C`（玉青）、背景 `#EDF3F0`（玉白）、表面半透明白 + 背景模糊
   - 圆角 8/12/18px、柔和分层阴影、间距 4/8/16/24、字体 13–15px
@@ -524,6 +525,7 @@ createApp({
 - [ ] `service_create` 的 `id` 以 `"user."` 开头，无非法字符
 - [ ] `permissions` 根据功能需求正确选择（多人/聊天/协作 → network）
 - [ ] `index.html` 已通过 `service_file_write` 写入
+- [ ] `index.html` 中**未**手动添加 `<!-- AMIBA_BRIDGE -->`（packager 自动注入）
 - [ ] `index.html` 通过 `<link>` 和 `<script src>` 引用 CSS/JS
 - [ ] `app.js` 中数据持久化使用 `__amiba__.storage.*`，不用 `localStorage`
 - [ ] `app.js` 中正确使用 `window.__amiba__` API

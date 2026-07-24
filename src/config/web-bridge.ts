@@ -11,6 +11,7 @@ export interface FetchResult {
   url: string
   title: string
   text: string
+  raw: string
   content_type: string
 }
 
