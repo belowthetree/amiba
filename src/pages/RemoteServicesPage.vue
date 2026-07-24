@@ -131,21 +131,68 @@ onMounted(() => {
   }
 })
 
+/**
+ * 规范化仓库 URL → raw 文件基础路径。
+ * 支持三种输入格式：
+ *   - 直接 raw URL: https://gitee.com/u/r/raw/master 或 https://raw.githubusercontent.com/...
+ *   - 仓库首页:     https://gitee.com/u/r → 自动补 /raw/master
+ *   - 仓库首页:     https://github.com/u/r → 自动转 raw.githubusercontent.com/u/r/main
+ */
+function normalizeBaseUrl(input: string): string {
+  let url = input.replace(/\/+$/, '')
+
+  // gitee.com 仓库首页 → raw 路径
+  const giteeMatch = url.match(/^https?:\/\/gitee\.com\/([^\/]+\/[^\/]+)$/)
+  if (giteeMatch) {
+    return `${url}/raw/master`
+  }
+
+  // github.com 仓库首页 → raw 路径
+  const ghMatch = url.match(/^https?:\/\/github\.com\/([^\/]+\/[^\/]+)$/)
+  if (ghMatch) {
+    return `https://raw.githubusercontent.com/${ghMatch[1]}/main`
+  }
+
+  return url
+}
+
+/**
+ * 跨域安全的 HTTP GET。
+ * Tauri 环境优先走 Rust reqwest（绕过 CORS），浏览器环境降级到 fetch。
+ */
+async function safeFetch(url: string): Promise<string> {
+  // 尝试 Tauri Rust HTTP（绕过 CORS）
+  try {
+    const { invoke } = await import('@tauri-apps/api/core')
+    const result = await invoke<{ text: string; content_type: string }>('web_fetch', {
+      url,
+      useWebview: false,
+    })
+    console.log('[Registry] Tauri fetch OK:', url)
+    return result.text
+  } catch {
+    // 降级到浏览器 fetch（同源或支持 CORS 的场景）
+    console.log('[Registry] 降级浏览器 fetch:', url)
+    const resp = await fetch(url)
+    if (!resp.ok) {
+      throw new Error(`HTTP ${resp.status}: ${resp.statusText}`)
+    }
+    return resp.text()
+  }
+}
+
 async function fetchServices() {
   loading.value = true
   error.value = ''
   services.value = []
 
   try {
-    const baseUrl = repoUrl.value.replace(/\/+$/, '')
+    const baseUrl = normalizeBaseUrl(repoUrl.value)
     const indexUrl = `${baseUrl}/index.json`
 
     console.log('[Registry] 获取服务列表:', indexUrl)
-    const resp = await fetch(indexUrl)
-    if (!resp.ok) {
-      throw new Error(`HTTP ${resp.status}: ${resp.statusText}`)
-    }
-    const data: RemoteServiceIndex = await resp.json()
+    const raw = await safeFetch(indexUrl)
+    const data: RemoteServiceIndex = JSON.parse(raw)
     if (!data.services || !Array.isArray(data.services)) {
       throw new Error(t('registry.invalidIndex'))
     }
@@ -156,10 +203,8 @@ async function fetchServices() {
       const manifestUrl = `${baseUrl}/${entry.id}/manifest.json`
       let manifest: ServiceManifest | null = null
       try {
-        const mResp = await fetch(manifestUrl)
-        if (mResp.ok) {
-          manifest = await mResp.json() as ServiceManifest
-        }
+        const mRaw = await safeFetch(manifestUrl)
+        manifest = JSON.parse(mRaw) as ServiceManifest
       } catch {
         console.warn('[Registry] 无法获取 manifest:', manifestUrl)
       }
@@ -198,17 +243,13 @@ async function installService(svc: DisplayService) {
 
   installingId.value = svc.id
   try {
-    const baseUrl = repoUrl.value.replace(/\/+$/, '')
+    const baseUrl = normalizeBaseUrl(repoUrl.value)
     const files: { path: string; content: string }[] = []
 
     for (const filePath of svc.files) {
       const fileUrl = `${baseUrl}/${svc.id}/${filePath}`
       console.log('[Registry] 下载文件:', fileUrl)
-      const resp = await fetch(fileUrl)
-      if (!resp.ok) {
-        throw new Error(`下载 ${filePath} 失败 (HTTP ${resp.status})`)
-      }
-      const content = await resp.text()
+      const content = await safeFetch(fileUrl)
       files.push({ path: filePath, content })
     }
 

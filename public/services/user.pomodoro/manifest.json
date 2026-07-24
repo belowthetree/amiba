@@ -1,7 +1,0 @@
-{
-  "id": "user.pomodoro",
-  "name": "番茄钟",
-  "version": "1.0.0",
-  "description": "后台倒计时番茄钟，悬浮块实时显示，完成自动提醒",
-  "permissions": ["storage", "notification", "widgets", "background"]
-}

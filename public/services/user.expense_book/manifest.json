@@ -1,7 +1,0 @@
-{
-  "id": "user.expense_book",
-  "name": "记账本",
-  "version": "1.0.0",
-  "description": "Vue 3 + Chart.js 实战示例：记账、分类统计、月度趋势图",
-  "permissions": ["storage"]
-}

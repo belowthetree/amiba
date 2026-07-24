@@ -1,7 +1,0 @@
-{
-  "id": "user.reader",
-  "name": "文本阅读器",
-  "version": "1.0.0",
-  "description": "扫描本地 txt/md 文件，书架管理 + 阅读进度记忆",
-  "permissions": ["storage", "notification", "fileAccess"]
-}
