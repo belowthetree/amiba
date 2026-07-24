@@ -86,9 +86,9 @@ libloading = "0.8"  # 用于动态加载 libnativehelper.so 获取 JVM
 
 ```
 src/
-├── main.ts              # Vue 入口，挂载 Router
-├── App.vue              # 根组件：TopBar + router-view
-├── router/index.ts      # 6 条路由（含动态服务路由）
+├── main.ts              # Vue 入口（先加载 config/polyfill.ts 兼容旧 WebView），挂载 Router
+├── App.vue              # 根组件：GlassBackground + EdgeNavHint + router-view（无顶栏）
+├── router/index.ts      # 7 条路由（含动态服务路由）；导出 PAGE_ORDER 页面序列；onError chunk 加载失败自愈刷新
 ├── types/service.ts     # 全部 TypeScript 类型
 ├── config/config.ts     # 统一配置（amiba_settings，reactive + 自动持久化）
 ├── config/storage.ts    # 存储抽象层

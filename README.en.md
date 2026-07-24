@@ -19,7 +19,7 @@ Vue 3 + TypeScript + Vite + Tauri 2 (Windows / macOS / Linux / Android)
 
 ```bash
 npm install
-npm run dev           # Dev → http://localhost:8080
+npm run dev           # Dev → http://localhost:8484
 npm run build         # Production build
 cargo tauri dev       # Tauri desktop (dev)
 cargo tauri build     # Tauri desktop (package EXE/DMG/deb)
@@ -31,12 +31,18 @@ cargo tauri build     # Tauri desktop (package EXE/DMG/deb)
 - OpenAI-compatible multi-turn streaming chat (DeepSeek / Qwen / GLM etc.)
 - **Memory System**: AI auto-saves user preferences & key info to MEMORY.md / USER.md
 - **Personality System**: first-launch onboarding creates AI persona; adjustable via `soul_save` tool
-- **Multi-Session**: dropdown to switch historical sessions; each stored independently
+- **Multi-Session**: tap › next to the input bar to open the action panel, 🗂️ session list to switch history; each session stored independently
 - **Requirement Tracking**: AI records service feature requests & optimization notes
+
+### UI & Interaction
+- **No top bar**: swipe left/right to switch pages (iPhone-style follow-finger gesture), or tap the subtle glass edge arrows
+- **Jade glass style**: jade-green primary + translucent glass surfaces + global glow background with light streaks
+- **Floating input bar**: vertically centered when there's no chat history, sinks to the bottom once the conversation starts
 
 ### Service Generation
 - Natural language → complete HTML/CSS/JS mini-app
 - Apps run in iframe sandbox; JSBridge (`window.__amiba__`) provides host capabilities (see "Service API" below)
+- Service UIs follow the unified jade glass style: include `/libs/jade.css` to reuse design tokens & component classes (see [Service Style Guide](public/docs/service-style.md))
 - Chart.js v4 support
 - Post-generation editing via AI (`service_file_*` tools)
 
@@ -51,41 +57,35 @@ cargo tauri build     # Tauri desktop (package EXE/DMG/deb)
 
 ### UI Customization & Multi-Theme
 - **CSS variable system**: 30 `:root` variables drive the global look; AI can tweak colors/corners/fonts/shadows via chat
-- **Built-in themes**: ships with `default` (light), `dark` (dark mode), `ocean` (blue palette)
+- **Built-in themes**: ships with `default` (jade glass), `dark` (dark mode), `ocean` (blue palette)
 - **Theme management**: AI manages themes via `ui_theme_*` tools; Settings page offers dropdown switching
-- **Slot system**: 10 predefined UI injection points; AI can insert custom HTML into the topbar, home, chat, etc.
-- **Fully AI-driven**: say "make the background dark" or "add a clock to the topbar" — AI does it
+- **Slot system**: 4 predefined UI injection points (above chat messages, below chat input, end of Settings, above service list); AI can insert custom HTML
+- **Fully AI-driven**: say "make the background dark" or "add a shortcut hint below the input bar" — AI does it
 
-## Built-in Services
+## Built-in Pages & Services
 
-The app ships with 14 built-in services (5 system services + 9 user services), covering everyday tools and JSBridge API demos.
+### Built-in Pages (7 routes)
 
-### System Services (`system.*`)
+The first 6 pages can be switched by swiping or tapping the edge arrows (left-to-right as listed):
 
-Core app pages implemented as Vue Router routes, source-protected and undeletable.
-
-| ID | Name | Description |
+| Route | Page | Description |
 |---|---|---|
-| `system.home` | Home | Feature entry |
-| `system.chat` | AI Chat | Multi-turn conversation with AI |
-| `system.settings` | Settings | Configuration (API key, providers, agents, themes, logs) |
-| `system.my_services` | My Services | Installed service list |
-| `system.memory` | Memory | View/edit MEMORY.md & USER.md |
+| `/registry` | Remote Registry | Browse/import services from remote registries |
+| `/services` | Services | Installed services, import & share |
+| `/` | AI Chat | Multi-turn conversation with AI |
+| `/quick` | Quick Page | Customizable quick page (widget host) |
+| `/settings` | Settings | Configuration (API key, providers, agents, themes, logs) |
+| `/memory` | Memory | View/edit MEMORY.md & USER.md |
+| `/service/:id` | Service Container | Runs services in an iframe sandbox (floating back button top-left) |
 
 ### User Prebuilt Services (`user.*`)
 
-Auto-installed on first launch, demonstrating JSBridge modules in real-world use cases.
+3 prebuilt services are auto-installed on first launch, demonstrating JSBridge modules in real-world use cases. More can be installed from remote service registries.
 
 | ID | Name | Description | APIs Used |
 |---|---|---|---|
-| `user.expense_book` | Expense Book | Vue 3 + Chart.js expense tracker with category stats & monthly trends | `storage` |
-| `user.lan_clipboard` | LAN Clipboard | Send text messages between LAN devices with history | `storage` `notification` `network` |
 | `user.music_player` | Music Player | Local music scanner & player with shuffle/repeat, background play, floating widget | `storage` `notification` `widgets` `background` `fileAccess` |
-| `user.pet_world` | Pet World | LAN-based pet raising, battle & trading (full JSBridge demo) | `storage` `notification` `network` |
-| `user.pomodoro` | Pomodoro Timer | Background countdown timer with floating widget & completion alerts | `storage` `notification` `widgets` `background` |
 | `user.quick_note` | Quick Note | Global floating widget for instant notes; manage & search in main view | `storage` `notification` `widgets` |
-| `user.reader` | Text Reader | Scan local txt/md files, bookshelf management & reading progress | `storage` `notification` `fileAccess` |
-| `user.remote_control` | Presentation Remote | LAN slideshow remote: one device presents fullscreen, another flips pages | `network` `notification` |
 | `user.rss_reader` | RSS Reader | Subscribe to RSS feeds, aggregate & read articles | `storage` `notification` `fetch` |
 
 ## Service API (JSBridge)
@@ -129,7 +129,7 @@ await __amiba__.showToast('Saved successfully', 'success')
 ### ui — Navigation
 
 ```js
-await __amiba__.navigateTo('/chat')
+await __amiba__.navigateTo('/services')
 await __amiba__.navigateBack()
 ```
 
@@ -245,6 +245,13 @@ __amiba__.network.onSession((session) => { /* same as above */ })
 | `notification` | Toast notifications |
 | `widgets` | Floating widget functionality |
 | `network` | LAN/BLE networking (discovery & messaging) |
+| `background` | Background execution (hidden iframe), scheduled/event-driven tasks |
+| `fileAccess` | Authorized disk file access (pick folder, list/read files) |
+| `fetch` | HTTP requests to external APIs (Rust reqwest proxy, bypasses CORS) |
+
+### Service UI Style
+
+Generated service UIs must follow the unified jade glass style: include `<link href="/libs/jade.css" rel="stylesheet">` in `index.html` to get design tokens (jade palette, radii, shadows), the glass glow background, and component classes for cards/buttons/inputs/modals. See the [Service Style Guide](public/docs/service-style.md).
 
 ## Android Build
 
@@ -332,8 +339,9 @@ adb install -r app-release-signed.apk
 │         │                                      │
 │  ┌──────▼──────────────────────────────────┐   │
 │  │       ToolRegistry (src/tools/)          │   │
-│  │  20+ tools: memory, generate_service,    │   │
-│  │  skill_manage_*, requirement_*, ...      │   │
+│  │  30+ tools: memory, service_create,      │   │
+│  │  service_file_*, skill_manage_*,         │   │
+│  │  requirement_*, soul_save, ...           │   │
 │  └──────────────────────────────────────────┘   │
 └──────────────────────────────────────────────┘
 ```
@@ -344,11 +352,13 @@ adb install -r app-release-signed.apk
 |----------|-------|-------------|
 | **Memory** | `memory` | Write to MEMORY.md / USER.md |
 | **Persona** | `soul_save` | Create/update AI persona file |
-| **Generate** | `generate_service` | NL → mini-app |
-| **Edit** | `service_file_list/read/write` | Direct file editing on services |
+| **Services** | `service_create` `service_file_list/read/write/edit` `service_validate` `service_archive` `service_rollback` | Create skeleton, file-level editing, validation, version snapshot/rollback |
 | **Skills** | `skill_view` `skills_list` | View/list skills |
 | **Skill Mgmt** | `skill_manage_create/patch/edit/delete/write_file` | AI creates/modifies skills |
 | **Requirements** | `requirement_view` `requirement_update` `requirements_summary` | Requirement tracking |
+| **Docs** | `doc_list` `doc_read` `doc_search` | Platform doc library (incl. service style guide) |
+| **Sessions** | `session_search` | SQLite FTS5 search over past sessions |
+| **Web** | `web_fetch` `web_browse` | Web page fetching & browser interaction |
 | **UI Theme** | `ui_theme_view/list/set_variable/set_css/reset/create/delete/switch` | Theme management & styling |
 | **UI Slot** | `ui_slot_list/get/set/remove` | Slot / inline component management |
 
@@ -365,13 +375,16 @@ Every 10 turns, system injects mandatory checks before AI responds:
 ```
 src/
 ├── ai/               AI core (agent, system-prompt, soul, session, memory, skill, requirement, curator)
-├── tools/            25+ AI tools (auto-discovered, incl. ui_theme_*/ui_slot_* theming)
+├── tools/            30+ AI tools (auto-discovered, incl. ui_theme_*/ui_slot_* theming)
 ├── host/             Service runtime (sandbox, JSBridge, registry)
-├── pages/            7 pages (Chat, Generate, Memory, MyServices, ServiceBrowse, Settings, Home)
-├── config/           Config, storage abstraction, theme engine (theme-store.ts)
-├── router/           Routes
+├── pages/            6 navigation pages (Chat, ServiceBrowse, Quick, RemoteServices, Settings, Memory)
+├── components/       Reusable components (GlassBackground, EdgeNavHint, etc.)
+├── config/           Config, storage abstraction, theme engine (theme-store.ts), polyfill
+├── router/           Routes + PAGE_ORDER page sequence
 └── types/            Type definitions
 public/themes/        Built-in theme files (default/dark/ocean)
+public/libs/          Reusable service libs (jade.css style base, vue/chart prebuilt)
+public/docs/          AI-readable built-in docs (sandbox rules, service style guide, etc.)
 docs/                 Detailed design docs
 skills/               Skill files
 ```
@@ -393,6 +406,7 @@ skills/               Skill files
 | [Services](./docs/services.md) | Service generation |
 | [Development](./docs/development.md) | Dev guide |
 | [UI Customization](./public/docs/ui-customization.md) | CSS selector reference + variable guide + slots |
+| [Service Style Guide](./public/docs/service-style.md) | Jade glass style spec + jade.css usage |
 
 ## CI/CD
 
@@ -414,7 +428,7 @@ Amiba features a multi-theme system. Users can freely customize the UI appearanc
 
 ```
 {AppData}/amiba/theme/
-  default/          ← Light baseline (read-only)
+  default/          ← Jade glass baseline (jade-green primary + translucent glass surfaces, read-only)
   dark/             ← Dark mode (read-only)
   ocean/            ← Blue palette (read-only)
   My Theme/         ← User-created (editable, deletable)

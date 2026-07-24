@@ -5,7 +5,7 @@ Vue 3 + TypeScript + Vite + Tauri desktop app. Users describe needs in natural l
 ## Project
 
 - **Stack:** Vue 3 (Composition API, `<script setup>`), Pinia, Vue Router, Vite 8, TypeScript 6, Tauri 2
-- **Entry:** `src/main.ts` → `bootstrap()` inits storage/config/registry/memory/skills/soul, discovers tools, then mounts `App.vue`
+- **Entry:** `src/main.ts` → `config/polyfill.ts`（旧 Android WebView 兼容：Array/String `.at()`，须最先加载）→ `bootstrap()` inits storage/config/registry/memory/skills/soul, discovers tools, then mounts `App.vue`
 - **Tauri:** `src-tauri/` — Rust glue (`lib.rs`) registers `tauri-plugin-log` + `tauri-plugin-fs`; `db.rs` — SQLite FTS5 session DB via `rusqlite`; `web.rs` — WebView 浏览器引擎（桌面 WebView + Android JNI/Kotlin + iOS WKWebView），提供 `web_fetch`/`web_browse` 等命令
 - **Android 特定:** Kotlin 辅助类在 `MainActivity.kt`（`JsCallback` + `WebViewHelper` + `FolderPickerHelper`（已废弃））; edge-to-edge 下通过 `setupWindowInsets()` 把 systemBars/IME inset 作为内容区 padding（软键盘弹出时界面上移，adjustResize 在 targetSdk 35+ 无效）; 文件夹选取通过 `tauri-plugin-android-fs` SAF Picker; JVM 通过 `libloading` 动态查找 `JNI_GetCreatedJavaVMs`; App ClassLoader 用于 native 线程加载 app 类; `AndroidJvm` state 仍被 `read_tombstone` 使用
 
@@ -29,11 +29,11 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 | **Host Runtime** | `src/host/` | iframe sandbox (`service-container.vue`), postMessage JSBridge (`bridge.ts`), service registry (`registry.ts`), LAN network bridge (`network-bridge.ts` + `network-session.ts`), service sharing (`service-share.ts`), skill sharing (`skill-share.ts`), version archive (`service-archive.ts`), floating widget manager, background service manager + widget global API handler (`background-manager.ts`), file access grants (`file-access-grants.ts`) |
 | **Web Bridge** | `src/config/web-bridge.ts` | 封装 Tauri `web_fetch`/`web_click`/`web_input_text`/`web_get_content`/`web_close` 命令，含超时和日志 |
 | **Updater** | `src/config/updater.ts` | 纯前端更新检查：调 GitHub Releases API，semver 比较，Rust reqwest 下载（绕过浏览器 CORS），全平台统一 |
-| **Pages** | `src/pages/` | 5 routes: Chat, Home, Memory, ServiceBrowse, Settings; ShareDialog (局域网服务分享弹窗), SkillShareDialog (局域网技能分享弹窗) |
+| **Pages** | `src/pages/` | 7 routes: Chat（`/`）、ServiceBrowse（`/services`）、Quick（`/quick`）、RemoteServices 仓库（`/registry`）、Settings、Memory + service 容器页（`/service/:id`）; ShareDialog (局域网服务分享弹窗), SkillShareDialog (局域网技能分享弹窗) |
 | **Config** | `src/config/` | Reactive settings persisted via Tauri FS plugin (`config.ts`), storage abstraction (`storage.ts`: auto-mkdir + pretty-print JSON), theme store (`theme-store.ts`: multi-theme management + prebuilt theme install), session-db wrapper (`session-db.ts`: Tauri invoke → Rust SQLite FTS5), folder-picker (`folder-picker.ts`: 统一文件夹选取 → Android tauri-plugin-android-fs SAF Picker / 桌面 plugin-dialog / 浏览器 prompt) |
 | **Theme** | `src/config/theme-store.ts` + `public/themes/` | 多主题系统：3 套内置主题（default/dark/ocean）从 public/themes/ 安装到 AppData；用户可创建/删除/切换主题；CSS 变量体系（30 个 :root 变量）驱动全局外观；所有页面已迁移到 var() 体系；内置主题只读，修改时自动创建用户主题副本 |
 | **i18n** | `src/i18n/` | vue-i18n based internationalization: `locales/zh-CN.ts` + `locales/en.ts`, type-safe via `LocalesSchema`, synced with `settings.language` via `watch()` |
-| **Router** | `src/router/` | `createWebHistory` with lazy-loaded page components |
+| **Router** | `src/router/` | `createWebHistory` with lazy-loaded page components；导出 `PAGE_ORDER` 主导航页面序列（从左到右：仓库/服务/聊天/快捷/设置/记忆）；`router.onError` 检测 chunk 加载失败自动刷新自愈 |
 | **Types** | `src/types/` | `ServiceManifest`, `ServicePackage`, `ServiceRequest/Response`, `AppSettings`, `MemoryToolParams`, `SkillPackage`, etc. |
 
 ## AI Core modules
@@ -123,10 +123,11 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 
 ## UI Structure
 
-- **无顶栏设计：** 页面切换靠左右滑动手势（App.vue iPhone 风格跟手手势）+ 两侧 `EdgeNavHint` 玻璃竖条（点击也可切换，tooltip 显示目标页名）；页面序列 `PAGE_ORDER` 定义在 `src/router/index.ts`
+- **无顶栏设计：** 页面切换靠左右滑动手势（App.vue iPhone 风格跟手手势，`transitionend` 驱动路由切换避免回弹）+ 两侧 `EdgeNavHint` 玻璃竖条（点击也可切换，tooltip 显示目标页名）；页面序列 `PAGE_ORDER` 定义在 `src/router/index.ts`，从左到右：服务仓库 / 服务列表 / 聊天 / 快捷 / 设置 / 记忆
+- **页面过渡:** 手势切换用空过渡（JS 已驱动位移）；箭头/编程导航用同步横滑（新页滑入 + 旧页滑出，过渡期间两页 absolute 叠放，`left/right: 0` 保持 max-width 页面居中）；复位由 `@after-enter` 触发避免旧页闪回
 - **全局背景:** `src/components/GlassBackground.vue` — 玉色辉光 + 流光动画，fixed 铺满全局，随 `data-theme` 自适应，`prefers-reduced-motion` 时关闭动画
 - **服务页返回:** `service-container.vue` 左上角浮动玻璃返回按钮（无顶栏后的唯一返回入口）
-- **聊天页输入区:** 无聊天记录时输入框垂直居中（`.chat-page.empty`），有消息后沉底；输入条左侧 › 开关展开功能面板（新建会话/统计/会话列表），会话列表为输入条上方弹出层
+- **聊天页输入区:** 无聊天记录时输入框垂直居中（`.chat-page.empty`），有消息后沉底；输入条左侧 › 开关展开功能面板（新建会话/统计/会话列表），会话列表为输入条上方弹出层；消息列表用 `<TransitionGroup>`，入场动画仅对新增消息触发（切页/历史不重放）
 - **服务风格指南:** `public/docs/service-style.md` + `public/libs/jade.css`（可复用基础样式表：设计令牌 + 玻璃辉光背景 + 卡片/按钮/输入框/模态类，服务 `<link href="/libs/jade.css">` 引入）— service-dev skill、系统提示 DOCS/SERVICE 指引均已引用，AI 生成服务必须遵循
 
 - **Language:** Chinese comments with English identifiers. Section banners use `// ====...====` / `<!-- ====...==== -->`.

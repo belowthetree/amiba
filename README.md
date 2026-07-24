@@ -19,7 +19,7 @@ Vue 3 + TypeScript + Vite + Tauri 2（Windows / macOS / Linux / Android）
 
 ```bash
 npm install
-npm run dev           # 开发模式 → http://localhost:8080
+npm run dev           # 开发模式 → http://localhost:8484
 npm run build         # 生产构建
 cargo tauri dev       # Tauri 桌面应用（开发）
 cargo tauri build     # Tauri 桌面应用（打包 EXE/DMG/deb）
@@ -31,12 +31,18 @@ cargo tauri build     # Tauri 桌面应用（打包 EXE/DMG/deb）
 - OpenAI 兼容的多轮流式对话，支持 DeepSeek / Qwen / 智谱等 API
 - **记忆系统**：AI 自动保存用户偏好和重要信息到 MEMORY.md / USER.md
 - **人格系统**：首次引导创建 AI 人格（名称、风格），可通过 `soul_save` 工具调整
-- **多 Session**：顶栏下拉切换历史会话，每个 session 独立存储
+- **多 Session**：输入区左侧 › 展开功能面板，🗂️ 会话列表切换历史会话，每个 session 独立存储
 - **需求追踪**：AI 自动记录服务功能需求和优化建议
+
+### 界面与交互
+- **无顶栏设计**：左右滑动即可切换页面（iPhone 风格跟手手势），两侧玻璃竖条箭头提示也可点击切换
+- **玉石玻璃风**：玉青主色 + 半透明玻璃表面 + 全局辉光背景，流光隐约划过
+- **悬浮输入框**：无聊天记录时输入框垂直居中，对话开始后沉底，玻璃质感浮于背景之上
 
 ### AI 服务生成
 - 自然语言描述 → 生成完整 HTML/CSS/JS 小程序
 - 生成的服务运行在 iframe 沙箱中，通过 JSBridge (`window.__amiba__`) 调用宿主能力（详见下方「服务 API」）
+- 服务界面遵循统一的玉石玻璃风：引入 `/libs/jade.css` 基础样式表即可复用设计令牌与组件类（详见 [服务界面风格指南](public/docs/service-style.md)）
 - 支持 Chart.js v4 图表
 - 生成后可继续用 AI 编辑服务文件（`service_file_*` 工具）
 
@@ -52,41 +58,35 @@ cargo tauri build     # Tauri 桌面应用（打包 EXE/DMG/deb）
 
 ### 界面定制与多主题
 - **CSS 变量体系**：30 个 `:root` 变量驱动全局外观，AI 可通过对话修改配色/圆角/字体/阴影
-- **内置主题**：出厂自带 `default`（浅色）、`dark`（深色）、`ocean`（蓝色系）三套主题
+- **内置主题**：出厂自带 `default`（玉石玻璃风）、`dark`（深色）、`ocean`（蓝色系）三套主题
 - **主题管理**：AI 可通过 `ui_theme_*` 工具创建/切换/删除主题；设置页提供下拉切换
-- **插槽系统**：10 个预定义 UI 插槽，AI 可在顶栏、首页、聊天页等位置注入自定义 HTML
-- **完全 AI 驱动**：用户说"把背景改深色"、"在顶栏加时钟"，AI 自动完成
+- **插槽系统**：4 个预定义 UI 插槽（聊天页消息上方/输入框下方、设置页末尾、服务列表上方），AI 可注入自定义 HTML
+- **完全 AI 驱动**：用户说"把背景改深色"、"在输入框下方加一行快捷键说明"，AI 自动完成
 
-## 内置服务
+## 内置页面与服务
 
-应用预置了 14 个内置服务（5 个系统服务 + 9 个用户服务），涵盖常用工具和 JSBridge API 演示。
+### 内置页面（7 条路由）
 
-### 系统服务（`system.*`）
+通过左右滑动或两侧箭头切换前 6 个页面（从左到右即表中顺序）：
 
-系统功能页面，通过 Vue Router 路由实现，源头保护不可删除。
-
-| ID | 名称 | 说明 |
+| 路由 | 页面 | 说明 |
 |---|---|---|
-| `system.home` | 首页 | 功能入口 |
-| `system.chat` | AI 对话 | 与 AI 多轮对话 |
-| `system.settings` | 设置 | 配置管理（API Key、供应商、Agent、主题、日志） |
-| `system.my_services` | 我的服务 | 已安装服务列表 |
-| `system.memory` | 记忆管理 | 查看/编辑 MEMORY.md 与 USER.md |
+| `/registry` | 远程服务仓库 | 浏览/导入远程仓库中的服务 |
+| `/services` | 服务浏览 | 已安装服务列表、导入、分享 |
+| `/` | AI 对话 | 与 AI 多轮对话 |
+| `/quick` | 快捷页 | 可自定义的快捷页面（widget 宿主） |
+| `/settings` | 设置 | 配置管理（API Key、供应商、Agent、主题、日志） |
+| `/memory` | 记忆管理 | 查看/编辑 MEMORY.md 与 USER.md |
+| `/service/:id` | 服务容器 | iframe 沙箱中运行服务（左上角浮动返回按钮） |
 
 ### 用户预置服务（`user.*`）
 
-首次启动时自动安装，展示 JSBridge 各模块的真实用法。
+首次启动时自动安装 3 个预置服务，展示 JSBridge 各模块的真实用法；更多服务可通过远程服务仓库安装。
 
 | ID | 名称 | 说明 | 涉及 API |
 |---|---|---|---|
-| `user.expense_book` | 记账本 | Vue 3 + Chart.js 记账、分类统计、月度趋势图 | `storage` |
-| `user.lan_clipboard` | 传纸条 | 局域网设备间互发文本消息，支持历史记录 | `storage` `notification` `network` |
 | `user.music_player` | 音乐播放器 | 本地音乐扫描播放、顺序/随机模式、后台播放、悬浮块控制 | `storage` `notification` `widgets` `background` `fileAccess` |
-| `user.pet_world` | 宠物世界 | 局域网宠物养成、对战、交易（JSBridge 综合演示） | `storage` `notification` `network` |
-| `user.pomodoro` | 番茄钟 | 后台倒计时番茄钟，悬浮块实时显示，完成自动提醒 | `storage` `notification` `widgets` `background` |
 | `user.quick_note` | 快速笔记 | 全局悬浮块随时速记，主界面管理/搜索笔记 | `storage` `notification` `widgets` |
-| `user.reader` | 文本阅读器 | 扫描本地 txt/md 文件，书架管理 + 阅读进度记忆 | `storage` `notification` `fileAccess` |
-| `user.remote_control` | 演示遥控器 | 局域网幻灯片遥控：一端全屏放映，另一端远程翻页 | `network` `notification` |
 | `user.rss_reader` | RSS 阅读器 | 订阅 RSS 源，聚合阅读最新文章 | `storage` `notification` `fetch` |
 
 ## 服务 API (JSBridge)
@@ -130,7 +130,7 @@ await __amiba__.showToast('保存成功', 'success')
 ### ui — 页面导航
 
 ```js
-await __amiba__.navigateTo('/chat')
+await __amiba__.navigateTo('/services')
 await __amiba__.navigateBack()
 ```
 
@@ -246,6 +246,13 @@ __amiba__.network.onSession((session) => { /* 同上 */ })
 | `notification` | Toast 通知 |
 | `widgets` | 悬浮块功能 |
 | `network` | 局域网/蓝牙互联通信（设备发现、消息收发） |
+| `background` | 后台持续运行（隐藏 iframe），定时调度/事件驱动 |
+| `fileAccess` | 授权访问磁盘文件（选择文件夹、列出/读取） |
+| `fetch` | HTTP 请求外部 API（Rust reqwest 代理，绕过 CORS） |
+
+### 服务界面风格
+
+生成服务的 UI 必须遵循平台统一的玉石玻璃风：在 `index.html` 中引入 `<link href="/libs/jade.css" rel="stylesheet">` 即可获得设计令牌（玉青色系、圆角、阴影）、玻璃辉光背景和卡片/按钮/输入框/模态等组件类。详见 [服务界面风格指南](public/docs/service-style.md)。
 
 ## Android 构建
 
@@ -335,9 +342,9 @@ adb install -r app-release-signed.apk
 │         │                                      │
 │  ┌──────▼──────────────────────────────────┐   │
 │  │       ToolRegistry (src/tools/)          │   │
-│  │  20+ 工具: memory, generate_service,     │   │
-│  │  skill_manage_*, requirement_*,          │   │
-│  │  service_file_*, soul_save, ...          │   │
+│  │  30+ 工具: memory, service_create,       │   │
+│  │  service_file_*, skill_manage_*,         │   │
+│  │  requirement_*, soul_save, ...           │   │
 │  └──────────────────────────────────────────┘   │
 └──────────────────────────────────────────────┘
 ```
@@ -348,11 +355,13 @@ adb install -r app-release-signed.apk
 |------|------|------|
 | **记忆** | `memory` | 写入 MEMORY.md / USER.md |
 | **人格** | `soul_save` | 创建/更新 AI 人格文件 |
-| **生成** | `generate_service` | 自然语言生成小程序 |
-| **编辑** | `service_file_list/read/write` | 直接编辑已生成服务的文件 |
+| **服务** | `service_create` `service_file_list/read/write/edit` `service_validate` `service_archive` `service_rollback` | 创建服务骨架、文件级编辑、校验、版本快照/回滚 |
 | **技能** | `skill_view` `skills_list` | 查看/列出技能 |
 | **技能管理** | `skill_manage_create/patch/edit/delete/write_file` | AI 自主创建和修改技能 |
 | **需求** | `requirement_view` `requirement_update` `requirements_summary` | 需求追踪 |
+| **文档** | `doc_list` `doc_read` `doc_search` | 平台文档库查询（含服务风格指南） |
+| **会话** | `session_search` | SQLite FTS5 搜索历史会话 |
+| **网页** | `web_fetch` `web_browse` | 网页抓取与浏览器交互 |
 | **界面** | `ui_theme_view/list/set_variable/set_css/reset/create/delete/switch` | 主题管理与外观定制 |
 | **界面** | `ui_slot_list/get/set/remove` | 插槽/内嵌组件管理 |
 
@@ -369,13 +378,16 @@ adb install -r app-release-signed.apk
 ```
 src/
 ├── ai/               AI 核心（agent, system-prompt, soul, session, memory, skill, requirement, curator）
-├── tools/            25+ AI 工具（自动发现，含 ui_theme_*/ui_slot_* 界面定制）
+├── tools/            30+ AI 工具（自动发现，含 ui_theme_*/ui_slot_* 界面定制）
 ├── host/             服务运行时（沙箱、JSBridge、注册表）
-├── pages/            7 个页面（Chat, Generate, Memory, MyServices, ServiceBrowse, Settings, Home）
-├── config/           配置、存储抽象、主题引擎（theme-store.ts）
-├── router/           路由
+├── pages/            6 个导航页面（Chat, ServiceBrowse, Quick, RemoteServices, Settings, Memory）
+├── components/       可复用组件（GlassBackground 玻璃背景、EdgeNavHint 边缘翻页等）
+├── config/           配置、存储抽象、主题引擎（theme-store.ts）、polyfill
+├── router/           路由 + PAGE_ORDER 页面序列
 └── types/            类型定义
 public/themes/        内置主题文件（default/dark/ocean）
+public/libs/          服务可复用库（jade.css 玉石玻璃风样式、vue/chart 预置库）
+public/docs/          AI 可读的内置文档（沙箱约束、服务风格指南等）
 docs/                 详细设计文档
 skills/               技能文件目录
 ```
@@ -397,6 +409,7 @@ skills/               技能文件目录
 | [服务生成](./docs/services.md) | 服务生成与运行 |
 | [开发指南](./docs/development.md) | 开发规范 |
 | [界面定制](./public/docs/ui-customization.md) | CSS 选择器速查表 + 变量参考 + 插槽 |
+| [服务界面风格](./public/docs/service-style.md) | 玉石玻璃风实现说明 + jade.css 用法 |
 
 ## CI/CD
 
@@ -418,7 +431,7 @@ git push origin main   # 触发构建
 
 ```
 {AppData}/amiba/theme/
-  default/          ← 浅色基准（只读）
+  default/          ← 玉石玻璃风基准（玉青主色 + 半透明玻璃表面，只读）
   dark/             ← 深色模式（只读）
   ocean/            ← 蓝色系（只读）
   我的主题/         ← 用户创建（可改可删）
