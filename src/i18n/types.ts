@@ -13,6 +13,9 @@ export interface LocalesSchema {
     newSession: string
     delete: string
     quick: string
+    registry: string
+    updateAvailable: string
+    dismiss: string
   }
   quick: {
     emptyHint: string
@@ -58,7 +61,7 @@ export interface LocalesSchema {
   }
   settings: {
     title: string
-    tabs: { general: string; skills: string; data: string; logs: string; appearance: string }
+    tabs: { general: string; skills: string; services: string; data: string; logs: string; appearance: string }
     appearance: {
       title: string
       activeTheme: string
@@ -234,6 +237,13 @@ export interface LocalesSchema {
       noServicesFound: string
       deletedAllSessions: string
     }
+    services: {
+      remoteRepo: string
+      registryUrl: string
+      registryUrlPlaceholder: string
+      registryUrlHint: string
+      browseRepo: string
+    }
   }
   memory: {
     title: string
@@ -273,6 +283,7 @@ export interface LocalesSchema {
     backgroundRunning: string
     backgroundStopped: string
     backgroundStart: string
+    registry: string
   }
   host: {
     loading: string
@@ -332,5 +343,24 @@ export interface LocalesSchema {
     confirm: string
     cancel: string
     capturing: string
+  }
+  registry: {
+    title: string
+    source: string
+    urlPlaceholder: string
+    go: string
+    loading: string
+    retry: string
+    empty: string
+    noUrl: string
+    invalidIndex: string
+    fetchFailed: string
+    noDescription: string
+    install: string
+    installing: string
+    update: string
+    installed: string
+    updateAvailable: string
+    installFailed: string
   }
 }

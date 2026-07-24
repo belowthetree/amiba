@@ -173,6 +173,10 @@ export interface AppSettings {
   log_max_size_mb: number
   /** 内置服务安装记录（serviceId → version），用于避免误删后重启自动重装 */
   prebuilt_services_installed?: Record<string, string>
+  /** 已忽略的更新版本号（不再提示直到检测到更新的版本） */
+  dismissed_update_version?: string
+  /** 远程服务仓库地址 */
+  service_registry_url?: string
 }
 
 // --- AI Provider ---

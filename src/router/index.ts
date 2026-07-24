@@ -11,6 +11,7 @@ const router = createRouter({
     { path: '/settings', name: 'settings', component: () => import('../pages/SettingsPage.vue') },
     { path: '/memory', name: 'memory', component: () => import('../pages/MemoryPage.vue') },
     { path: '/quick', name: 'quick', component: () => import('../pages/QuickPage.vue') },
+    { path: '/registry', name: 'registry', component: () => import('../pages/RemoteServicesPage.vue') },
     { path: '/service/:serviceId/:pathMatch(.*)*', name: 'service', component: () => import('../host/service-container.vue') },
   ],
 })

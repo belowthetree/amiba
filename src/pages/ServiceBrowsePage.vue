@@ -7,6 +7,7 @@
       <h2>📦 {{ $t('services.title') }}</h2>
       <div class="header-btns">
         <button class="import-btn" @click="importFromFolder">📂 {{ $t('services.importFolder') }}</button>
+        <button class="registry-btn" @click="$router.push('/registry')">🌐 {{ $t('services.registry') }}</button>
         <button class="share-btn" @click="showShareDialog = true">📡</button>
       </div>
     </div>
@@ -294,6 +295,26 @@ async function importFromFolder() {
 }
 
 .import-btn:active {
+  transform: scale(0.97);
+}
+
+.registry-btn {
+  padding: 8px 16px;
+  background: var(--color-surface);
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
+}
+.registry-btn:hover {
+  background: var(--color-primary-light);
+  transform: translateY(-1px);
+}
+.registry-btn:active {
   transform: scale(0.97);
 }
 

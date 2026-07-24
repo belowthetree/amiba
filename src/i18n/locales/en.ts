@@ -14,6 +14,9 @@ const en: LocalesSchema = {
     newSession: 'New Session',
     delete: 'Delete',
     quick: 'Quick',
+    registry: 'Registry',
+    updateAvailable: 'New version v{version} available',
+    dismiss: 'Dismiss',
   },
   quick: {
     emptyHint: 'This is a customizable quick page. Tell the AI what you want, and it will personalize this space for you.',
@@ -59,7 +62,7 @@ const en: LocalesSchema = {
   },
   settings: {
     title: 'Settings',
-    tabs: { general: 'General', skills: 'Skills & Agent', data: 'Data', logs: 'Logs', appearance: 'Appearance' },
+    tabs: { general: 'General', skills: 'Skills & Agent', services: 'Services', data: 'Data', logs: 'Logs', appearance: 'Appearance' },
     general: {
       apiConfig: 'API Configuration',
       apiKey: 'API Key',
@@ -235,6 +238,13 @@ const en: LocalesSchema = {
       noServicesFound: 'No installable services found',
       deletedAllSessions: 'Deleted all session records',
     },
+    services: {
+      remoteRepo: 'Remote Service Registry',
+      registryUrl: 'Registry URL',
+      registryUrlPlaceholder: 'Enter remote service registry URL...',
+      registryUrlHint: 'Registry URL should be an HTTP(S) URL containing index.json',
+      browseRepo: 'Browse Registry',
+    },
   },
   memory: {
     title: 'Memory Manager',
@@ -274,6 +284,7 @@ const en: LocalesSchema = {
     backgroundRunning: 'Running in background',
     backgroundStopped: 'Background stopped',
     backgroundStart: 'Start background',
+    registry: 'Registry',
   },
   host: {
     loading: 'Loading service...',
@@ -333,6 +344,25 @@ const en: LocalesSchema = {
     confirm: 'Confirm',
     cancel: 'Cancel',
     capturing: 'Capturing...',
+  },
+  registry: {
+    title: 'Remote Service Registry',
+    source: 'Source:',
+    urlPlaceholder: 'Enter remote service registry URL...',
+    go: 'Go',
+    loading: 'Loading services...',
+    retry: 'Retry',
+    empty: 'No services available in the registry',
+    noUrl: 'Please configure the remote service registry URL in Settings first',
+    invalidIndex: 'Invalid registry index.json format',
+    fetchFailed: 'Failed to fetch service list',
+    noDescription: 'No description',
+    install: 'Install',
+    installing: 'Installing...',
+    update: 'Update',
+    installed: 'Installed',
+    updateAvailable: 'Update Available',
+    installFailed: 'Install failed',
   },
 }
 

@@ -30,6 +30,13 @@
       </div>
     </header>
 
+    <!-- 版本更新提示横幅 -->
+    <div v-if="updateBanner.visible" class="update-banner" @click="goToUpdate">
+      <span class="update-banner-icon">🆕</span>
+      <span class="update-banner-text">{{ $t('app.updateAvailable', { version: updateBanner.version }) }}</span>
+      <button class="update-banner-close" @click.stop="dismissUpdateBanner" :title="$t('app.dismiss')">✕</button>
+    </div>
+
     <!-- Main content -->
     <main
       ref="mainRef"
@@ -72,13 +79,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, watch, ref, shallowRef, defineAsyncComponent } from 'vue'
+import { computed, onMounted, watch, ref, shallowRef, defineAsyncComponent, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import FloatingWidgetContainer from './host/floating-widget-container.vue'
 import WebviewOverlay from './components/WebviewOverlay.vue'
 import SlotRenderer from './components/SlotRenderer.vue'
 import { themeState } from './config/theme-store'
+import { settings } from './config/config'
+import { checkForUpdate } from './config/updater'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -87,13 +96,14 @@ const mainRef = ref<HTMLElement>()
 const pageWrapper = ref<HTMLElement>()
 
 // ==== 页面序列（从左到右） ====
-const PAGE_ORDER = ['/services', '/', '/quick', '/settings', '/memory']
+const PAGE_ORDER = ['/services', '/', '/quick', '/registry', '/settings', '/memory']
 
 // ==== 页面组件注册表（用于手势预览时渲染目标页） ====
 const PAGE_COMPONENTS: Record<string, ReturnType<typeof defineAsyncComponent>> = {
   '/services': defineAsyncComponent(() => import('./pages/ServiceBrowsePage.vue')),
   '/': defineAsyncComponent(() => import('./pages/ChatPage.vue')),
   '/quick': defineAsyncComponent(() => import('./pages/QuickPage.vue')),
+  '/registry': defineAsyncComponent(() => import('./pages/RemoteServicesPage.vue')),
   '/settings': defineAsyncComponent(() => import('./pages/SettingsPage.vue')),
   '/memory': defineAsyncComponent(() => import('./pages/MemoryPage.vue')),
 }
@@ -104,6 +114,7 @@ function routePath(name: string | symbol | null | undefined): string {
   if (name === 'services') return '/services'
   if (name === 'chat') return '/'
   if (name === 'quick') return '/quick'
+  if (name === 'registry') return '/registry'
   if (name === 'settings') return '/settings'
   if (name === 'memory') return '/memory'
   return '/'
@@ -324,6 +335,7 @@ const routeTitles: Record<string, string> = {
   settings: t('app.settings'),
   memory: t('app.memory'),
   quick: t('app.quick'),
+  registry: t('app.registry'),
   service: t('app.service'),
 }
 
@@ -333,6 +345,40 @@ const currentTitle = computed(() => {
 })
 
 const slotHtml = (name: string) => themeState.slots[name] || ''
+
+// ==== 版本更新横幅 ====
+const updateBanner = reactive({
+  visible: false,
+  version: '',
+})
+
+async function checkUpdateBanner() {
+  try {
+    const info = await checkForUpdate()
+    if (info.hasUpdate && info.latestVersion !== settings.dismissed_update_version) {
+      updateBanner.visible = true
+      updateBanner.version = info.latestVersion
+      console.log('[App] 发现新版本:', info.latestVersion, '当前:', info.currentVersion)
+    }
+  } catch {
+    // 检查失败静默忽略（网络问题等）
+  }
+}
+
+function dismissUpdateBanner() {
+  updateBanner.visible = false
+  settings.dismissed_update_version = updateBanner.version
+  console.log('[App] 已忽略版本:', updateBanner.version)
+}
+
+function goToUpdate() {
+  router.push('/settings')
+  // 延迟滚动到关于区域
+  setTimeout(() => {
+    const el = document.querySelector('.settings-section .about-info')
+    el?.scrollIntoView({ behavior: 'smooth' })
+  }, 300)
+}
 
 // 注入主题 CSS 变量和自定义 CSS 到 document.head
 function injectThemeStyles() {
@@ -359,6 +405,8 @@ function injectThemeStyles() {
 onMounted(() => {
   injectThemeStyles()
   watch(() => ({ ...themeState.variables, css: themeState.customCSS }), injectThemeStyles, { deep: true })
+  // 启动后延时检查更新（避免阻塞首屏）
+  setTimeout(() => checkUpdateBanner(), 2000)
 })
 </script>
 
@@ -513,6 +561,51 @@ button {
 .nav-btn:active {
   background: var(--color-hover-bg, #f0f0f0);
   transform: scale(0.92);
+}
+
+/* 版本更新横幅 */
+.update-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, var(--color-primary-light, #EEF2FF), var(--color-surface, #FFF));
+  border-bottom: 1px solid var(--color-primary, #6366F1);
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--color-primary-hover, #4F46E5);
+  flex-shrink: 0;
+  transition: background 0.2s ease;
+}
+.update-banner:hover {
+  background: var(--color-primary-light, #EEF2FF);
+}
+.update-banner-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.update-banner-text {
+  flex: 1;
+  font-weight: 500;
+}
+.update-banner-close {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: none;
+  font-size: 14px;
+  cursor: pointer;
+  color: var(--color-text-muted, #9CA3AF);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: color 0.15s, background 0.15s;
+}
+.update-banner-close:hover {
+  color: var(--color-text, #1F2329);
+  background: rgba(0,0,0,0.06);
 }
 
 .topbar-right-group {

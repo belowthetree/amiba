@@ -14,6 +14,9 @@ const zhCN: LocalesSchema = {
     newSession: '新会话',
     delete: '删除',
     quick: '快捷',
+    registry: '服务仓库',
+    updateAvailable: '发现新版本 v{version}',
+    dismiss: '关闭',
   },
   quick: {
     emptyHint: '这是一个可自定义的快捷页面。告诉 AI 你想要什么，它会帮你定制这里的内容。',
@@ -59,7 +62,7 @@ const zhCN: LocalesSchema = {
   },
   settings: {
     title: '设置',
-    tabs: { general: '通用', skills: '技能 & Agent', data: '数据', logs: '日志', appearance: '外观' },
+    tabs: { general: '通用', skills: '技能 & Agent', services: '服务', data: '数据', logs: '日志', appearance: '外观' },
     general: {
       apiConfig: 'API 配置',
       apiKey: 'API Key',
@@ -235,6 +238,13 @@ const zhCN: LocalesSchema = {
       noServicesFound: '未发现可安装的服务',
       deletedAllSessions: '已删除所有会话记录',
     },
+    services: {
+      remoteRepo: '远程服务仓库',
+      registryUrl: '仓库地址',
+      registryUrlPlaceholder: '输入远程服务仓库的 URL...',
+      registryUrlHint: '仓库地址应为包含 index.json 的 HTTP(S) URL',
+      browseRepo: '浏览远程仓库',
+    },
   },
   memory: {
     title: '记忆管理',
@@ -274,6 +284,7 @@ const zhCN: LocalesSchema = {
     backgroundRunning: '后台运行中',
     backgroundStopped: '后台已停止',
     backgroundStart: '启动后台',
+    registry: '服务仓库',
   },
   host: {
     loading: '正在加载服务...',
@@ -333,6 +344,25 @@ const zhCN: LocalesSchema = {
     confirm: '确定关闭',
     cancel: '取消',
     capturing: '截图中...',
+  },
+  registry: {
+    title: '远程服务仓库',
+    source: '仓库地址：',
+    urlPlaceholder: '输入远程服务仓库的 URL...',
+    go: '前往',
+    loading: '正在获取服务列表...',
+    retry: '重试',
+    empty: '仓库中暂无可用服务',
+    noUrl: '请先在设置中配置远程服务仓库地址',
+    invalidIndex: '远程仓库 index.json 格式无效',
+    fetchFailed: '获取服务列表失败',
+    noDescription: '暂无描述',
+    install: '安装',
+    installing: '安装中...',
+    update: '更新',
+    installed: '已安装',
+    updateAvailable: '可更新',
+    installFailed: '安装失败',
   },
 }
 

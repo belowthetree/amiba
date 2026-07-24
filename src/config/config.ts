@@ -27,6 +27,8 @@ const defaults: AppSettings = {
   log_max_files: 5,
   log_max_size_mb: 10,
   prebuilt_services_installed: {},
+  dismissed_update_version: '',
+  service_registry_url: '',
 }
 
 export const settings = reactive<AppSettings>({ ...defaults })
