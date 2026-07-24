@@ -4,7 +4,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 /** 主导航页面序列（从左到右），供滑动手势与边缘翻页提示共用 */
-export const PAGE_ORDER = ['/services', '/', '/quick', '/registry', '/settings', '/memory']
+export const PAGE_ORDER = ['/registry', '/services', '/', '/quick', '/settings', '/memory']
 
 const router = createRouter({
   history: createWebHistory(),

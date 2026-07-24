@@ -583,6 +583,13 @@ button {
   -webkit-overflow-scrolling: touch;
   position: relative;
   z-index: 1;
+  /* 隐藏主容器滚动条：桌面端经典滚动条会挤压内容宽度，导致居中页面偏左 */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.main-content::-webkit-scrollbar {
+  display: none;
 }
 
 /* ==== 页面容器（手势拖动层） ==== */
@@ -610,6 +617,7 @@ button {
 
 /* ==== 非手势导航的 CSS 过渡（与滑动手势一致的同步横滑） ==== */
 /* 过渡期间两页都脱离文档流绝对定位叠放，互不影响布局，结束后恢复正常流 */
+/* left/right 同时为 0：让 max-width 页面根元素靠自身 margin auto 居中，避免偏左 */
 .page-forward-enter-active,
 .page-forward-leave-active,
 .page-back-enter-active,
@@ -617,15 +625,15 @@ button {
   position: absolute;
   top: max(var(--safe-top), 8px);
   left: 0;
-  width: 100%;
+  right: 0;
   height: calc(100% - max(var(--safe-top), 8px));
   overflow: hidden;
   pointer-events: none;
-  transition: transform 0.28s cubic-bezier(0.25, 0.9, 0.3, 1), opacity 0.28s ease;
+  transition: transform 0.28s cubic-bezier(0.25, 0.9, 0.3, 1);
 }
 
 .page-forward-enter-from { transform: translateX(100%); }
-.page-forward-leave-to   { transform: translateX(-25%); opacity: 0.4; }
+.page-forward-leave-to   { transform: translateX(-100%); }
 .page-back-enter-from    { transform: translateX(-100%); }
-.page-back-leave-to      { transform: translateX(25%); opacity: 0.4; }
+.page-back-leave-to      { transform: translateX(100%); }
 </style>

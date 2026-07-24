@@ -4,7 +4,6 @@
 <template>
   <div class="browse-page">
     <div class="header">
-      <h2>📦 {{ $t('services.title') }}</h2>
       <div class="header-btns">
         <button class="import-btn" @click="importFromFolder">📂 {{ $t('services.importFolder') }}</button>
         <button class="registry-btn" @click="$router.push('/registry')">🌐 {{ $t('services.registry') }}</button>
@@ -20,11 +19,6 @@
 
     <!-- User services -->
     <div class="section">
-      <h3 class="section-title">
-        {{ $t('services.userServices') }}
-        <span class="count">{{ userServices.length }}</span>
-      </h3>
-
       <div v-if="userServices.length === 0" class="empty">
         <p>{{ $t('services.noUserServices') }}</p>
         <button class="cta-btn" @click="$router.push('/')">
@@ -59,25 +53,6 @@
       </div>
     </div>
 
-    <!-- System services -->
-    <div class="section">
-      <h3 class="section-title">{{ $t('services.systemServices') }}</h3>
-      <div class="service-list">
-        <div
-          class="service-item builtin"
-          v-for="svc in systemServices"
-          :key="svc.manifest.id"
-          @click="navigateTo(svc)"
-        >
-          <span class="svc-icon">{{ sysIcon(svc.manifest.id) }}</span>
-          <div class="svc-info">
-            <span class="svc-name">{{ svc.manifest.name }}</span>
-            <span class="svc-desc">{{ svc.manifest.description }}</span>
-          </div>
-          <span class="svc-badge system">{{ $t('services.builtin') }}</span>
-        </div>
-      </div>
-    </div>
 
   </div>
 </template>
