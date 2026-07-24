@@ -406,6 +406,7 @@ mod mobile {
             url: url.to_string(),
             title,
             text,
+            raw: String::new(),
             content_type: "text/html".to_string(),
         })
     }
