@@ -1,43 +1,13 @@
 <!-- ============================================================
 变形虫 (Amiba) — ChatPage (AI 对话)
+无顶栏布局：功能按钮收纳进输入区左侧滑出面板
 ============================================================ -->
 <template>
-  <div class="chat-page" :style="{ paddingBottom: keyboardInset + 'px' }">
-    <div class="chat-topbar">
-      <div class="session-selector" @click="showSessions = !showSessions">
-        <span class="session-title">{{ currentSessionTitle }}</span>
-        <span class="dropdown-arrow">▾</span>
-      </div>
-      <div class="topbar-actions">
-        <button class="action-btn" :title="$t('chat.newSession')" @click="doNewSession">＋</button>
-        <button class="stats-btn" @click="showStats = true">📊</button>
-      </div>
-      <!-- Session 下拉列表 -->
-      <div v-if="showSessions" class="session-dropdown" @click.stop>
-        <div
-          v-for="s in sessionList"
-          :key="s.id"
-          :class="['session-item', { active: s.id === currentId }]"
-          @click="switchTo(s.id)"
-        >
-          <span class="session-item-title">{{ s.title }}</span>
-          <span class="session-item-meta">{{ s.messageCount }} {{ $t('chat.messageCount') }} · {{ fmtDate(s.updatedAt) }}</span>
-          <button class="session-del" :title="$t('chat.delete')" @click.stop="doDeleteSession(s.id)">✕</button>
-        </div>
-        <div v-if="sessionList.length === 0" class="session-empty">{{ $t('chat.noSessions') }}</div>
-      </div>
-    </div>
-
+  <div class="chat-page" :class="{ empty: isEmpty }" :style="{ paddingBottom: keyboardInset + 'px' }">
     <!-- 插槽: chat.above-messages -->
     <SlotRenderer name="chat.above-messages" :html="slotHtml('chat.above-messages')" />
 
     <div class="chat-messages" ref="messagesEl">
-      <div v-if="visibleMessages.length === 0" class="chat-empty">
-        <div class="empty-icon">💬</div>
-        <p>{{ $t('chat.emptyHint') }}</p>
-        <p class="hint">{{ $t('chat.emptySubHint') }}</p>
-      </div>
-
       <div
         v-for="(msg, idx) in visibleMessages"
         :key="idx"
@@ -68,31 +38,77 @@
       </div>
     </div>
 
-    <div class="chat-input-bar">
-      <textarea
-        v-model="input"
-        class="chat-input"
-        :placeholder="isReviewing ? $t('chat.reviewRunning') : $t('chat.placeholder')"
-        rows="2"
-        :disabled="isReviewing"
-        @keydown="onInputKeydown"
-        @beforeinput="onInputBeforeInput"
-      ></textarea>
-      <button
-        v-if="streaming"
-        class="stop-btn"
-        @click="stopStreaming"
-      >
-        {{ $t('chat.stop') }}
-      </button>
-      <button
-        v-else
-        class="send-btn"
-        :disabled="!input.trim() || sending || isReviewing"
-        @click="send"
-      >
-        {{ $t('chat.send') }}
-      </button>
+    <!-- 输入区：空态时垂直居中，有消息后沉底 -->
+    <div class="chat-input-zone">
+      <!-- 空态提示（居中态显示在输入框上方） -->
+      <div v-if="isEmpty" class="chat-empty-hero">
+        <div class="empty-icon">💬</div>
+        <p>{{ $t('chat.emptyHint') }}</p>
+        <p class="hint">{{ $t('chat.emptySubHint') }}</p>
+      </div>
+
+      <div class="chat-input-row">
+        <!-- 功能面板开关：› 点击后输入框右移，左侧露出功能按钮 -->
+        <button
+          class="panel-toggle"
+          :class="{ open: panelOpen }"
+          :aria-expanded="panelOpen"
+          @click="panelOpen = !panelOpen"
+        >
+          <span class="chevron">›</span>
+        </button>
+
+        <!-- 功能面板（宽度动画滑出） -->
+        <div class="input-panel" :class="{ open: panelOpen }">
+          <div class="input-panel-inner">
+            <button class="panel-btn" :title="$t('chat.newSession')" @click="doNewSession">＋</button>
+            <button class="panel-btn" :title="$t('chat.stats.title')" @click="showStats = true">📊</button>
+            <button class="panel-btn" :title="$t('chat.sessions')" @click="showSessions = !showSessions">🗂️</button>
+          </div>
+        </div>
+
+        <div class="chat-input-bar">
+          <textarea
+            v-model="input"
+            class="chat-input"
+            :placeholder="isReviewing ? $t('chat.reviewRunning') : $t('chat.placeholder')"
+            rows="2"
+            :disabled="isReviewing"
+            @keydown="onInputKeydown"
+            @beforeinput="onInputBeforeInput"
+          ></textarea>
+          <button
+            v-if="streaming"
+            class="stop-btn"
+            @click="stopStreaming"
+          >
+            {{ $t('chat.stop') }}
+          </button>
+          <button
+            v-else
+            class="send-btn"
+            :disabled="!input.trim() || sending || isReviewing"
+            @click="send"
+          >
+            {{ $t('chat.send') }}
+          </button>
+        </div>
+
+        <!-- 会话列表弹出层（锚定在输入条上方） -->
+        <div v-if="showSessions" class="session-dropdown" @click.stop>
+          <div
+            v-for="s in sessionList"
+            :key="s.id"
+            :class="['session-item', { active: s.id === currentId }]"
+            @click="switchTo(s.id)"
+          >
+            <span class="session-item-title">{{ s.title }}</span>
+            <span class="session-item-meta">{{ s.messageCount }} {{ $t('chat.messageCount') }} · {{ fmtDate(s.updatedAt) }}</span>
+            <button class="session-del" :title="$t('chat.delete')" @click.stop="doDeleteSession(s.id)">✕</button>
+          </div>
+          <div v-if="sessionList.length === 0" class="session-empty">{{ $t('chat.noSessions') }}</div>
+        </div>
+      </div>
     </div>
 
     <!-- 插槽: chat.below-input -->
@@ -179,7 +195,7 @@ import {
 import type { SessionMeta } from '../ai/session'
 import { isReviewing, lastReviewResult } from '../ai/skill-reviewer'
 import { peerList } from '../host/network-bridge'
-import { 
+import {
   startDiscovery as netStartDiscovery,
   stopDiscovery as netStopDiscovery,
 } from '../host/network-bridge'
@@ -197,6 +213,7 @@ const input = ref('')
 const messagesEl = ref<HTMLDivElement | null>(null)
 const showStats = ref(false)
 const showSessions = ref(false)
+const panelOpen = ref(false)
 const sessionList = ref<SessionMeta[]>([])
 const currentId = ref<string | null>(null)
 
@@ -250,10 +267,10 @@ async function continueGeneration() {
 
 const visibleMessages = computed(() => getVisibleMessages())
 
-const currentSessionTitle = computed(() => {
-  const s = sessionList.value.find((s) => s.id === currentId.value)
-  return s?.title || t('chat.defaultSessionTitle')
-})
+// 空态：无可见消息且未在流式输出/无错误提示 → 输入框垂直居中
+const isEmpty = computed(() =>
+  visibleMessages.value.length === 0 && !streaming.value && !errorMsg.value
+)
 
 const NUDGE_INTERVAL = 10
 const nudgeCountdown = computed(() => {
@@ -442,104 +459,37 @@ watch(lastReviewResult, (result) => {
   overflow: hidden;
 }
 
-.chat-topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px 8px;
-  max-width: 1080px;
-  width: 100%;
-  margin: 0 auto;
-  position: relative;
+/* 空态：隐藏消息区，输入区垂直居中 */
+.chat-page.empty .chat-messages {
+  display: none;
 }
 
-.session-selector {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  padding: 7px 14px;
-  border-radius: 999px;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-sm);
-  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
-  max-width: 220px;
-}
-
-.session-selector:hover {
-  background: var(--color-primary-light);
-  border-color: var(--color-primary);
-  box-shadow: var(--shadow-md);
-}
-
-.session-selector:active {
-  transform: scale(0.97);
-}
-
-.session-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--color-text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.dropdown-arrow {
-  font-size: 10px;
-  color: var(--color-text-muted);
-  flex-shrink: 0;
-}
-
-.topbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.action-btn,
-.stats-btn {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  width: 34px;
-  height: 34px;
-  display: flex;
-  align-items: center;
+.chat-page.empty .chat-input-zone {
+  flex: 1;
   justify-content: center;
-  padding: 0;
-  font-size: 16px;
-  cursor: pointer;
-  line-height: 1;
-  color: var(--color-text-secondary);
-  box-shadow: var(--shadow-sm);
-  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+  margin-bottom: 0;
 }
 
-.action-btn:hover,
-.stats-btn:hover {
-  background: var(--color-primary-light);
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-  box-shadow: var(--shadow-md);
+/* 非空态：输入区落底时的沉降动画 */
+.chat-page:not(.empty) .chat-input-zone {
+  animation: inputSink 0.4s cubic-bezier(0.25, 0.9, 0.3, 1);
 }
 
-.action-btn:active,
-.stats-btn:active {
-  transform: scale(0.96);
+@keyframes inputSink {
+  from { opacity: 0.3; transform: translateY(-14px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-/* Session 下拉 */
+/* Session 弹出层（锚定在输入条上方） */
 .session-dropdown {
   position: absolute;
-  top: 100%;
-  left: 16px;
-  right: 16px;
-  max-width: 1080px;
-  margin: 6px auto 0;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border-light);
+  bottom: calc(100% + 10px);
+  left: 0;
+  right: 0;
+  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
   z-index: 50;
@@ -626,14 +576,15 @@ watch(lastReviewResult, (result) => {
   margin: 0 auto;
 }
 
-.chat-empty {
+/* 空态提示（居中态位于输入框上方） */
+.chat-empty-hero {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  height: 100%;
-  color: var(--color-text-secondary);
   gap: 8px;
+  margin-bottom: 28px;
+  color: var(--color-text-secondary);
+  animation: fadeIn 0.3s ease;
 }
 
 .empty-icon {
@@ -745,24 +696,140 @@ watch(lastReviewResult, (result) => {
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 
+/* ==== 输入区（悬浮玻璃） ==== */
+.chat-input-zone {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: calc(100% - 24px);
+  max-width: 1080px;
+  margin: 0 auto 12px auto;
+  flex-shrink: 0;
+}
+
+.chat-input-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* 面板开关箭头 */
+.panel-toggle {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  margin-right: 8px;
+  border: 1px solid color-mix(in srgb, var(--color-text) 10%, transparent);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-surface) 60%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--color-text-secondary);
+  font-size: 15px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.6;
+  box-shadow: var(--shadow-sm);
+  transition: opacity 0.2s ease, background 0.2s ease, transform 0.15s ease;
+}
+
+.panel-toggle:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--color-surface) 85%, transparent);
+}
+
+.panel-toggle:active {
+  transform: scale(0.92);
+}
+
+.panel-toggle .chevron {
+  line-height: 1;
+  transition: transform 0.25s ease;
+}
+
+.panel-toggle.open .chevron {
+  transform: rotate(180deg);
+}
+
+/* 功能面板：宽度 0 → auto 滑出，输入条随之右移压缩 */
+.input-panel {
+  width: 0;
+  margin-right: 0;
+  overflow: hidden;
+  opacity: 0;
+  flex-shrink: 0;
+  transition: width 0.3s cubic-bezier(0.25, 0.9, 0.3, 1), margin-right 0.3s cubic-bezier(0.25, 0.9, 0.3, 1), opacity 0.2s ease;
+}
+
+.input-panel.open {
+  width: 128px;
+  margin-right: 8px;
+  opacity: 1;
+}
+
+.input-panel-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 128px;
+}
+
+.panel-btn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-surface) 80%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  font-size: 15px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+  color: var(--color-text-secondary);
+  box-shadow: var(--shadow-sm);
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.15s ease;
+}
+
+.panel-btn:hover {
+  background: var(--color-primary-light);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.panel-btn:active {
+  transform: scale(0.94);
+}
+
+/* 输入条：浮在背景上方的玻璃质感 */
 .chat-input-bar {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: flex-end;
   gap: 10px;
   padding: 10px 10px 10px 18px;
-  max-width: 1080px;
-  width: calc(100% - 24px);
-  margin: 0 auto 12px auto;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-surface) 88%, transparent);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  box-shadow:
+    0 10px 28px -8px rgba(16, 24, 40, 0.12),
+    0 2px 8px rgba(16, 24, 40, 0.05);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .chat-input-bar:focus-within {
-  border-color: var(--color-primary);
-  box-shadow: var(--shadow-md);
+  border-color: color-mix(in srgb, var(--color-primary) 55%, transparent);
+  box-shadow:
+    0 12px 32px -8px color-mix(in srgb, var(--color-primary) 30%, transparent),
+    0 2px 8px rgba(16, 24, 40, 0.06);
 }
 
 .chat-input {
@@ -863,7 +930,10 @@ watch(lastReviewResult, (result) => {
 }
 
 .modal-box {
-  background: var(--color-surface);
+  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
   border-radius: var(--radius-lg);
   padding: 24px;
   min-width: 280px;
@@ -1041,22 +1111,7 @@ watch(lastReviewResult, (result) => {
     height: 100%;
   }
 
-  .chat-topbar {
-    padding: 8px 10px 6px;
-  }
-
-  .session-selector {
-    max-width: 150px;
-    padding: 6px 12px;
-  }
-
-  .session-title {
-    font-size: 13px;
-  }
-
   .session-dropdown {
-    left: 8px;
-    right: 8px;
     max-height: 260px;
   }
 
@@ -1074,12 +1129,14 @@ watch(lastReviewResult, (result) => {
     font-size: 13px;
   }
 
+  .chat-input-zone {
+    width: calc(100% - 16px);
+    margin-bottom: 8px;
+  }
+
   .chat-input-bar {
     padding: 8px 8px 8px 14px;
-    border-radius: var(--radius-lg);
     gap: 6px;
-    width: calc(100% - 16px);
-    margin: 0 auto 8px auto;
   }
 
   .chat-input {
@@ -1097,10 +1154,18 @@ watch(lastReviewResult, (result) => {
     font-size: 13px;
   }
 
-  .stats-btn,
-  .action-btn {
-    width: 30px;
-    height: 30px;
+  .input-panel.open {
+    width: 108px;
+  }
+
+  .input-panel-inner {
+    width: 108px;
+    gap: 6px;
+  }
+
+  .panel-btn {
+    width: 32px;
+    height: 32px;
     font-size: 14px;
   }
 

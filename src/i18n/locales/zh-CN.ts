@@ -26,6 +26,7 @@ const zhCN: LocalesSchema = {
     delete: '删除',
     messageCount: '条',
     noSessions: '暂无历史会话',
+    sessions: '会话列表',
     emptyHint: '开始与 AI 对话吧',
     emptySubHint: '记忆会在对话中自动保存',
     thinking: '思考过程',

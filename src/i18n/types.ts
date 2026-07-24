@@ -25,6 +25,7 @@ export interface LocalesSchema {
     delete: string
     messageCount: string
     noSessions: string
+    sessions: string
     emptyHint: string
     emptySubHint: string
     thinking: string

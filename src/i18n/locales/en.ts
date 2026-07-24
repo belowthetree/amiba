@@ -26,6 +26,7 @@ const en: LocalesSchema = {
     delete: 'Delete',
     messageCount: '',
     noSessions: 'No history',
+    sessions: 'Sessions',
     emptyHint: 'Start chatting with AI',
     emptySubHint: 'Memory is saved automatically during conversation',
     thinking: 'Thinking',

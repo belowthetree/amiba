@@ -23,6 +23,9 @@
       @load="onIframeLoad"
       allow="clipboard-write"
     ></iframe>
+
+    <!-- 浮动返回按钮（无顶栏后服务页的返回入口） -->
+    <button v-if="!error" class="float-back-btn" :title="$t('host.back')" :aria-label="$t('host.back')" @click="goBack">‹</button>
   </div>
 </template>
 
@@ -94,7 +97,9 @@ const serviceId = computed(() => {
 const sandboxFlags = 'allow-scripts allow-same-origin'
 
 function goBack() {
-  router.push('/services')
+  // 优先回退历史；直接打开服务链接（无历史）时兜底回服务列表
+  if (window.history.length > 1) router.back()
+  else router.push('/services')
 }
 
 function onIframeLoad() {
@@ -558,6 +563,41 @@ onUnmounted(() => {
   background: var(--color-primary);
   border-color: var(--color-primary);
   color: var(--color-on-primary);
+}
+
+/* ---- 浮动返回按钮（玻璃质感，半透明不抢眼） ---- */
+.float-back-btn {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 100;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--color-text) 10%, transparent);
+  background: color-mix(in srgb, var(--color-surface) 65%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--color-text-secondary);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.55;
+  box-shadow: var(--shadow-sm);
+  transition: opacity 0.2s ease, background 0.2s ease, transform 0.15s ease;
+}
+
+.float-back-btn:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--color-surface) 88%, transparent);
+}
+
+.float-back-btn:active {
+  transform: scale(0.92);
 }
 </style>
 

@@ -2,7 +2,7 @@
 
 ## 概述
 
-`src/ai/session.ts` v2 支持多 session 管理。每个 session 独立存储，可在 ChatPage 顶栏下拉切换。
+`src/ai/session.ts` v2 支持多 session 管理。每个 session 独立存储，可在 ChatPage 输入区功能面板的会话列表（🗂️）切换。
 
 ## 数据模型
 

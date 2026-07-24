@@ -39,7 +39,7 @@ slots/                       ← 插槽内容，全局共享
 | `--color-primary-hover` | `#4F46E5` | 主色按钮悬停态 |
 | `--color-primary-light` | `#EEF2FF` | 主色浅底：选中项背景、标签背景 |
 | `--color-bg` | `#F5F6F8` | 全局页面背景色 |
-| `--color-surface` | `#FFFFFF` | 卡片、顶栏、模态框、面板等容器背景 |
+| `--color-surface` | `rgba(255,255,255,0.78)` | 卡片、模态框、面板等容器背景（半透明玻璃感） |
 | `--color-text` | `#1F2329` | 全局正文文字颜色 |
 | `--color-text-secondary` | `#6B7280` | 辅助文字、描述、元信息 |
 | `--color-text-muted` | `#9CA3AF` | 极弱文字：占位符、箭头、禁用态 |
@@ -103,16 +103,14 @@ slots/                       ← 插槽内容，全局共享
 | 选择器 | 元素 | 说明 |
 |--------|------|------|
 | `.app-shell` | 应用根容器 | flex 容器，设背景色/字体在这里 |
-| `.topbar` | 顶栏 | 顶部导航栏容器 |
-| `.topbar-title` | 顶栏标题 | 居中文字标题 |
-| `.nav-btn` | 导航按钮 | 📱🏠⚙️ 按钮 |
-| `.nav-btn:active` | 按钮按下态 | 导航按钮按下时背景 |
-| `.home-btn` | 主页/服务按钮 | 📱🏠 按钮的附加类 |
-| `.settings-btn` | 设置按钮 | ⚙️ 按钮的附加类 |
+| `.glass-bg` | 玻璃辉光背景 | 全局背景组件（玉色辉光+流光），fixed 铺满 |
+| `.gb-glow-1/2/3` | 辉光色团 | 背景中的玉色光斑，缓慢漂移 |
+| `.gb-streak-1/2` | 流光带 | 背景中对角划过的光带 |
+| `.edge-hint` | 边缘翻页提示 | 左右两侧的玻璃竖条（‹ ›），点击切换页面 |
+| `.edge-left` / `.edge-right` | 左/右提示条 | 位置区分 |
+| `.update-banner` | 更新提示横幅 | 顶部浮动玻璃胶囊 |
 | `.main-content` | 主内容区 | router-view 滚动容器 |
-| `.page-enter-active` / `.page-leave-active` | 页面过渡 | 路由切换动画时长 |
-| `.page-enter-from` | 入场起始 | 透明度 0 + 右移 20px |
-| `.page-leave-to` | 退场结束 | 透明度 0 + 左移 20px |
+| `.page-forward-enter-active` 等 | 页面过渡 | 路由切换动画（page-forward/page-back） |
 | `::-webkit-scrollbar-thumb` | 滚动条滑块 | 可通过 --color-scrollbar-thumb 调色 |
 
 ### 首页 `/home`
@@ -142,13 +140,14 @@ slots/                       ← 插槽内容，全局共享
 
 | 选择器 | 元素 | 说明 |
 |--------|------|------|
-| `.chat-page` | 聊天页容器 | -- |
-| `.chat-topbar` | 聊天顶栏 | 会话选择器区域 |
-| `.topbar-actions` | 顶栏操作区 | ＋📊 按钮容器 |
-| `.session-selector` | 会话选择器 | 点击展开下拉 |
-| `.session-title` | 会话标题 | -- |
-| `.dropdown-arrow` | 下拉箭头 | ▾ |
-| `.session-dropdown` | 会话下拉 | 弹出面板 |
+| `.chat-page` | 聊天页容器 | 含 `.empty` 空态变体（无消息时输入框居中） |
+| `.chat-input-zone` | 输入区容器 | 空态垂直居中、有消息沉底 |
+| `.chat-empty-hero` | 空态提示 | 输入框上方的 💬 提示区 |
+| `.chat-input-row` | 输入行 | 开关+面板+输入条 flex 行 |
+| `.panel-toggle` | 面板开关箭头 | 输入框左侧 › 按钮，含 `.open` 变体 |
+| `.input-panel` | 功能面板 | 宽度动画滑出，含 `.open` 变体 |
+| `.panel-btn` | 功能按钮 | ＋新建会话 / 📊统计 / 🗂️会话列表 |
+| `.session-dropdown` | 会话弹出层 | 锚定在输入条上方 |
 | `.session-item` | 会话项 | -- |
 | `.session-item.active` | 当前会话项 | 高亮态 |
 | `.session-item-title` | 会话项标题 | -- |
@@ -156,8 +155,7 @@ slots/                       ← 插槽内容，全局共享
 | `.session-del` | 删除按钮 | ✕ |
 | `.session-empty` | 空会话 | 无会话提示 |
 | `.chat-messages` | 消息列表 | 滚动区域 |
-| `.chat-empty` | 空状态 | 无消息提示 |
-| `.empty-icon` | 空状态图标 | 💬 |
+| `.empty-icon` | 空态图标 | 💬（位于 .chat-empty-hero 内） |
 | `.hint` | 提示文字 | -- |
 | `.message` | 消息容器 | 含 role 类 .user / .assistant |
 | `.message-content` | 消息正文 | -- |
@@ -167,12 +165,10 @@ slots/                       ← 插槽内容，全局共享
 | `.message.error .message-content` | 错误消息 | 橙底，居中 |
 | `.reasoning-block` | 思考块 | 折叠区域 |
 | `.reasoning-content` | 思考内容 | 内部文字 |
-| `.chat-input-bar` | 输入栏 | 底部区域 |
+| `.chat-input-bar` | 输入条 | 悬浮玻璃质感，focus 时玉青描边 |
 | `.chat-input` | 输入框 | textarea |
 | `.send-btn` | 发送按钮 | -- |
 | `.stop-btn` | 停止按钮 | 中止流式输出 |
-| `.stats-btn` | 统计按钮 | 📊 |
-| `.action-btn` | 操作按钮 | ＋新建会话 |
 | `.primary-btn` | 主按钮 | 确认/继续 |
 | `.secondary-btn` | 次按钮 | 取消 |
 | `.modal-overlay` | 模态遮罩 | 背景半透明 |
@@ -315,9 +311,6 @@ slots/                       ← 插槽内容，全局共享
 
 | 插槽名 | 位置 | 使用建议 |
 |--------|------|----------|
-| `topbar.left` | 顶栏标题左侧 | 快捷按钮、时钟。推荐宽 40-160px |
-| `topbar.center` | 替换顶栏标题 | 搜索框。设置后默认标题隐藏 |
-| `topbar.right` | 设置按钮左侧 | 快捷操作按钮。推荐宽 40-160px |
 | `home.above-welcome` | 首页欢迎卡片上方 | 公告、自定义 banner |
 | `home.below-features` | 功能卡片下方 | 快捷入口、统计面板 |
 | `home.above-recent` | 最近使用列表上方 | 搜索框、筛选按钮 |
@@ -358,7 +351,7 @@ slots/                       ← 插槽内容，全局共享
 用户: "切换到 ocean 主题"  
   → ui_theme_switch({ name: "ocean" })
 
-用户: "在顶栏加一个时钟"  
-  → ui_slot_list  // 找到 topbar.left
-  → ui_slot_set({ slot: "topbar.left", html: "<span id='clock'>12:00</span><script>(function(){...})()</script>" })
+用户: "在输入框下方加一行快捷键说明"  
+  → ui_slot_list  // 找到 chat.below-input
+  → ui_slot_set({ slot: "chat.below-input", html: "<div style='text-align:center;font-size:12px;color:var(--color-text-muted)'>Enter 发送 · Shift+Enter 换行</div>" })
 ```

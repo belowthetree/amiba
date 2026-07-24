@@ -10,23 +10,8 @@ import { themeState, saveSlot, removeSlot } from '../config/theme-store'
 
 const SLOT_DEFS: Array<{ name: string; description: string; tips: string }> = [
   {
-    name: 'topbar.left',
-    description: '顶栏标题左侧区域（导航按钮和标题之间）',
-    tips: '适合放快捷按钮、时钟、状态指示器等小部件。内容推荐宽 40-160px、高 ≤ 40px。',
-  },
-  {
-    name: 'topbar.center',
-    description: '替换顶栏标题区域（同时隐藏默认标题）',
-    tips: '适合放搜索框、面包屑等。注意：设置后默认标题文字会隐藏。',
-  },
-  {
-    name: 'topbar.right',
-    description: '顶栏设置按钮左侧区域',
-    tips: '适合放快捷操作按钮、通知图标等。内容推荐宽 40-160px、高 ≤ 40px。',
-  },
-  {
     name: 'chat.above-messages',
-    description: '聊天页消息列表上方、会话选择栏下方',
+    description: '聊天页消息列表上方',
     tips: '适合放快捷指令按钮、上下文提示。',
   },
   {
@@ -100,7 +85,7 @@ toolRegistry.register({
         properties: {
           slot: {
             type: 'string',
-            description: '插槽名称，如 "topbar.left"、"chat.below-input"。用 ui_slot_list 查看所有可用名称。',
+            description: '插槽名称，如 "chat.above-messages"、"chat.below-input"。用 ui_slot_list 查看所有可用名称。',
           },
         },
         required: ['slot'],
@@ -141,7 +126,7 @@ toolRegistry.register({
         properties: {
           slot: {
             type: 'string',
-            description: '插槽名称，如 "topbar.left"。"topbar.center" 设置后会隐藏默认标题。',
+            description: '插槽名称，如 "chat.below-input"、"settings.extra"。',
           },
           html: {
             type: 'string',
@@ -180,7 +165,7 @@ toolRegistry.register({
         properties: {
           slot: {
             type: 'string',
-            description: '插槽名称，如 "topbar.left"、"chat.below-input"',
+            description: '插槽名称，如 "chat.below-input"、"services.above-list"',
           },
         },
         required: ['slot'],

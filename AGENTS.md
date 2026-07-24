@@ -112,14 +112,21 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 ## Theme System
 
 - **Theme directory:** `{AppData}/amiba/theme/{name}/` — 每个主题一个目录，包含 `variables.json` + `custom.css`
-- **Built-in themes:** `default`（浅色基准）、`dark`（深色模式）、`ocean`（蓝色系）— 从 `public/themes/` 安装，不可修改
+- **Built-in themes:** `default`（玉石玻璃风：玉青主色 + 半透明白表面）、`dark`（深色模式）、`ocean`（蓝色系）— 从 `public/themes/` 安装，不可修改
 - **User themes:** 从内置主题另存创建，可自由修改删除
-- **Active theme:** 存储在 `settings.active_theme`，切换时立即重新加载并注入到 document.head
-- **Slot directory:** `{AppData}/amiba/theme/slots/` — 插槽 HTML（不随主题切换）
+- **Active theme:** 存储在 `settings.active_theme`，切换时立即重新加载并注入到 document.head；主题名同步到 `<html data-theme>`
+- **Slot directory:** `{AppData}/amiba/theme/slots/` — 插槽 HTML（不随主题切换）；可用插槽：`chat.above-messages` / `chat.below-input` / `settings.extra` / `services.above-list`
 - **CSS variables:** 30 个变量定义在 `:root` 中，所有页面样式通过 `var(--*)` 引用
 - **Doc:** `public/docs/ui-customization.md` — CSS 选择器速查表 + 变量参考 + 插槽列表
 - **Prebuilt themes:** `public/themes/{name}/variables.json` + `custom.css` → `installPrebuiltThemes()` 在首次启动时复制到 AppData
 - **Migration:** 无旧格式迁移需求（全新功能）
+
+## UI Structure
+
+- **无顶栏设计：** 页面切换靠左右滑动手势（App.vue iPhone 风格跟手手势）+ 两侧 `EdgeNavHint` 玻璃竖条（点击也可切换，tooltip 显示目标页名）；页面序列 `PAGE_ORDER` 定义在 `src/router/index.ts`
+- **全局背景:** `src/components/GlassBackground.vue` — 玉色辉光 + 流光动画，fixed 铺满全局，随 `data-theme` 自适应，`prefers-reduced-motion` 时关闭动画
+- **服务页返回:** `service-container.vue` 左上角浮动玻璃返回按钮（无顶栏后的唯一返回入口）
+- **聊天页输入区:** 无聊天记录时输入框垂直居中（`.chat-page.empty`），有消息后沉底；输入条左侧 › 开关展开功能面板（新建会话/统计/会话列表），会话列表为输入条上方弹出层
 
 - **Language:** Chinese comments with English identifiers. Section banners use `// ====...====` / `<!-- ====...==== -->`.
 - **Vue:** `<script setup lang="ts">` everywhere; scoped styles below template+script; CSS custom properties for colors/spacing in `:root`.

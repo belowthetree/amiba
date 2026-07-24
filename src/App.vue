@@ -1,34 +1,13 @@
 <!-- ============================================================
-变形虫 (Amiba) — App.vue (根组件: TopBar + router-view)
+变形虫 (Amiba) — App.vue (根组件: 玻璃背景 + 边缘翻页 + router-view)
 ============================================================ -->
 <template>
   <div class="app-shell">
-    <!-- TopBar -->
-    <header class="topbar">
-      <button class="nav-btn home-btn" @click="$router.push('/services')" :title="$t('app.services')">📱</button>
-      <button class="nav-btn home-btn" @click="$router.push('/')" :title="$t('app.title')">
-        🏠
-      </button>
+    <!-- 玻璃辉光背景 -->
+    <GlassBackground />
 
-      <SlotRenderer name="topbar.left" :html="slotHtml('topbar.left')" />
-
-      <h1 v-if="!slotHtml('topbar.center')" class="topbar-title" @click="$router.push('/')">
-        {{ currentTitle }}
-      </h1>
-      <SlotRenderer v-else name="topbar.center" :html="slotHtml('topbar.center')" />
-
-      <div class="topbar-right-group">
-        <SlotRenderer name="topbar.right" :html="slotHtml('topbar.right')" />
-
-        <button class="nav-btn quick-btn" @click="$router.push('/quick')" :title="$t('app.quick')">
-          ✦
-        </button>
-
-        <button class="nav-btn settings-btn" @click="$router.push('/settings')" :title="$t('app.settings')">
-          ⚙️
-        </button>
-      </div>
-    </header>
+    <!-- 边缘翻页提示 -->
+    <EdgeNavHint />
 
     <!-- 版本更新提示横幅 -->
     <div v-if="updateBanner.visible" class="update-banner" @click="goToUpdate">
@@ -81,22 +60,24 @@
 <script setup lang="ts">
 import { computed, onMounted, watch, ref, shallowRef, defineAsyncComponent, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useI18n } from 'vue-i18n'
 import FloatingWidgetContainer from './host/floating-widget-container.vue'
 import WebviewOverlay from './components/WebviewOverlay.vue'
-import SlotRenderer from './components/SlotRenderer.vue'
+import GlassBackground from './components/GlassBackground.vue'
+import EdgeNavHint from './components/EdgeNavHint.vue'
 import { themeState } from './config/theme-store'
 import { settings } from './config/config'
 import { checkForUpdate } from './config/updater'
+import { PAGE_ORDER } from './router'
 
-const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const mainRef = ref<HTMLElement>()
 const pageWrapper = ref<HTMLElement>()
 
-// ==== 页面序列（从左到右） ====
-const PAGE_ORDER = ['/services', '/', '/quick', '/registry', '/settings', '/memory']
+// 当前主题名同步到 <html data-theme>，供 GlassBackground 等按主题微调
+watch(() => themeState.activeTheme, (name) => {
+  document.documentElement.dataset.theme = name
+}, { immediate: true })
 
 // ==== 页面组件注册表（用于手势预览时渲染目标页） ====
 const PAGE_COMPONENTS: Record<string, ReturnType<typeof defineAsyncComponent>> = {
@@ -330,22 +311,6 @@ function cancelSwipeAnimation() {
   hidePreview()
 }
 
-const routeTitles: Record<string, string> = {
-  chat: t('app.title'),
-  settings: t('app.settings'),
-  memory: t('app.memory'),
-  quick: t('app.quick'),
-  registry: t('app.registry'),
-  service: t('app.service'),
-}
-
-const currentTitle = computed(() => {
-  const name = route.name as string
-  return routeTitles[name] || t('app.title')
-})
-
-const slotHtml = (name: string) => themeState.slots[name] || ''
-
 // ==== 版本更新横幅 ====
 const updateBanner = reactive({
   visible: false,
@@ -412,13 +377,13 @@ onMounted(() => {
 
 <style>
 /* === Global Reset & Design Tokens === */
-/* 精致柔和风设计系统：现代靛蓝主色、大圆角、柔和分层阴影 */
+/* 玉石玻璃风设计系统：玉青主色、半透明表面、大圆角、柔和分层阴影 */
 :root {
-  --color-primary: #6366F1;
-  --color-primary-hover: #4F46E5;
-  --color-primary-light: #EEF2FF;
-  --color-bg: #F5F6F8;
-  --color-surface: #FFFFFF;
+  --color-primary: #2FA98C;
+  --color-primary-hover: #238D75;
+  --color-primary-light: #E1F3ED;
+  --color-bg: #EDF3F0;
+  --color-surface: rgba(255, 255, 255, 0.78);
   --color-text: #1F2329;
   --color-text-secondary: #6B7280;
   --color-text-muted: #9CA3AF;
@@ -452,7 +417,6 @@ onMounted(() => {
   --spacing-sm: 8px;
   --spacing-md: 16px;
   --spacing-lg: 24px;
-  --topbar-height: 56px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
@@ -524,61 +488,31 @@ button {
   overflow: hidden;
 }
 
-/* TopBar */
-.topbar {
-  position: relative;
-  display: flex;
-  align-items: center;
-  height: calc(var(--topbar-height) + var(--safe-top));
-  padding: var(--safe-top) 12px 0 12px;
-  background: var(--color-surface);
-  border-bottom: 1px solid var(--color-border-light, #eee);
-  flex-shrink: 0;
-  z-index: 100;
-  gap: 4px;
-}
-
-.nav-btn {
-  width: 40px;
-  height: 40px;
-  border: none;
-  background: none;
-  font-size: 20px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  color: var(--color-text);
-  flex-shrink: 0;
-  transition: background 0.18s ease, transform 0.12s ease;
-}
-
-.nav-btn:hover {
-  background: var(--color-hover-bg, #f0f0f0);
-}
-
-.nav-btn:active {
-  background: var(--color-hover-bg, #f0f0f0);
-  transform: scale(0.92);
-}
-
-/* 版本更新横幅 */
+/* 版本更新横幅（浮动玻璃胶囊） */
 .update-banner {
+  position: fixed;
+  top: calc(max(var(--safe-top), 8px) + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  background: linear-gradient(135deg, var(--color-primary-light, #EEF2FF), var(--color-surface, #FFF));
-  border-bottom: 1px solid var(--color-primary, #6366F1);
+  max-width: calc(100vw - 32px);
+  background: color-mix(in srgb, var(--color-surface) 82%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 35%, transparent);
+  border-radius: 999px;
+  box-shadow: var(--shadow-md);
   cursor: pointer;
   font-size: 13px;
-  color: var(--color-primary-hover, #4F46E5);
-  flex-shrink: 0;
+  color: var(--color-primary-hover, #238D75);
   transition: background 0.2s ease;
 }
 .update-banner:hover {
-  background: var(--color-primary-light, #EEF2FF);
+  background: var(--color-primary-light, #E1F3ED);
 }
 .update-banner-icon {
   font-size: 16px;
@@ -587,6 +521,9 @@ button {
 .update-banner-text {
   flex: 1;
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .update-banner-close {
   width: 24px;
@@ -608,28 +545,6 @@ button {
   background: rgba(0,0,0,0.06);
 }
 
-.topbar-right-group {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-}
-
-.topbar-title {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: 17px;
-  font-weight: 600;
-  text-align: center;
-  cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: calc(100% - 140px);
-}
-
 /* Main content */
 .main-content {
   flex: 1;
@@ -637,12 +552,14 @@ button {
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   position: relative;
+  z-index: 1;
 }
 
 /* ==== 页面容器（手势拖动层） ==== */
 .page-wrapper {
   width: 100%;
   height: 100%;
+  padding-top: max(var(--safe-top), 8px);
   will-change: transform;
   touch-action: pan-y; /* 允许垂直滚动，拦截水平滑动 */
 }
@@ -653,14 +570,14 @@ button {
   top: 0;
   width: 100%;
   height: 100%;
+  padding-top: max(var(--safe-top), 8px);
   z-index: 0;
-  background: var(--color-bg);
   overflow: hidden;
 }
 .peek-right { left: 100%; }
 .peek-left  { right: 100%; }
 
-/* ==== TopBar / 非手势导航的 CSS 过渡 ==== */
+/* ==== 非手势导航的 CSS 过渡 ==== */
 /* 仅在非手势触发的路由切换时生效（手势有自己的 JS 动画） */
 
 .page-forward-enter-active,
@@ -676,28 +593,4 @@ button {
 }
 .page-back-enter-from { opacity: 0; transform: translateX(-30px); }
 .page-back-leave-to   { opacity: 0; transform: translateX(20px); }
-
-/* === 响应式：平板 === */
-@media (min-width: 769px) and (max-width: 1024px) {
-  .topbar {
-    padding: calc(max(var(--safe-top), 8px) + 11px) 12px 0 12px;
-  }
-}
-
-/* === 响应式：移动端全局 === */
-@media (max-width: 768px) {
-  .topbar {
-    padding: max(var(--safe-top), 5px) 8px 0 8px;
-  }
-
-  .topbar-title {
-    font-size: 15px;
-  }
-
-  .nav-btn {
-    width: 36px;
-    height: 36px;
-    font-size: 18px;
-  }
-}
 </style>
