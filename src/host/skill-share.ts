@@ -150,8 +150,9 @@ export async function startReceivingSkills(): Promise<void> {
   await startListening(SHARE_SERVICE_KEY)
   console.log('[SkillShare] 开始监听技能分享请求')
 
-  const unsub = onEvent('session-created', async (info: { sessionId: string; peerId: string; peerName: string; direction?: string }) => {
+  const unsub = onEvent('session-created', async (info: { sessionId: string; peerId: string; peerName: string; direction?: string; service?: string }) => {
     if (info.direction !== 'inbound') return
+    if (info.service !== SHARE_SERVICE_KEY) return
 
     console.log('[SkillShare] 收到入站 session:', info.sessionId.slice(0, 8), '来自:', info.peerName)
     const session = createInboundSession(info)

@@ -9,6 +9,8 @@ category: api
 
 当用户需求包含「多人/聊天/协作/联机/房间/局域网」等关键词时，必须使用 `network` 权限 + P2P API。**不要用 BroadcastChannel 或本地多角色模拟。**
 
+> **多人房间场景优先用房间 API**：若需求是「创建房间 / 房主 / 多人广播 / 组队」，使用 `__amiba__.network.createRoom / joinRoom`（见 `room.md`），成员管理与广播由宿主完成。本文档的 session API 适用于一对一或需要自定义协议的场景。
+
 ## 权限声明
 
 manifest.json 中添加 `"network"` 权限：

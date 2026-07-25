@@ -1,15 +1,29 @@
-# 变形虫 (Amiba)
+<p align="center">
+  <img src="./src-tauri/icons/icon.png" alt="Amiba Logo" width="120">
+</p>
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
-[![Vue](https://img.shields.io/badge/Vue-3-4FC08D?logo=vuedotjs)](https://vuejs.org)
-[![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript)](https://www.typescriptlang.org)
-[![Tauri](https://img.shields.io/badge/Tauri-2-FFC131?logo=tauri)](https://tauri.app)
-[![Build Desktop](https://github.com/belowthetree/amiba/actions/workflows/build-desktop.yml/badge.svg)](https://github.com/belowthetree/amiba/actions/workflows/build-desktop.yml)
-[![Build APK](https://github.com/belowthetree/amiba/actions/workflows/build-apk.yml/badge.svg)](https://github.com/belowthetree/amiba/actions/workflows/build-apk.yml)
+<h1 align="center">变形虫 (Amiba)</h1>
 
-AI 驱动的跨平台即时应用平台。用户用自然语言描述需求，AI 自动生成迷你小程序并即刻运行在 iframe 沙箱中。
+<p align="center">AI 驱动的跨平台即时应用平台。用户用自然语言描述需求，AI 自动生成迷你小程序并即刻运行在 iframe 沙箱中。</p>
 
-[English](./README.en.md)
+<p align="center">
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
+  <a href="https://vuejs.org"><img src="https://img.shields.io/badge/Vue-3-4FC08D?logo=vuedotjs" alt="Vue"></a>
+  <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript" alt="TypeScript"></a>
+  <a href="https://tauri.app"><img src="https://img.shields.io/badge/Tauri-2-FFC131?logo=tauri" alt="Tauri"></a>
+  <a href="https://github.com/belowthetree/amiba/actions/workflows/release.yml"><img src="https://github.com/belowthetree/amiba/actions/workflows/release.yml/badge.svg" alt="Release"></a>
+  <a href="https://github.com/belowthetree/amiba/actions/workflows/release-apk.yml"><img src="https://github.com/belowthetree/amiba/actions/workflows/release-apk.yml/badge.svg" alt="Release APK"></a>
+</p>
+
+<p align="center"><a href="./README.en.md">English</a></p>
+
+## 截图
+
+| AI 对话 | 服务浏览 |
+|:---:|:---:|
+| ![AI 对话](./docs/screenshots/chat.png) | ![服务浏览](./docs/screenshots/services.png) |
+| **服务运行** | **设置与主题** |
+| ![服务运行](./docs/screenshots/service-detail.png) | ![设置与主题](./docs/screenshots/settings.png) |
 
 ## 技术栈
 

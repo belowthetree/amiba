@@ -117,7 +117,7 @@ export interface ServiceResponse {
 
 export interface HostEvent {
   type: 'event'
-  name: 'page-show' | 'page-hide' | 'task-trigger' | 'peer-discovered' | 'peer-lost' | 'session-created' | 'session-event'
+  name: 'page-show' | 'page-hide' | 'task-trigger' | 'peer-discovered' | 'peer-lost' | 'session-created' | 'session-event' | 'room-event'
   data?: any
 }
 
@@ -287,5 +287,51 @@ export interface DiscoveredPeer {
   address: string               // 传输地址（IP:port 或 BLE MAC）
   rssi?: number                 // 信号强度（BLE，dBm）
   lastSeen: string              // ISO datetime
+}
+
+// --- LAN Room (局域网房间，基于 NetworkSession 的星型通信抽象) ---
+
+export interface RoomMember {
+  id: string                    // 成员设备 ID（peerId）
+  name: string                  // 显示名称
+  isHost: boolean               // 是否房主
+}
+
+export interface RoomInfo {
+  roomId: string                // 房间唯一标识
+  name: string                  // 房间名称
+  isHost: boolean               // 本端是否房主
+  selfId: string                // 本端成员 ID
+  hostId: string                // 房主成员 ID
+  members: RoomMember[]         // 全部成员（含房主与自己）
+}
+
+export interface RoomOptions {
+  name?: string                 // 房间名称（默认 "<房主名> 的房间"）
+  hostName?: string             // 房主显示名（默认设备主机名）
+  maxMembers?: number           // 最大成员数（含房主，默认 8）
+}
+
+export interface JoinRoomOptions {
+  name?: string                 // 加入者显示名（默认设备主机名）
+}
+
+// --- Remote Service Registry ---
+
+export interface RemoteServiceEntry {
+  id: string          // 服务唯一标识
+  files: string[]     // 文件列表（相对路径）
+}
+
+export interface RemoteFolderEntry {
+  name: string        // 文件夹显示名称
+  path: string        // 子目录路径（相对于当前 index.json）
+  description?: string
+}
+
+export interface RemoteServiceIndex {
+  name?: string              // 当前目录名称（可选，向后兼容）
+  services?: RemoteServiceEntry[]
+  folders?: RemoteFolderEntry[]
 }
 

@@ -108,10 +108,10 @@ export async function initNetworkBridge(): Promise<void> {
     )
 
     // --- Session 事件（Rust → 前端，Phase 4 完善） ---
-    await listen<{ sessionId: string; peerId: string; peerName: string; direction: string }>(
+    await listen<{ sessionId: string; peerId: string; peerName: string; direction: string; service?: string }>(
       'network:session-created',
       (event) => {
-        console.log('[NetBridge] session-created dir=', event.payload.direction, 'sid=', event.payload.sessionId?.slice(0,8), 'peer=', event.payload.peerName)
+        console.log('[NetBridge] session-created dir=', event.payload.direction, 'sid=', event.payload.sessionId?.slice(0,8), 'peer=', event.payload.peerName, 'service=', event.payload.service)
         emit('session-created', event.payload)
       }
     )

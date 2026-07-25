@@ -120,6 +120,14 @@ pub async fn network_get_device_id(
 }
 
 #[tauri::command]
+pub async fn network_get_device_name(
+    state: State<'_, Arc<Mutex<VisibilityState>>>,
+) -> Result<String, String> {
+    let ns = state.lock().await;
+    Ok(ns.device_name.clone())
+}
+
+#[tauri::command]
 pub async fn network_set_visibility(
     vis_state: State<'_, Arc<Mutex<VisibilityState>>>,
     sess_state: State<'_, Arc<Mutex<SessionStore>>>,

@@ -83,7 +83,7 @@ const checkMultiContextApi: CheckFn = (filePath, content) => {
       status: 'fail',
       message: '使用了 BroadcastChannel API，iframe 沙箱中无法多窗口通信',
       file: filePath,
-      suggestion: '多用户/协作场景使用 network 权限 + __amiba__.network.* P2P API',
+      suggestion: '多用户/协作场景使用 network 权限：多人房间用 __amiba__.network.createRoom/joinRoom，一对一用 P2P session API',
     })
   }
 
@@ -93,7 +93,7 @@ const checkMultiContextApi: CheckFn = (filePath, content) => {
       status: 'fail',
       message: '使用了 SharedWorker，iframe 沙箱不支持',
       file: filePath,
-      suggestion: '需要用 network 权限 + __amiba__.network.* P2P API 实现多端通信',
+      suggestion: '需要用 network 权限实现多端通信：多人房间用 __amiba__.network.createRoom/joinRoom，一对一用 P2P session API',
     })
   }
 

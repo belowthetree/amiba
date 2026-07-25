@@ -21,6 +21,19 @@
       </div>
     </div>
 
+    <!-- 面包屑导航 -->
+    <div v-if="!loading && !error && currentPath.length > 0" class="registry-breadcrumb">
+      <button class="breadcrumb-link" @click="navigateToRoot">{{ $t('registry.root') }}</button>
+      <template v-for="(seg, i) in currentPath" :key="i">
+        <span class="breadcrumb-sep">›</span>
+        <button
+          class="breadcrumb-link"
+          :class="{ 'breadcrumb-current': i === currentPath.length - 1 }"
+          @click="navigateToPath(i)"
+        >{{ seg }}</button>
+      </template>
+    </div>
+
     <!-- 加载中 -->
     <div v-if="loading" class="registry-loading">
       <span class="spinner"></span>
@@ -30,49 +43,72 @@
     <!-- 错误 -->
     <div v-else-if="error" class="registry-error">
       <p>{{ error }}</p>
-      <button class="secondary-btn" @click="fetchServices">{{ $t('registry.retry') }}</button>
+      <button class="secondary-btn" @click="fetchIndex">{{ $t('registry.retry') }}</button>
     </div>
 
-    <!-- 空仓库 -->
-    <div v-else-if="!services.length" class="registry-empty">
-      <p>{{ $t('registry.empty') }}</p>
-    </div>
-
-    <!-- 服务列表 -->
-    <div v-else class="registry-list">
-      <div
-        v-for="svc in services"
-        :key="svc.id"
-        class="registry-card"
-      >
-        <div class="registry-card-body">
-          <div class="registry-card-header">
-            <span class="registry-card-icon">📦</span>
-            <span class="registry-card-name">{{ svc.manifest?.name || svc.id }}</span>
-            <span class="registry-card-version">v{{ svc.manifest?.version || '?' }}</span>
-            <span v-if="svc.installed" class="registry-badge installed">
-              {{ svc.updateAvailable ? $t('registry.updateAvailable') : $t('registry.installed') }}
-            </span>
+    <!-- 内容区 -->
+    <template v-else>
+      <!-- 文件夹列表 -->
+      <div v-if="folders.length > 0" class="registry-folders">
+        <div class="section-label">📁 {{ $t('registry.folders') }}</div>
+        <div class="registry-folders-grid">
+          <div
+            v-for="folder in folders"
+            :key="folder.path"
+            class="registry-folder-card"
+            @click="navigateToFolder(folder.path)"
+          >
+            <span class="folder-icon">📁</span>
+            <div class="folder-info">
+              <span class="folder-name">{{ folder.name }}</span>
+              <span v-if="folder.description" class="folder-desc">{{ folder.description }}</span>
+            </div>
+            <span class="folder-arrow">›</span>
           </div>
-          <p class="registry-card-desc">{{ svc.manifest?.description || $t('registry.noDescription') }}</p>
-        </div>
-        <div class="registry-card-actions">
-          <button
-            v-if="!svc.installed"
-            class="primary-btn registry-install-btn"
-            :disabled="installingId === svc.id"
-            @click="installService(svc)"
-          >{{ installingId === svc.id ? '⏳ ' + $t('registry.installing') : '📥 ' + $t('registry.install') }}</button>
-          <button
-            v-else-if="svc.updateAvailable"
-            class="primary-btn registry-install-btn"
-            :disabled="installingId === svc.id"
-            @click="installService(svc)"
-          >{{ installingId === svc.id ? '⏳ ' + $t('registry.installing') : '🔄 ' + $t('registry.update') }}</button>
-          <span v-else class="registry-done">✅ {{ svc.installedVersion }}</span>
         </div>
       </div>
-    </div>
+
+      <!-- 空仓库 -->
+      <div v-if="!services.length && !folders.length" class="registry-empty">
+        <p>{{ $t('registry.empty') }}</p>
+      </div>
+
+      <!-- 服务列表 -->
+      <div v-if="services.length > 0" class="registry-list">
+        <div
+          v-for="svc in services"
+          :key="svc.id"
+          class="registry-card"
+        >
+          <div class="registry-card-body">
+            <div class="registry-card-header">
+              <span class="registry-card-icon">📦</span>
+              <span class="registry-card-name">{{ svc.manifest?.name || svc.id }}</span>
+              <span class="registry-card-version">v{{ svc.manifest?.version || '?' }}</span>
+              <span v-if="svc.installed" class="registry-badge installed">
+                {{ svc.updateAvailable ? $t('registry.updateAvailable') : $t('registry.installed') }}
+              </span>
+            </div>
+            <p class="registry-card-desc">{{ svc.manifest?.description || $t('registry.noDescription') }}</p>
+          </div>
+          <div class="registry-card-actions">
+            <button
+              v-if="!svc.installed"
+              class="primary-btn registry-install-btn"
+              :disabled="installingId === svc.id"
+              @click="installService(svc)"
+            >{{ installingId === svc.id ? '⏳ ' + $t('registry.installing') : '📥 ' + $t('registry.install') }}</button>
+            <button
+              v-else-if="svc.updateAvailable"
+              class="primary-btn registry-install-btn"
+              :disabled="installingId === svc.id"
+              @click="installService(svc)"
+            >{{ installingId === svc.id ? '⏳ ' + $t('registry.installing') : '🔄 ' + $t('registry.update') }}</button>
+            <span v-else class="registry-done">✅ {{ svc.installedVersion }}</span>
+          </div>
+        </div>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -81,7 +117,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { settings } from '../config/config'
 import { getService, registerService, storeServicePackage } from '../host/registry'
-import type { ServiceManifest } from '../types/service'
+import type { ServiceManifest, RemoteServiceEntry, RemoteFolderEntry, RemoteServiceIndex } from '../types/service'
 
 const { t } = useI18n()
 
@@ -94,19 +130,11 @@ function applyUrl() {
   const trimmed = repoUrlInput.value.trim()
   settings.service_registry_url = trimmed
   if (trimmed) {
-    fetchServices()
+    currentPath.value = []
+    fetchIndex()
   } else {
     error.value = t('registry.noUrl')
   }
-}
-
-interface RemoteServiceEntry {
-  id: string
-  files: string[]
-}
-
-interface RemoteServiceIndex {
-  services: RemoteServiceEntry[]
 }
 
 interface DisplayService {
@@ -121,15 +149,36 @@ interface DisplayService {
 const loading = ref(false)
 const error = ref('')
 const services = ref<DisplayService[]>([])
+const folders = ref<RemoteFolderEntry[]>([])
 const installingId = ref('')
+const currentPath = ref<string[]>([])
 
 onMounted(() => {
   if (repoUrl.value) {
-    fetchServices()
+    fetchIndex()
   } else {
     error.value = t('registry.noUrl')
   }
 })
+
+// ---- 导航 ----
+
+function navigateToFolder(path: string) {
+  currentPath.value = [...currentPath.value, path]
+  fetchIndex()
+}
+
+function navigateToRoot() {
+  currentPath.value = []
+  fetchIndex()
+}
+
+function navigateToPath(index: number) {
+  currentPath.value = currentPath.value.slice(0, index + 1)
+  fetchIndex()
+}
+
+// ---- 数据获取 ----
 
 /**
  * 规范化仓库 URL → raw 文件基础路径。
@@ -181,54 +230,71 @@ async function safeFetch(url: string): Promise<string> {
   }
 }
 
-async function fetchServices() {
+/** 根据 currentPath 拼接当前目录下的资源 URL */
+function buildResourceUrl(relativePath: string): string {
+  const baseUrl = normalizeBaseUrl(repoUrl.value)
+  if (currentPath.value.length === 0) {
+    return `${baseUrl}/${relativePath}`
+  }
+  return `${baseUrl}/${currentPath.value.join('/')}/${relativePath}`
+}
+
+async function fetchIndex() {
   loading.value = true
   error.value = ''
   services.value = []
+  folders.value = []
 
   try {
-    const baseUrl = normalizeBaseUrl(repoUrl.value)
-    const indexUrl = `${baseUrl}/index.json`
-
-    console.log('[Registry] 获取服务列表:', indexUrl)
+    const indexUrl = buildResourceUrl('index.json')
+    console.log('[Registry] 获取索引:', indexUrl)
     const raw = await safeFetch(indexUrl)
     const data: RemoteServiceIndex = JSON.parse(raw)
-    if (!data.services || !Array.isArray(data.services)) {
-      throw new Error(t('registry.invalidIndex'))
+
+    // 填充文件夹
+    if (data.folders && Array.isArray(data.folders)) {
+      folders.value = data.folders
     }
 
-    // 并行获取各服务的 manifest
-    const displayList: DisplayService[] = []
-    for (const entry of data.services) {
-      const manifestUrl = `${baseUrl}/${entry.id}/manifest.json`
-      let manifest: ServiceManifest | null = null
-      try {
-        const mRaw = await safeFetch(manifestUrl)
-        manifest = JSON.parse(mRaw) as ServiceManifest
-      } catch {
-        console.warn('[Registry] 无法获取 manifest:', manifestUrl)
+    // 填充服务列表
+    const svcList = data.services
+    if (!svcList || !Array.isArray(svcList)) {
+      if (folders.value.length === 0) {
+        throw new Error(t('registry.invalidIndex'))
+      }
+    } else {
+      const displayList: DisplayService[] = []
+      for (const entry of svcList) {
+        const manifestUrl = buildResourceUrl(`${entry.id}/manifest.json`)
+        let manifest: ServiceManifest | null = null
+        try {
+          const mRaw = await safeFetch(manifestUrl)
+          manifest = JSON.parse(mRaw) as ServiceManifest
+        } catch {
+          console.warn('[Registry] 无法获取 manifest:', manifestUrl)
+        }
+
+        // 检查本地安装状态
+        const localEntry = getService(entry.id)
+        const installed = !!localEntry
+        const installedVersion = localEntry?.manifest?.version || ''
+        const updateAvailable = !!(installed &&
+          manifest?.version &&
+          compareVersions(manifest.version, installedVersion) > 0)
+
+        displayList.push({
+          id: entry.id,
+          manifest,
+          installed,
+          installedVersion,
+          updateAvailable,
+          files: entry.files,
+        })
       }
 
-      // 检查本地安装状态
-      const localEntry = getService(entry.id)
-      const installed = !!localEntry
-      const installedVersion = localEntry?.manifest?.version || ''
-      const updateAvailable = !!(installed &&
-        manifest?.version &&
-        compareVersions(manifest.version, installedVersion) > 0)
-
-      displayList.push({
-        id: entry.id,
-        manifest,
-        installed,
-        installedVersion,
-        updateAvailable,
-        files: entry.files,
-      })
+      services.value = displayList
+      console.log('[Registry] ✓ 获取到 %d 个服务, %d 个文件夹', displayList.length, folders.value.length)
     }
-
-    services.value = displayList
-    console.log('[Registry] ✓ 获取到 %d 个服务', displayList.length)
   } catch (e: any) {
     const msg = e?.message || String(e) || t('registry.fetchFailed')
     error.value = msg
@@ -243,11 +309,10 @@ async function installService(svc: DisplayService) {
 
   installingId.value = svc.id
   try {
-    const baseUrl = normalizeBaseUrl(repoUrl.value)
     const files: { path: string; content: string }[] = []
 
     for (const filePath of svc.files) {
-      const fileUrl = `${baseUrl}/${svc.id}/${filePath}`
+      const fileUrl = buildResourceUrl(`${svc.id}/${filePath}`)
       console.log('[Registry] 下载文件:', fileUrl)
       const content = await safeFetch(fileUrl)
       files.push({ path: filePath, content })
@@ -528,6 +593,119 @@ function compareVersions(a: string, b: string): number {
   font-size: var(--font-size-sm);
   color: var(--color-success);
   font-weight: 500;
+}
+
+/* ==== 面包屑导航 ==== */
+.registry-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: var(--spacing-md);
+  padding: 8px 0;
+  flex-wrap: wrap;
+}
+
+.breadcrumb-link {
+  font-size: var(--font-size-sm);
+  color: var(--color-primary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  transition: background 0.15s ease;
+}
+.breadcrumb-link:hover {
+  background: var(--color-primary-light);
+}
+.breadcrumb-link.breadcrumb-current {
+  color: var(--color-text);
+  font-weight: 600;
+  cursor: default;
+  pointer-events: none;
+}
+
+.breadcrumb-sep {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-md);
+  line-height: 1;
+}
+
+/* ==== 文件夹列表 ==== */
+.registry-folders {
+  margin-bottom: var(--spacing-md);
+}
+
+.section-label {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: 10px;
+  letter-spacing: 0.4px;
+}
+
+.registry-folders-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.registry-folder-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+.registry-folder-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--color-primary);
+}
+
+.folder-icon {
+  font-size: 28px;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-primary-light);
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+}
+
+.folder-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.folder-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--color-text);
+  display: block;
+}
+
+.folder-desc {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-arrow {
+  font-size: 18px;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
 }
 
 /* ==== 响应式 ==== */

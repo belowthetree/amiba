@@ -364,6 +364,8 @@ const en: LocalesSchema = {
     installed: 'Installed',
     updateAvailable: 'Update Available',
     installFailed: 'Install failed',
+    root: 'Root',
+    folders: 'Folders',
   },
 }
 

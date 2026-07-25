@@ -74,7 +74,7 @@ __amiba__.widgets.show('quick-note')
 
 **权限**: `"network"`
 
-详见 `network.md` 完整文档。
+详见 `network.md` 完整文档；多人房间见 `room.md`。
 
 | 方法 | 说明 |
 |------|------|
@@ -88,6 +88,24 @@ __amiba__.widgets.show('quick-note')
 | `stopListening(serviceKey)` | 停止监听 |
 | `connect(peerId, serviceKey)` | 连接设备，返回 session |
 | `onSession(cb)` | 监听外来会话 |
+| `createRoom(opts)` | 创建局域网房间（房主），返回 room |
+| `joinRoom(peerId, opts)` | 加入指定设备上的房间，返回 room |
+
+## 局域网房间 (room)
+
+**权限**: `"network"`
+
+`createRoom({ name?, hostName?, maxMembers? })` / `joinRoom(peerId, { name? })` 返回 room 对象：
+
+| 方法/属性 | 说明 |
+|-----------|------|
+| `id` / `name` / `isHost` / `selfId` / `hostId` / `members` | 房间信息与成员列表（自动更新） |
+| `broadcast(data)` | 房主：广播给全体成员 |
+| `sendTo(memberId, data)` | 房主：定向发送 |
+| `kick(memberId)` | 房主：踢出成员 |
+| `send(data)` | 成员：发送给房主 |
+| `close()` | 房主解散 / 成员离开 |
+| `on(event, cb)` | `member-join` / `member-leave` / `message` / `close` |
 
 ## 后台服务 (background)
 

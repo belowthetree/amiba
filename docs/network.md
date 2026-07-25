@@ -29,6 +29,10 @@
 │  · peerList (reactive) — UDP 发现设备列表          │
 │  · sessions Map — NetworkSession 注册表            │
 │  · 事件总线分发                                    │
+│  RoomManager (room-manager.ts)                    │
+│  · 房间抽象 — 房主/成员星型通信                    │
+│  · 成员管理 / 广播 / 定向发送 / 踢出               │
+│  · 房间服务键 room:<serviceId> 路由入站会话        │
 └──┬────────────────────┬───────────────────────────┘
    │ Tauri invoke       │ Tauri event
    ▼                    ▼
@@ -146,6 +150,8 @@ B 接受外来连接（自动，无人工干预）:
 - hello 读取超时：10s（被动方等待 hello）
 - 连接方等待 ack 超时：30s
 
+**入站会话路由（前端）**：`network:session-created` 事件载荷携带 `service` 字段（握手 hello 中的 serviceKey）。前端各模块按服务键认领会话：服务容器只处理 `service === 其 startListening 注册的 key` 的会话；房间会话（`room:*`）由 RoomManager 认领；服务/技能分享（`amiba.service-share` / `amiba.skill-share`）由各自分享模块认领。
+
 ### 设备生命周期
 
 - **发现**：收到 UDP 广播 → 加入 `peerList` → 发出 `peer-discovered` 事件
@@ -204,6 +210,49 @@ startListening → connect(peerId, serviceKey) → 发 hello → 等 ack → Ses
     └─ 服务卸载 → 所有 session 自动 close() + stopListening
 ```
 
+## 房间模型 (Room)
+
+`RoomManager`（`src/host/room-manager.ts`）在 NetworkSession 之上提供「房间」抽象：房主创建房间等待加入，成员加入后与房主星型通信。成员管理、广播、断线清理由宿主完成，服务无需自行维护 session 列表或设计握手协议。
+
+### 拓扑与路由
+
+- **星型拓扑**：成员只与房主直连（每人一条 NetworkSession）；成员间不直连，群聊等场景由房主转发（`broadcast`）。
+- **房间服务键**：`room:<serviceId>`。房主 `createRoom` 内部调用 `startListening('room:<serviceId>')`；成员 `joinRoom` 以同一服务键 `connect`。Rust 传输层服务匹配保证只有相同服务的设备能加入。
+- **入站路由**：入站 `session-created` 事件按 `service` 字段路由到 RoomManager（见「握手协议」节）。
+- **数量约束**：同一设备同一服务同时最多一个活跃房间；默认最多 8 名成员（含房主），可通过 `maxMembers` 调整。
+
+### 房间协议（应用层，JSON 信封）
+
+传输层握手（hello/ack）之上，房间内的 session 消息体为 JSON 信封：
+
+| 信封 | 方向 | 格式 | 说明 |
+|------|------|------|------|
+| `room-join` | 成员 → 房主 | `{type, name?}` | 入站 session 的首条消息（10s 超时） |
+| `room-welcome` | 房主 → 成员 | `{type, roomId, roomName, selfId, hostId, members}` | 接纳，含完整成员快照 |
+| `room-reject` | 房主 → 成员 | `{type, reason}` | 拒绝（满员等） |
+| `room-member-join` | 房主 → 其他成员 | `{type, member}` | 成员加入通知 |
+| `room-member-leave` | 房主 → 其他成员 | `{type, memberId}` | 成员离开通知 |
+| `room-message` | 双向 | `{type, from?, data}` | 业务数据，`data` 为任意 JSON |
+| `room-closed` | 房主 → 成员 | `{type, reason}` | 解散（`closed`）/ 踢出（`kicked`） |
+
+### 生命周期
+
+```
+房主: createRoom(opts) → startListening(room:<svc>) → 等待入站
+        │ 入站 session → 读 room-join → welcome + 广播 member-join
+        │ 成员 session close → 移除 + 广播 member-leave
+        └─ close() → 广播 room-closed → 关闭全部 session → stopListening
+
+成员: joinRoom(peerId) → connect(room:<svc>) → 发 room-join → 等 welcome
+        │ 收 room-message / member-join / member-leave → 更新 members
+        │ 收 room-closed 或连接断开 → close 事件
+        └─ close() → 关闭 session（房主侧感知为成员离开）
+
+服务卸载 → destroyRoomForService(serviceId) 自动解散/离开
+```
+
+成员身份：成员 ID = 设备 ID（peerId）；同设备重复加入视为重连，旧 session 静默替换。
+
 ## API 速查
 
 ```js
@@ -228,6 +277,17 @@ await session.close()
 
 // 接受外来会话（自动，服务匹配成功即触发）
 __amiba__.network.onSession((session) => { /* 同上 */ })
+
+// 局域网房间（多人场景，宿主管理成员与广播）
+const room = await __amiba__.network.createRoom({ name: '对战房', maxMembers: 6 })  // 房主
+const room2 = await __amiba__.network.joinRoom(peerId, { name: '小红' })            // 成员
+room.broadcast({ type: 'state' })      // 房主广播
+room.sendTo(memberId, { ... })         // 房主定向
+room2.send({ type: 'ready' })          // 成员 → 房主
+room.on('member-join', ({ member, members }) => {})
+room.on('message', ({ from, data }) => {})
+room.on('close', ({ reason }) => {})   // 成员：closed | kicked | disconnected
+await room.close()                     // 房主解散 / 成员离开
 ```
 
 ## 限制与注意
@@ -247,3 +307,4 @@ __amiba__.network.onSession((session) => { /* 同上 */ })
 - **2025-08-18 (v4)**: Worker 管理 WebSocket 客户端导致连接状态不可见、双向需两条连接、Rust 和 Worker 各管一半。重构为 Rust 统一管理所有 WebSocket（`connect_async` + `accept_async`），前端通过 `NetworkSession` 抽象与连接交互。协议层移除，序列化由服务自行处理。
 - **2025-08-19 (解耦)**: `network.rs` 拆为 `network_visibility.rs`（UDP 发现 + 可见性编排）与 `network_session.rs`（TCP 监听 + WS 会话）。
 - **2025-08-20 (v5 服务匹配)**: 拆除打招呼机制的 PendingSession/accept/reject/session-request 等概念。hello 降级为纯传输层服务匹配：Rust 收到 hello 后自动检查 `listening_services`，匹配则发 ack 直接建 session，不匹配则自动 reject。`connect()` 去掉 `greeting` 参数，只保留 `serviceKey`。服务视角：`startListening → onSession`，无需手动确认。TCP 监听从 `setVisibility` 中剥离，由 `startListening`/`stopListening` 按引用计数管理。
+- **2026-07-25 (房间模型)**: 新增 RoomManager（`room-manager.ts`），在 NetworkSession 之上提供房主-成员星型房间抽象（`createRoom`/`joinRoom`/`broadcast`/`sendTo`/`kick`），服务无需自行实现成员管理与广播。房间服务键约定 `room:<serviceId>`；`network:session-created` 事件载荷新增 `service` 字段，前端按服务键路由入站会话（容器/房间/分享各认领所属），修复了分享会话泄漏到任意打开服务的问题。新增 `network_get_device_name` 命令用于房主默认显示名。

@@ -54,6 +54,13 @@ import {
   stopListening,
   onEvent,
 } from './network-bridge'
+import {
+  createRoom,
+  joinRoom,
+  getRoomById,
+  destroyRoomForService,
+  type Room,
+} from './room-manager'
 import { onServiceLoaded, onServiceUnloaded } from './widget-lifecycle'
 import {
   startService,
@@ -152,6 +159,26 @@ function loadWidgetsFromPackage(pkg: ServicePackage, permissions: string[]) {
     )
     console.log(`[ServiceContainer] Widget 已注册: ${config.id}`)
   }
+}
+
+/** 将房间事件转发到 iframe（room-event: { roomId, event, data }） */
+function forwardRoomEvents(room: Room) {
+  const fwd = (event: 'member-join' | 'member-leave' | 'message' | 'close') => {
+    room.on(event, (data: any) => {
+      ctx?.sendEvent('room-event', { roomId: room.id, event, data })
+    })
+  }
+  fwd('member-join')
+  fwd('member-leave')
+  fwd('message')
+  fwd('close')
+}
+
+/** 按 roomId 查找本服务的房间（防止跨服务访问） */
+function requireRoom(roomId: string): Room {
+  const room = getRoomById(roomId)
+  if (!room || room.serviceId !== serviceId.value) throw new Error('房间不存在')
+  return room
 }
 
 function makeApiHandler(): ApiHandler {
@@ -287,6 +314,47 @@ function makeApiHandler(): ApiHandler {
             await stopListening(params.serviceKey)
             listeningServiceKey.value = null
             console.log('[SvcContainer] 停止监听:', params.serviceKey)
+            return
+          }
+          // ---- 局域网房间 ----
+          case 'roomCreate': {
+            try {
+              const room = await createRoom(serviceId.value, params.opts || {})
+              forwardRoomEvents(room)
+              console.log('[SvcContainer] 房间已创建:', room.id, room.name)
+              return room.toInfo()
+            } catch (e: any) {
+              throw new Error(e?.message || String(e) || '创建房间失败')
+            }
+          }
+          case 'roomJoin': {
+            try {
+              const room = await joinRoom(serviceId.value, params.peerId, params.opts || {})
+              forwardRoomEvents(room)
+              console.log('[SvcContainer] 已加入房间:', room.id, room.name)
+              return room.toInfo()
+            } catch (e: any) {
+              throw new Error(e?.message || String(e) || '加入房间失败')
+            }
+          }
+          case 'roomSend': {
+            await requireRoom(params.roomId).send(params.data)
+            return
+          }
+          case 'roomBroadcast': {
+            await requireRoom(params.roomId).broadcast(params.data)
+            return
+          }
+          case 'roomSendTo': {
+            await requireRoom(params.roomId).sendTo(params.memberId, params.data)
+            return
+          }
+          case 'roomKick': {
+            await requireRoom(params.roomId).kick(params.memberId)
+            return
+          }
+          case 'roomClose': {
+            await requireRoom(params.roomId).close()
             return
           }
           default:
@@ -437,9 +505,12 @@ onMounted(async () => {
       // 仅外来 (inbound) session：创建 NetworkSession 并通知 iframe
       // 出站 session 已在 connect case 中处理，不再重复通知
       ctx!.addNetworkUnsub(
-        onEvent('session-created', (info: { sessionId: string; peerId: string; peerName: string; direction?: string }) => {
-          console.log('[SvcContainer] session-created dir=', info.direction, 'sid=', info.sessionId.slice(0,8), 'peer=', info.peerName)
+        onEvent('session-created', (info: { sessionId: string; peerId: string; peerName: string; direction?: string; service?: string }) => {
           if (info.direction !== 'inbound') return  // 出站 session 走 connect 返回值路径
+          // 按服务键路由：仅处理本服务 startListening 注册的会话；
+          // 房间（room:*）/ 服务分享等其他会话由各自模块认领
+          if (info.service !== listeningServiceKey.value) return
+          console.log('[SvcContainer] session-created sid=', info.sessionId.slice(0,8), 'peer=', info.peerName, 'service=', info.service)
           const session = createInboundSession(info)
           ctx!.addSession(info.sessionId)
           // 转发 session 事件到 iframe
@@ -460,6 +531,8 @@ onMounted(async () => {
 onUnmounted(() => {
   console.log("[Container] unloading service:", serviceId.value);
   onServiceUnloaded(serviceId.value)
+  // 自动清理本服务的活跃房间（解散/离开）
+  destroyRoomForService(serviceId.value).catch(() => {})
   // 自动清理本服务请求的监听
   if (listeningServiceKey.value) {
     stopListening(listeningServiceKey.value).catch(() => {})

@@ -155,9 +155,10 @@ export async function startReceiving(): Promise<void> {
   await startListening(SHARE_SERVICE_KEY)
   console.log('[ServiceShare] 开始监听分享请求')
 
-  // 监听新 session（由 Rust 层自动创建的上行连接）
-  const unsub = onEvent('session-created', async (info: { sessionId: string; peerId: string; peerName: string; direction?: string }) => {
+  // 监听新 session（由 Rust 层自动创建的上行连接，按服务键路由）
+  const unsub = onEvent('session-created', async (info: { sessionId: string; peerId: string; peerName: string; direction?: string; service?: string }) => {
     if (info.direction !== 'inbound') return
+    if (info.service !== SHARE_SERVICE_KEY) return
 
     console.log('[ServiceShare] 收到入站 session:', info.sessionId.slice(0, 8), '来自:', info.peerName)
     const session = createInboundSession(info)

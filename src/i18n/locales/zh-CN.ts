@@ -364,6 +364,8 @@ const zhCN: LocalesSchema = {
     installed: '已安装',
     updateAvailable: '可更新',
     installFailed: '安装失败',
+    root: '根目录',
+    folders: '文件夹',
   },
 }
 

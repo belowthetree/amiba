@@ -363,5 +363,7 @@ export interface LocalesSchema {
     installed: string
     updateAvailable: string
     installFailed: string
+    root: string
+    folders: string
   }
 }

@@ -270,6 +270,7 @@ async fn accept_inbound(
             "peerId": &peer_id,
             "peerName": &peer_name,
             "direction": "inbound",
+            "service": &service_key,
         }));
 
         spawn_session_io(ws, msg_rx, cancel_rx, session_id, peer_id, app, state);
@@ -430,6 +431,7 @@ pub async fn network_connect(
         "peerId": &peer_id,
         "peerName": &peer_name,
         "direction": "outbound",
+        "service": service_key.as_deref().unwrap_or(""),
     }));
 
     // Reunite 分片，启动双工 I/O

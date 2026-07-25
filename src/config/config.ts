@@ -28,7 +28,7 @@ const defaults: AppSettings = {
   log_max_size_mb: 10,
   prebuilt_services_installed: {},
   dismissed_update_version: '',
-  service_registry_url: '',
+  service_registry_url: 'https://gitee.com/belowthetree/servicehub',
 }
 
 export const settings = reactive<AppSettings>({ ...defaults })

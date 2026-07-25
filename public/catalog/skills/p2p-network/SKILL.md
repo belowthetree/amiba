@@ -1,6 +1,6 @@
 ---
 name: p2p-network
-description: Amiba 局域网 P2P 通信开发指南 — 设备发现、建立会话、收发消息的完整流程与注意事项
+description: Amiba 局域网通信开发指南 — 多人房间（createRoom/joinRoom）与 P2P 会话（设备发现、connect、收发消息）的完整流程与注意事项
 keywords:
   - 网络
   - P2P
@@ -12,14 +12,71 @@ keywords:
   - 消息
   - 发现设备
   - 互联
+  - 房间
+  - 多人
+  - 房主
+  - 广播
   - peer
   - session
   - network
+  - room
 ---
 
-# Amiba 局域网 P2P 通信指南 (p2p-network)
+# Amiba 局域网通信指南 (p2p-network)
 
-当服务需要在局域网内与其他设备通信时，使用 `__amiba__.network` API。核心模型：**UDP 发现设备 + 每个连接封装为 `NetworkSession`**。
+当服务需要在局域网内与其他设备通信时，使用 `__amiba__.network` API。两种模型按场景选择：
+
+- **多人房间（优先）**：`createRoom` / `joinRoom` — 房主-成员星型拓扑，成员管理、广播、断线清理由宿主完成，**无需自行维护 session 列表**。
+- **P2P 会话**：UDP 发现 + `connect` 建立 `NetworkSession` — 适用于一对一或需要完全自定义协议的场景。
+
+---
+
+## 0. 多人房间 API（房间/组队/广播场景优先使用）
+
+> 适用：聊天室、多人游戏、协作看板等「一个房主 + 多个成员」的场景。
+> 加入者与房主必须运行**相同服务**；同设备同服务同时只能有一个活跃房间。
+
+```js
+// ── 房主 ──
+const room = await __amiba__.network.createRoom({
+  name: '对战房',     // 可选，默认 "<主机名> 的房间"
+  hostName: '小明',   // 可选，默认设备主机名
+  maxMembers: 6,      // 可选，含房主，默认 8
+})
+// room: { id, name, isHost: true, selfId, hostId, members, broadcast, sendTo, kick, close, on }
+
+room.on('member-join', ({ member, members }) => { /* 新成员 */ })
+room.on('member-leave', ({ member, members }) => { /* 成员离开 */ })
+room.on('message', ({ from, data }) => { /* 成员 → 房主的消息 */ })
+
+await room.broadcast({ type: 'state', data: gameState })  // 广播全体
+await room.sendTo(memberId, { type: 'private' })          // 定向发送
+await room.kick(memberId)                                 // 踢出
+await room.close()                                        // 解散房间
+
+// ── 成员 ──
+await __amiba__.network.setVisibility({ lan: true })
+await __amiba__.network.startDiscovery('lan')
+const devices = await __amiba__.network.getVisibleDevices()  // 发现房主设备
+
+const room = await __amiba__.network.joinRoom(peerId, { name: '小红' })
+// 失败抛错：「该设备上没有可加入的房间」/「房间已满」/「加入房间超时」
+
+await room.send({ type: 'ready' })              // 发给房主（data 任意 JSON）
+room.on('message', ({ from, data }) => { /* 房主 broadcast / sendTo 的消息 */ })
+room.on('member-join', ({ member, members }) => { /* members 自动保持最新 */ })
+room.on('member-leave', ({ member, members }) => {})
+room.on('close', ({ reason }) => { /* closed | kicked | disconnected */ })
+await room.close()                              // 离开房间
+```
+
+**房间注意事项**：
+
+1. **不要混用 session API**：房间内部已管理监听与连接，房主无需 `startListening`，成员不要 `connect`。
+2. **`data` 必须可 JSON 序列化**（对象/数组/字符串/数字）。
+3. **群聊转发模式**：成员消息只到房主，需要群聊时由房主再 `broadcast`（把发送者名字放进 data）。
+4. `members` 含房主与自己，`isHost: true` 标记房主；事件回调始终携带最新 `members` 快照。
+5. 完整参考见内置文档 `room.md`。
 
 ---
 

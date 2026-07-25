@@ -112,6 +112,79 @@ export const BRIDGE_SCRIPT = `
     return proxy;
   }
 
+  // ---- 房间事件分发 ----
+  var roomCallbacks = {}; // roomId → { eventName: [handler] }
+  var roomProxies = {};   // roomId → proxy object
+
+  function getRoomCallbacks(rid, event) {
+    if (!roomCallbacks[rid]) roomCallbacks[rid] = {};
+    if (!roomCallbacks[rid][event]) roomCallbacks[rid][event] = [];
+    return roomCallbacks[rid][event];
+  }
+
+  // 监听 host 推送的 room-event
+  window.addEventListener('message', function(event) {
+    var data = event.data;
+    if (!data || data.type !== 'event' || data.name !== 'room-event') return;
+    var payload = data.data; // { roomId, event, data }
+    if (!payload || !payload.roomId) return;
+    var proxy = roomProxies[payload.roomId];
+    // 自动同步成员列表快照（member-join / member-leave 事件携带 members）
+    if (proxy && payload.data && payload.data.members) {
+      proxy.members = payload.data.members;
+    }
+    var cbs = roomCallbacks[payload.roomId];
+    if (!cbs) return;
+    var handlers = cbs[payload.event];
+    if (handlers) {
+      for (var i = 0; i < handlers.length; i++) {
+        try { handlers[i](payload.data); } catch(e) { console.warn('[room-event]', e); }
+      }
+    }
+  });
+
+  function createRoomProxy(info) {
+    if (roomProxies[info.roomId]) return roomProxies[info.roomId];
+    var proxy = {
+      id: info.roomId,
+      name: info.name,
+      isHost: info.isHost,
+      selfId: info.selfId,
+      hostId: info.hostId,
+      members: info.members || [],
+      // 成员 → 房主
+      send: function(data) {
+        return callHost('network', 'roomSend', { roomId: info.roomId, data: data });
+      },
+      // 房主 → 全体广播
+      broadcast: function(data) {
+        return callHost('network', 'roomBroadcast', { roomId: info.roomId, data: data });
+      },
+      // 房主 → 指定成员
+      sendTo: function(memberId, data) {
+        return callHost('network', 'roomSendTo', { roomId: info.roomId, memberId: memberId, data: data });
+      },
+      // 房主：踢出成员
+      kick: function(memberId) {
+        return callHost('network', 'roomKick', { roomId: info.roomId, memberId: memberId });
+      },
+      // 房主解散房间 / 成员离开房间
+      close: function() {
+        return callHost('network', 'roomClose', { roomId: info.roomId });
+      },
+      on: function(event, handler) {
+        getRoomCallbacks(info.roomId, event).push(handler);
+        return function() {
+          var arr = getRoomCallbacks(info.roomId, event);
+          var idx = arr.indexOf(handler);
+          if (idx >= 0) arr.splice(idx, 1);
+        };
+      }
+    };
+    roomProxies[info.roomId] = proxy;
+    return proxy;
+  }
+
   window.__amiba__ = {
     storage: {
       set: function(key, data) { return callHost('storage', 'setStorage', { key: key, data: data, serviceId: window.__amiba_service_id__ || undefined }); },
@@ -171,6 +244,27 @@ export const BRIDGE_SCRIPT = `
       stopListening: function(serviceKey) {
         console.log('[JSBridge] stopListening:', serviceKey);
         return callHost('network', 'stopListening', { serviceKey: serviceKey });
+      },
+
+      // ---- 局域网房间 API ----
+      // 房主创建房间，等待其他设备 joinRoom；星型通信，成员管理由宿主负责
+      createRoom: function(opts) {
+        console.log('[JSBridge] createRoom:', opts);
+        return callHost('network', 'roomCreate', { opts: opts || {} }).then(function(info) {
+          if (!info || !info.roomId) {
+            throw new Error('创建房间失败');
+          }
+          return createRoomProxy(info);
+        });
+      },
+      joinRoom: function(peerId, opts) {
+        console.log('[JSBridge] joinRoom ->', peerId);
+        return callHost('network', 'roomJoin', { peerId: peerId, opts: opts || {} }).then(function(info) {
+          if (!info || !info.roomId) {
+            throw new Error('加入房间失败');
+          }
+          return createRoomProxy(info);
+        });
       }
     },
     background: {

@@ -97,6 +97,15 @@ Widget 也可以通过服务目录下的 `widget.json` 声明式配置，服务�
 | `sessionClose` | `{ sessionId: string }` | `void` | network |
 | `startListening` | `{ serviceKey: string }` | `void` | network |
 | `stopListening` | `{ serviceKey: string }` | `void` | network |
+| `roomCreate` | `{ opts: { name?, hostName?, maxMembers? } }` | `RoomInfo` — Promise | network |
+| `roomJoin` | `{ peerId: string, opts: { name? } }` | `RoomInfo` — Promise | network |
+| `roomSend` | `{ roomId: string, data: any }` | `void` — 成员 → 房主 | network |
+| `roomBroadcast` | `{ roomId: string, data: any }` | `void` — 房主 → 全体 | network |
+| `roomSendTo` | `{ roomId: string, memberId: string, data: any }` | `void` — 房主 → 单人 | network |
+| `roomKick` | `{ roomId: string, memberId: string }` | `void` | network |
+| `roomClose` | `{ roomId: string }` | `void` — 房主解散 / 成员离开 | network |
+
+`RoomInfo` = `{ roomId, name, isHost, selfId, hostId, members: [{id, name, isHost}] }`，iframe 内构造 room 代理（members 随 room-event 自动同步）。房间协议与模型详见 [网络互联](network.md)「房间模型」。
 
 **Session 对象**（`connect()` 返回 / `onSession()` 接收）：
 
@@ -115,8 +124,9 @@ Widget 也可以通过服务目录下的 `widget.json` 声明式配置，服务�
 | 事件名 | 触发时机 | data |
 |--------|----------|------|
 | `peer-discovered` | 发现新设备 | `{ id, name, transport, address }` |
-| `session-created` | 外来连接建立 | `{ sessionId, peerId, peerName }` — iframe 内构造 session 代理 |
+| `session-created` | 外来连接建立 | `{ sessionId, peerId, peerName, service }` — iframe 内构造 session 代理；`service` 用于宿主按服务键路由 |
 | `session-event` | session 消息/关闭 | `{ sessionId, event, data }` — 内部路由到对应 session 的 on() 回调 |
+| `room-event` | 房间成员/消息/关闭 | `{ roomId, event, data }` — event: `member-join`/`member-leave`/`message`/`close`，路由到对应 room 的 on() 回调 |
 
 ### background
 
