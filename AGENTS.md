@@ -166,6 +166,7 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
   - `theme/{name}/` — 主题目录（variables.json + custom.css）；`theme/slots/` — 插槽 HTML
   - `logs/` — 前端日志文件（JSON Lines，按大小轮转，设置页可查看/过滤/导出）
 - **Android 源码:** Kotlin 类在 `src-tauri/gen/android/app/src/main/java/com/amiba/desktop/MainActivity.kt`（`JsCallback` + `WebViewHelper` + `FolderPickerHelper`（已废弃，文件夹选取已迁移至 `tauri-plugin-android-fs`））；`setupWindowInsets()` 处理 edge-to-edge 下的状态栏/导航栏/软键盘遮挡；`tauri android init` 会重置 `gen/android`，自定义代码需在重置后重新写入
+- **Android 启动图标:** `tauri icon` 生成的自适应图标前景是满幅的，会被启动器圆形/圆角遮罩放大裁切；`src-tauri/scripts/gen_android_icons.py`（需 Python + PIL）把 `icons/icon.png` 缩到画布 60% 安全区居中，重新生成各密度 `ic_launcher_foreground.png`；`tauri android init` 重置后需重跑该脚本
 - **Storage auto-mkdir:** `storageSet` creates parent directories automatically before writing
 - **JSON pretty-print:** all `storageSetJSON` writes use 2-space indentation
 - **Real-time save:** chat history saves on every message with 300ms debounce; `/new` flushes before switching

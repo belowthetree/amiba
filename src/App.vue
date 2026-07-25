@@ -483,6 +483,8 @@ onUnmounted(() => {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  /* 关闭 Android WebView 点击时的绿色高亮方块 */
+  -webkit-tap-highlight-color: transparent;
 }
 
 html,
