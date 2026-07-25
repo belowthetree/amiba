@@ -19,11 +19,20 @@
 
 ## Screenshots
 
-| AI Chat | Services |
-|:---:|:---:|
-| ![AI Chat](./docs/screenshots/chat.png) | ![Services](./docs/screenshots/services.png) |
-| **Service Runtime** | **Settings & Themes** |
-| ![Service Runtime](./docs/screenshots/service-detail.png) | ![Settings & Themes](./docs/screenshots/settings.png) |
+<table align="center">
+  <tr>
+    <td><img src="./docs/screenshots/chat.png" width="200" alt="AI Chat"></td>
+    <td><img src="./docs/screenshots/services.png" width="200" alt="Services"></td>
+    <td><img src="./docs/screenshots/service-detail.png" width="200" alt="Service Runtime"></td>
+    <td><img src="./docs/screenshots/settings.png" width="200" alt="Settings"></td>
+  </tr>
+  <tr>
+    <td align="center">AI Chat</td>
+    <td align="center">Services</td>
+    <td align="center">Service Runtime</td>
+    <td align="center">Settings</td>
+  </tr>
+</table>
 
 ## Tech Stack
 

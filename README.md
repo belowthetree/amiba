@@ -19,11 +19,20 @@
 
 ## 截图
 
-| AI 对话 | 服务浏览 |
-|:---:|:---:|
-| ![AI 对话](./docs/screenshots/chat.png) | ![服务浏览](./docs/screenshots/services.png) |
-| **服务运行** | **设置与主题** |
-| ![服务运行](./docs/screenshots/service-detail.png) | ![设置与主题](./docs/screenshots/settings.png) |
+<table align="center">
+  <tr>
+    <td><img src="./docs/screenshots/chat.png" width="200" alt="AI 对话"></td>
+    <td><img src="./docs/screenshots/services.png" width="200" alt="服务浏览"></td>
+    <td><img src="./docs/screenshots/service-detail.png" width="200" alt="服务运行"></td>
+    <td><img src="./docs/screenshots/settings.png" width="200" alt="设置"></td>
+  </tr>
+  <tr>
+    <td align="center">AI 对话</td>
+    <td align="center">服务浏览</td>
+    <td align="center">服务运行</td>
+    <td align="center">设置</td>
+  </tr>
+</table>
 
 ## 技术栈
 
