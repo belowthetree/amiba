@@ -58,7 +58,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, watch, ref, shallowRef, defineAsyncComponent, reactive } from 'vue'
+import { computed, onMounted, onUnmounted, watch, ref, shallowRef, defineAsyncComponent, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import FloatingWidgetContainer from './host/floating-widget-container.vue'
 import WebviewOverlay from './components/WebviewOverlay.vue'
@@ -191,15 +191,20 @@ function sideTarget(dir: number): string {
 }
 
 function onSwipeStart(e: TouchEvent) {
+  const t = e.touches[0]
+  beginSwipe(t.clientX, t.clientY)
+}
+
+// 手势起始（宿主触摸与快捷页 iframe 转发共用）
+function beginSwipe(x: number, y: number) {
   // 如果正在做 CSS 过渡动画，取消它
   if (swipeAnimating.value) {
     cancelSwipeAnimation()
   }
   swipeCommitSeq++ // 使上一次提交遗留的待执行回调失效
 
-  const t = e.touches[0]
-  swipeStartX = t.clientX
-  swipeStartY = t.clientY
+  swipeStartX = x
+  swipeStartY = y
   swipeLastX = swipeStartX
   swipeOffsetX.value = 0
   swipeSide = 0
@@ -212,8 +217,13 @@ function onSwipeStart(e: TouchEvent) {
 
 function onSwipeMove(e: TouchEvent) {
   const t = e.touches[0]
-  const dx = t.clientX - swipeStartX
-  const dy = t.clientY - swipeStartY
+  trackSwipe(t.clientX, t.clientY, () => e.preventDefault())
+}
+
+// 手势移动：prevent 用于宿主触摸阻止默认滚动，iframe 转发场景无事件可阻止则不传
+function trackSwipe(x: number, y: number, prevent?: () => void) {
+  const dx = x - swipeStartX
+  const dy = y - swipeStartY
 
   // 未激活时：超过最小位移且明显偏水平才进入滑动模式；偏垂直让位给页面滚动
   if (!isSwiping.value) {
@@ -237,9 +247,9 @@ function onSwipeMove(e: TouchEvent) {
 
   // 采样最近 ~120ms 位移，估算松手瞬间速度
   const now = Date.now()
-  moveSamples.push({ t: now, x: t.clientX })
+  moveSamples.push({ t: now, x })
   while (moveSamples.length > 2 && now - moveSamples[0].t > 120) moveSamples.shift()
-  swipeLastX = t.clientX
+  swipeLastX = x
 
   // 偏移：有目标时 1:1 跟手（限幅一屏）；到边缘时橡皮筋阻尼，松手回弹
   const w = screenW()
@@ -248,10 +258,10 @@ function onSwipeMove(e: TouchEvent) {
   } else {
     swipeOffsetX.value = Math.max(-EDGE_MAX, Math.min(EDGE_MAX, dx * EDGE_DAMP))
   }
-  e.preventDefault()
+  prevent?.()
 }
 
-function onSwipeEnd(_e: TouchEvent) {
+function onSwipeEnd(_e?: TouchEvent) {
   if (!isSwiping.value) return
   isSwiping.value = false
 
@@ -334,6 +344,19 @@ function resetSwipeState() {
   hidePreview()
 }
 
+// ==== 快捷页 iframe 触摸转发 ====
+// iframe 内的触摸事件不会冒泡到宿主文档，快捷页通过 postMessage 转发触摸坐标，
+// 这里把转发坐标喂回同一套手势逻辑，使快捷页也能滑动切换页面
+function onIframeTouchMessage(e: MessageEvent) {
+  const d = e.data as { type?: string; phase?: string; x?: unknown; y?: unknown } | null
+  if (!d || d.type !== 'amiba-quick-touch') return
+  if (route.name !== 'quick') return
+  if (typeof d.x !== 'number' || typeof d.y !== 'number') return
+  if (d.phase === 'start') beginSwipe(d.x, d.y)
+  else if (d.phase === 'move') trackSwipe(d.x, d.y)
+  else if (d.phase === 'end') onSwipeEnd()
+}
+
 // 页面过渡完成回调：重置主容器滚动位置；手势提交后在此复位位移（新页挂载后再归零，避免旧页闪回）
 function onPageEntered() {
   if (mainRef.value) mainRef.value.scrollTop = 0
@@ -400,8 +423,13 @@ function injectThemeStyles() {
 onMounted(() => {
   injectThemeStyles()
   watch(() => ({ ...themeState.variables, css: themeState.customCSS }), injectThemeStyles, { deep: true })
+  window.addEventListener('message', onIframeTouchMessage)
   // 启动后延时检查更新（避免阻塞首屏）
   setTimeout(() => checkUpdateBanner(), 2000)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('message', onIframeTouchMessage)
 })
 </script>
 

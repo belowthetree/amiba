@@ -28,11 +28,34 @@ const content = ref('')
 
 // 注入最小 __amiba__ 垫片：让嵌入内容里的“打开完整服务”等按钮能跳转宿主路由。
 // 只提供 navigateTo，不包含 storage 等桥接模块，服务代码会继续走 localStorage 回退。
+// 同时把 iframe 内的单指触摸坐标转发给宿主（iframe 触摸不会冒泡到父文档），
+// 宿主 App.vue 据此驱动页面切换手势；监听为 passive，不干扰嵌入内容自身的交互。
 const BRIDGE_SHIM = `<script>
 window.__amiba__ = window.__amiba__ || {};
 window.__amiba__.navigateTo = function (path) {
   window.parent.postMessage({ type: 'amiba-quick-navigate', path: path }, '*');
 };
+(function () {
+  var tracking = false;
+  function send(phase, t) {
+    window.parent.postMessage({ type: 'amiba-quick-touch', phase: phase, x: t.clientX, y: t.clientY }, '*');
+  }
+  document.addEventListener('touchstart', function (e) {
+    if (e.touches.length !== 1) { tracking = false; return; }
+    tracking = true;
+    send('start', e.touches[0]);
+  }, { passive: true });
+  document.addEventListener('touchmove', function (e) {
+    if (tracking && e.touches.length === 1) send('move', e.touches[0]);
+  }, { passive: true });
+  function end(e) {
+    if (!tracking) return;
+    tracking = false;
+    send('end', e.changedTouches[0]);
+  }
+  document.addEventListener('touchend', end, { passive: true });
+  document.addEventListener('touchcancel', end, { passive: true });
+})();
 <\/script>`
 
 const srcdoc = computed(() => BRIDGE_SHIM + content.value)
