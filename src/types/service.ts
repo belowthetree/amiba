@@ -13,7 +13,16 @@ export interface ServiceManifest {
   permissions: Permission[]
 }
 
-export type Permission = 'storage' | 'notification' | 'widgets' | 'network' | 'background' | 'fileAccess' | 'fetch'
+export type Permission = 'storage' | 'notification' | 'widgets' | 'network' | 'background' | 'fileAccess' | 'fetch' | 'ai'
+
+// --- Service AI Config ---
+
+/** 服务的 AI 对话配置（manifest 声明 ai 权限后生效） */
+export interface ServiceAiConfig {
+  enabled: boolean
+  /** 启用的工具名列表；undefined = 默认（全部只读工具） */
+  tools?: string[]
+}
 
 // --- Background Service Config ---
 
@@ -40,6 +49,7 @@ export interface ServiceEntry {
   backgroundEnabled?: boolean    // 用户是否启用了后台运行
   backgroundConfig?: BackgroundConfig | null  // 来自 background.json 的配置
   backgroundState?: 'running' | 'stopped' | 'error'  // 当前后台运行状态
+  aiConfig?: ServiceAiConfig      // AI 对话配置（声明 ai 权限后生效，缺省 = 启用且仅只读工具）
 }
 
 // --- Catalog Types ---
@@ -102,7 +112,7 @@ export interface ServicePackage {
 
 export interface ServiceRequest {
   type: 'api'
-  module: 'storage' | 'notification' | 'ui' | 'task' | 'widgets' | 'network' | 'background' | 'fileAccess' | 'fetch'
+  module: 'storage' | 'notification' | 'ui' | 'task' | 'widgets' | 'network' | 'background' | 'fileAccess' | 'fetch' | 'ai'
   method: string
   params: Record<string, any>
   requestId: string
@@ -117,7 +127,7 @@ export interface ServiceResponse {
 
 export interface HostEvent {
   type: 'event'
-  name: 'page-show' | 'page-hide' | 'task-trigger' | 'peer-discovered' | 'peer-lost' | 'session-created' | 'session-event' | 'room-event'
+  name: 'page-show' | 'page-hide' | 'task-trigger' | 'peer-discovered' | 'peer-lost' | 'session-created' | 'session-event' | 'room-event' | 'ai-event'
   data?: any
 }
 

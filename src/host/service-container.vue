@@ -75,6 +75,14 @@ import {
   readTextFile,
   readBinaryFile,
 } from './file-access-grants'
+import {
+  createServiceConversation,
+  sendServiceConversationMessage,
+  abortServiceConversation,
+  closeServiceConversation,
+  detachServiceAi,
+} from '../ai/service-ai'
+import type { ServiceAiEvent } from '../ai/service-ai'
 import type { ApiHandler } from './bridge'
 import type { ServicePackage, FloatingWidgetManifest } from '../types/service'
 
@@ -92,6 +100,9 @@ const listeningServiceKey = ref<string | null>(null)
 
 /** 统一管理本服务的运行时资源 */
 let ctx: ServiceContext | null = null
+
+/** AI 对话事件出口（稳定引用：容器卸载时 detachServiceAi 按此标识断开，事件经 bridge 推入 iframe） */
+const aiSink = (payload: ServiceAiEvent) => ctx?.sendEvent('ai-event', payload)
 
 const serviceId = computed(() => {
   const id = route.params.serviceId as string
@@ -411,6 +422,24 @@ function makeApiHandler(): ApiHandler {
             throw new Error(`Unknown fetch method: ${method}`)
         }
       }
+      case 'ai': {
+        // 事件经 aiSink → bridge.sendEvent('ai-event') 推入 iframe
+        switch (method) {
+          case 'createConversation':
+            return createServiceConversation(serviceId.value, params.opts || {}, aiSink)
+          case 'send':
+            await sendServiceConversationMessage(serviceId.value, params.conversationId, params.text)
+            return
+          case 'abort':
+            abortServiceConversation(serviceId.value, params.conversationId)
+            return
+          case 'close':
+            closeServiceConversation(serviceId.value, params.conversationId)
+            return
+          default:
+            throw new Error(`Unknown ai method: ${method}`)
+        }
+      }
       default:
         throw new Error(`Unknown module: ${module}`)
     }
@@ -539,6 +568,8 @@ onUnmounted(() => {
   }
   // 注销前台消息处理器
   registerForegroundHandler(serviceId.value, null)
+  // 断开本容器的 AI 会话事件出口（中止生成，历史保留供原 id 恢复）
+  detachServiceAi(serviceId.value, aiSink)
   ctx?.destroy()
   ctx = null
 })

@@ -36,6 +36,12 @@ export interface StreamChatOptions {
   abortSignal?: AbortSignal
   /** 额外注入的 system prompt 内容（追加在 stable+volatile 之后） */
   extraInstructions?: string
+  /** 完整覆盖 system prompt（跳过 buildSystemPrompt，用于服务内嵌对话等非主聊天场景） */
+  systemPromptOverride?: string
+  /** 跳过记忆检查点消费（非主聊天场景必须 true，避免偷走主聊天的检查点） */
+  skipMemoryCheckpoint?: boolean
+  /** 工具名白名单过滤（在 enabledToolsets 解析结果上再求交集，用于服务场景的最小授权） */
+  allowedTools?: string[]
 }
 
 const DEFAULT_OPTIONS = {
@@ -98,29 +104,31 @@ export async function* streamChat(
   const { model: languageModel, providerName } = createModelFromConfig(baseUrl, apiKey, modelName)
 
   // === AI SDK: 构建工具 ===
-  const tools = toAISdkTools(opts.enabledToolsets)
+  const tools = toAISdkTools(opts.enabledToolsets, opts.allowedTools)
   const hasTools = Object.keys(tools).length > 0
 
   // === 推理强度 ===
   const reasoningEffort = customAgent?.reasoning_effort || s.reasoning_effort
 
-  // === 构建 system prompt ===
-  let systemContent = buildSystemPrompt({
+  // === 构建 system prompt（服务场景可整体覆盖，避开主聊天的 stable 缓存） ===
+  let systemContent = opts.systemPromptOverride ?? buildSystemPrompt({
     enabledToolsets: opts.enabledToolsets,
     turnCount: opts.turnCount,
   })
 
-  // 记忆检查点：/new 后首次对话时注入上一会话片段
-  const checkpoint = await consumeMemoryCheckpointPrompt()
-  if (checkpoint) {
-    console.log('[Agent] 📋 记忆检查点已注入 —', checkpoint.length, '字符')
-    systemContent +=
-      '\n\n' +
-      '=== 记忆检查点 ===\n' +
-      '以下是你上一次会话的对话片段。请回顾其中是否有值得长期保存的信息（用户偏好、重要决策、待办事项等），如有请使用 memory 工具保存：\n\n' +
-      checkpoint +
-      '\n\n' +
-      '请在回复用户之前先处理记忆保存（如果发现有价值信息的话）。'
+  // 记忆检查点：/new 后首次对话时注入上一会话片段（仅主聊天场景消费）
+  if (!opts.skipMemoryCheckpoint) {
+    const checkpoint = await consumeMemoryCheckpointPrompt()
+    if (checkpoint) {
+      console.log('[Agent] 📋 记忆检查点已注入 —', checkpoint.length, '字符')
+      systemContent +=
+        '\n\n' +
+        '=== 记忆检查点 ===\n' +
+        '以下是你上一次会话的对话片段。请回顾其中是否有值得长期保存的信息（用户偏好、重要决策、待办事项等），如有请使用 memory 工具保存：\n\n' +
+        checkpoint +
+        '\n\n' +
+        '请在回复用户之前先处理记忆保存（如果发现有价值信息的话）。'
+    }
   }
 
   // 自定义 Agent 的 System Prompt 注入

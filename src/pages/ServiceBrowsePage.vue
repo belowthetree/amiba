@@ -14,6 +14,9 @@
     <!-- 分享弹窗 -->
     <ShareDialog v-model="showShareDialog" />
 
+    <!-- AI 对话设置弹窗 -->
+    <ServiceAiSettingsDialog v-if="aiSettingsSvc" :service="aiSettingsSvc" @close="aiSettingsSvc = null" />
+
     <!-- 插槽: services.above-list -->
     <SlotRenderer name="services.above-list" :html="slotHtml('services.above-list')" />
 
@@ -47,6 +50,7 @@
               />
               <span class="toggle-slider"></span>
             </label>
+            <button class="action-icon" @click="openAiSettings(svc)" :title="$t('services.ai.title')">🤖</button>
             <button class="action-icon" @click="deleteService(svc)" title="删除">🗑</button>
           </div>
         </div>
@@ -62,6 +66,7 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import ShareDialog from './ShareDialog.vue'
+import ServiceAiSettingsDialog from '../components/ServiceAiSettingsDialog.vue'
 import {
   BUILTIN_SERVICES,
   getUserServices,
@@ -88,6 +93,13 @@ const { t } = useI18n()
 const slotHtml = (name: string) => themeState.slots[name] || ''
 
 const showShareDialog = ref(false)
+
+/** 当前打开 AI 设置的服务（null = 关闭弹窗） */
+const aiSettingsSvc = ref<ServiceEntry | null>(null)
+
+function openAiSettings(svc: ServiceEntry) {
+  aiSettingsSvc.value = svc
+}
 
 const userServices = computed(() => getUserServices())
 

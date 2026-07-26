@@ -12,7 +12,7 @@ JSBridge 是宿主（Vue SPA）与用户服务（iframe）之间的唯一通信�
 // 服务 → 宿主 请求
 interface ServiceRequest {
   type: 'api'
-  module: string          // storage | notification | ui | widgets | network | background | fileAccess | fetch
+  module: string          // storage | notification | ui | widgets | network | background | fileAccess | fetch | ai
   method: string          // setStorage | showToast | navigateTo | ...
   params: Record<string, any>
   requestId: string       // UUID，用于匹配响应
@@ -29,7 +29,7 @@ interface ServiceResponse {
 // 宿主 → 服务 事件推送
 interface HostEvent {
   type: 'event'
-  name: string            // page-show | page-hide | task-trigger | peer-discovered | peer-lost | session-created | session-event
+  name: string            // page-show | page-hide | task-trigger | peer-discovered | peer-lost | session-created | session-event | ai-event
   data?: any
 }
 ```
@@ -181,6 +181,23 @@ HTTP 请求代理（Rust reqwest 实现），绕过浏览器 CORS 和移动端�
 - 超时 10 秒，User-Agent 固定为 `AmibaService/1.0`
 - 响应 body 一律为字符串（JSON 需自行 `JSON.parse`）
 
+### ai
+
+服务内嵌 AI 对话：宿主侧 ServiceAiRunner 执行（API Key 与工具执行均在宿主侧），桥调用立即返回 ack，生成内容经 `ai-event` 事件流式推送。默认仅只读工具可用，敏感工具由用户在服务设置中逐服务开启。
+
+| 方法 | 参数 | 返回 | 权限 |
+|------|------|------|------|
+| `createConversation` | `{ opts: { conversationId?: string, system?: string } }` | `{ conversationId, resumed }` — Promise，iframe 内构造会话代理 | ai |
+| `send` | `{ conversationId: string, text: string }` | `void` | ai |
+| `abort` | `{ conversationId: string }` | `void` | ai |
+| `close` | `{ conversationId: string }` | `void` — 销毁会话，释放宿主侧历史 | ai |
+
+**事件**（通过 `HostEvent` 推送到 iframe）：
+
+| 事件名 | 触发时机 | data |
+|--------|----------|------|
+| `ai-event` | AI 会话流式输出 | `{ conversationId, event, data }` — event: `chunk`/`reasoning`/`tool`/`done`/`error`，路由到对应会话代理的 on() 回调 |
+
 ## 服务内全局注入
 
 宿主在 iframe 加载完成后注入 `window.__amiba__` 对象，封装 postMessage 为 Promise 风格：
@@ -274,7 +291,7 @@ Widget/后台 iframe                 宿主 (Vue SPA)
      │                                │
 ```
 
-**Widget 现在支持全部 8 个模块**（storage / notification / ui / widgets / network / background / fileAccess / fetch），与服务 iframe 能力一致。唯一的区别是 widget 无 `allow-same-origin` 沙箱属性，无法加载宿主同源脚本。
+**Widget 现在支持全部 9 个模块**（storage / notification / ui / widgets / network / background / fileAccess / fetch / ai），与服务 iframe 能力一致。唯一的区别是 widget 无 `allow-same-origin` 沙箱属性，无法加载宿主同源脚本。
 
 ## 安全措施
 

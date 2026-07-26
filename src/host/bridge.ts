@@ -185,6 +185,58 @@ export const BRIDGE_SCRIPT = `
     return proxy;
   }
 
+  // ---- AI 对话事件分发 ----
+  var aiCallbacks = {}; // conversationId → { eventName: [handler] }
+
+  function getAiCallbacks(cid, event) {
+    if (!aiCallbacks[cid]) aiCallbacks[cid] = {};
+    if (!aiCallbacks[cid][event]) aiCallbacks[cid][event] = [];
+    return aiCallbacks[cid][event];
+  }
+
+  // 监听 host 推送的 ai-event
+  window.addEventListener('message', function(event) {
+    var data = event.data;
+    if (!data || data.type !== 'event' || data.name !== 'ai-event') return;
+    var payload = data.data; // { conversationId, event, data }
+    if (!payload || !payload.conversationId) return;
+    var cbs = aiCallbacks[payload.conversationId];
+    if (!cbs) return;
+    var handlers = cbs[payload.event];
+    if (handlers) {
+      for (var i = 0; i < handlers.length; i++) {
+        try { handlers[i](payload.data); } catch(e) { console.warn('[ai-event]', e); }
+      }
+    }
+  });
+
+  function createAiConversationProxy(cid, resumed) {
+    var proxy = {
+      id: cid,
+      resumed: !!resumed,
+      send: function(text) {
+        return callHost('ai', 'send', { conversationId: cid, text: text });
+      },
+      abort: function() {
+        return callHost('ai', 'abort', { conversationId: cid });
+      },
+      close: function() {
+        var p = callHost('ai', 'close', { conversationId: cid });
+        delete aiCallbacks[cid];
+        return p;
+      },
+      on: function(event, handler) {
+        getAiCallbacks(cid, event).push(handler);
+        return function() {
+          var arr = getAiCallbacks(cid, event);
+          var idx = arr.indexOf(handler);
+          if (idx >= 0) arr.splice(idx, 1);
+        };
+      }
+    };
+    return proxy;
+  }
+
   window.__amiba__ = {
     storage: {
       set: function(key, data) { return callHost('storage', 'setStorage', { key: key, data: data, serviceId: window.__amiba_service_id__ || undefined }); },
@@ -303,6 +355,18 @@ export const BRIDGE_SCRIPT = `
         });
       },
     },
+    ai: {
+      // AI 对话：创建（或传入 conversationId 恢复）会话，返回会话代理。
+      // conv.on('chunk'|'reasoning'|'tool'|'done'|'error', handler)
+      createConversation: function(opts) {
+        return callHost('ai', 'createConversation', { opts: opts || {} }).then(function(info) {
+          if (!info || !info.conversationId) {
+            throw new Error('创建 AI 会话失败');
+          }
+          return createAiConversationProxy(info.conversationId, info.resumed);
+        });
+      },
+    },
   };
 })();
 
@@ -350,6 +414,10 @@ export function createBridge(
     }
     if (req.module === 'fetch' && !allowedPermissions.includes('fetch')) {
       sendResponse(req.requestId, undefined, 'Permission denied: fetch')
+      return
+    }
+    if (req.module === 'ai' && !allowedPermissions.includes('ai')) {
+      sendResponse(req.requestId, undefined, 'Permission denied: ai')
       return
     }
 

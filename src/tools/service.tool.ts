@@ -141,7 +141,7 @@ toolRegistry.register({
 // service_create — 创建新服务骨架
 // ================================================================
 
-const VALID_PERMISSIONS = ['storage', 'notification', 'widgets', 'network', 'fetch']
+const VALID_PERMISSIONS = ['storage', 'notification', 'widgets', 'network', 'background', 'fileAccess', 'fetch', 'ai']
 const VALID_ID_REGEX = /^[a-z0-9._-]+$/
 
 toolRegistry.register({
@@ -182,10 +182,10 @@ toolRegistry.register({
           permissions: {
             type: 'array',
               description:
-                '需要的权限列表。storage=数据持久化，notification=Toast通知，widgets=悬浮块，network=局域网P2P通信，fetch=HTTP请求代理（绕过CORS）。多人/协作/聊天场景需要 network。',
+                '需要的权限列表。storage=数据持久化，notification=Toast通知，widgets=悬浮块，network=局域网P2P通信，background=后台运行，fileAccess=文件访问，fetch=HTTP请求代理（绕过CORS），ai=服务内嵌AI对话。多人/协作/聊天场景需要 network。',
             items: {
               type: 'string',
-              enum: ['storage', 'notification', 'widgets', 'network', 'fetch'],
+              enum: ['storage', 'notification', 'widgets', 'network', 'background', 'fileAccess', 'fetch', 'ai'],
             },
           },
         },

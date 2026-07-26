@@ -69,7 +69,7 @@
           <div class="input-panel-inner">
             <button class="panel-btn" :title="$t('chat.newSession')" @click="doNewSession(); panelOpen = false">＋</button>
             <button class="panel-btn" :title="$t('chat.stats.title')" @click="showStats = true; panelOpen = false">📊</button>
-            <button class="panel-btn" :title="$t('chat.sessions')" @click="showSessions = !showSessions; panelOpen = false">🗂️</button>
+            <button class="panel-btn" :title="$t('chat.sessions')" @click.stop="showSessions = !showSessions; panelOpen = false">🗂️</button>
           </div>
         </div>
 
@@ -360,6 +360,11 @@ async function doDeleteSession(id: string) {
   scrollToBottom()
 }
 
+/** 点击空白处关闭会话列表（下拉层与打开按钮均有 @click.stop，不会冒泡误触发） */
+function closeSessionDropdown() {
+  showSessions.value = false
+}
+
 // ==== 中断恢复：内联刷新 ====
 
 async function doRetry() {
@@ -473,6 +478,9 @@ onMounted(async () => {
 
   // 回前台时重新检查（组件已挂载，onMounted 不会再次触发）
   document.addEventListener('visibilitychange', onVisibilityChange)
+
+  // 点击空白处关闭会话列表下拉层
+  document.addEventListener('click', closeSessionDropdown)
 })
 
 // 离开聊天页时清除残留错误提示（errorMsg 为会话级状态，不清理会跨页面驻留）
@@ -481,6 +489,7 @@ onUnmounted(() => {
   window.visualViewport?.removeEventListener('resize', syncKeyboardInset)
   window.visualViewport?.removeEventListener('scroll', syncKeyboardInset)
   document.removeEventListener('visibilitychange', onVisibilityChange)
+  document.removeEventListener('click', closeSessionDropdown)
 })
 
 watch(

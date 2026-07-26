@@ -151,9 +151,37 @@ __amiba__.background.on('tick', async () => {
 |------|------|------|------|
 | `request(opts)` | `{ url, method?, headers?, body? }` | `Promise<{status, body}>` | 代理 HTTP 请求（绕过 CORS） |
 
+## AI 对话 (ai)
+
+**权限**: `"ai"`
+
+在宿主侧发起 AI 对话（多轮、流式），API Key 与工具执行均在宿主侧。默认仅只读工具可用，敏感工具由用户在服务设置中逐服务开启。
+
+| 方法 | 参数 | 返回 | 说明 |
+|------|------|------|------|
+| `createConversation(opts?)` | opts?: { conversationId?, system? } | `Promise<Conversation>` | 创建会话；传入已有 conversationId 可恢复历史；system 为附加系统提示 |
+
+会话代理方法：`send(text)` 发送消息（多轮历史由宿主维护）、`abort()` 中止生成、`close()` 关闭并释放历史、`on(event, handler)` 监听事件（返回取消函数）。
+
+| 事件 | 载荷 | 说明 |
+|------|------|------|
+| `chunk` | string | 流式文本增量 |
+| `reasoning` | string | 推理文本增量（思考链，可选展示） |
+| `tool` | string | 工具调用通知（工具名） |
+| `done` | string | 完成，携带完整回复 |
+| `error` | string | 错误信息 |
+
+```js
+const conv = await __amiba__.ai.createConversation({ system: '你是记账助手' })
+conv.on('chunk', (text) => { /* 追加到界面 */ })
+conv.on('done', (full) => { /* 完成 */ })
+conv.on('error', (err) => { /* 错误处理 */ })
+await conv.send('今天午饭花了 35 元，帮我记一下')
+```
+
 ## Widget 与服务 API 一致性
 
-Widget（悬浮块）iframe 与服务主页面 iframe 支持**完全相同的 `__amiba__` API**（以上全部 8 个模块）。Widget API 调用通过宿主全局消息处理器路由，自动注入 `serviceId` 识别来源服务。
+Widget（悬浮块）iframe 与服务主页面 iframe 支持**完全相同的 `__amiba__` API**（以上全部 9 个模块）。Widget API 调用通过宿主全局消息处理器路由，自动注入 `serviceId` 识别来源服务。
 
 ## 禁止事项
 

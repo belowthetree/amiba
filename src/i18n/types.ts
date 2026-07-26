@@ -287,6 +287,32 @@ export interface LocalesSchema {
     backgroundStopped: string
     backgroundStart: string
     registry: string
+    ai: {
+      title: string
+      enable: string
+      enableHint: string
+      grantConfirm: string
+      readonlyTools: string
+      sensitiveTools: string
+      resetDefault: string
+      tools: {
+        doc_list: string
+        doc_read: string
+        doc_search: string
+        catalog_search: string
+        service_list: string
+        service_view: string
+        skills_list: string
+        skill_view: string
+        requirement_view: string
+        requirements_summary: string
+        web_fetch: string
+        session_search: string
+        web_browse: string
+        ui_theme_set_variables: string
+        ui_slot_set: string
+      }
+    }
   }
   host: {
     loading: string

@@ -22,6 +22,13 @@ import {
 } from './floating-widget-manager'
 import router from '../router'
 import type { BackgroundConfig, FloatingWidgetConfig } from '../types/service'
+import {
+  createServiceConversation,
+  sendServiceConversationMessage,
+  abortServiceConversation,
+  closeServiceConversation,
+} from '../ai/service-ai'
+import type { ServiceAiSink } from '../ai/service-ai'
 
 // ---- 类型 ----
 
@@ -103,8 +110,48 @@ function handleGlobalAPI(
     case 'fetch':
       handleGlobalFetch(method, params, requestId, reply)
       return
+    case 'ai':
+      handleGlobalAi(method, params, requestId, svcId, source, reply)
+      return
     default:
       reply(undefined, 'Unknown module: ' + module)
+  }
+}
+
+// AI 涉及计费：全局路径无权限检查，这里按 serviceId 补验 manifest 权限
+function handleGlobalAi(
+  method: string, params: Record<string, any>, requestId: string,
+  svcId: string, source: WindowProxy, reply: (result?: any, error?: string) => void
+): void {
+  const svc = getService(svcId)
+  if (!svc || !svc.manifest.permissions.includes('ai')) {
+    reply(undefined, 'Permission denied: ai')
+    return
+  }
+  const sink: ServiceAiSink = (payload) => {
+    try { source.postMessage({ type: 'event', name: 'ai-event', data: payload }, '*') } catch { /* ignore */ }
+  }
+  switch (method) {
+    case 'createConversation': {
+      try { reply(createServiceConversation(svcId, params.opts || {}, sink)) }
+      catch (e: any) { reply(undefined, e?.message || String(e)) }
+      return
+    }
+    case 'send':
+      sendServiceConversationMessage(svcId, params.conversationId, params.text)
+        .then(() => reply())
+        .catch((e: any) => reply(undefined, e?.message || String(e)))
+      return
+    case 'abort':
+      abortServiceConversation(svcId, params.conversationId)
+      reply()
+      return
+    case 'close':
+      closeServiceConversation(svcId, params.conversationId)
+      reply()
+      return
+    default:
+      reply(undefined, 'Unknown ai method: ' + method)
   }
 }
 
@@ -618,6 +665,30 @@ async function handleBgAPI(req: { module: string; method: string; params: Record
             return
           }
           default: _sendResponse(worker, requestId, undefined, 'Unknown fetch method: ' + method); return
+        }
+      } catch (e: any) { _sendResponse(worker, requestId, undefined, e?.message || String(e)); return }
+    }
+    case 'ai': {
+      // AI 涉及计费：后台路径无权限检查，这里按 serviceId 补验 manifest 权限
+      const svc = getService(svcId)
+      if (!svc || !svc.manifest.permissions.includes('ai')) {
+        _sendResponse(worker, requestId, undefined, 'Permission denied: ai')
+        return
+      }
+      const aiSink: ServiceAiSink = (payload) => {
+        try { worker.iframe.contentWindow?.postMessage({ type: 'event', name: 'ai-event', data: payload }, '*') } catch { /* ignore */ }
+      }
+      try {
+        switch (method) {
+          case 'createConversation': {
+            const r = createServiceConversation(svcId, params.opts || {}, aiSink)
+            _sendResponse(worker, requestId, r)
+            return
+          }
+          case 'send': await sendServiceConversationMessage(svcId, params.conversationId, params.text); _sendResponse(worker, requestId); return
+          case 'abort': abortServiceConversation(svcId, params.conversationId); _sendResponse(worker, requestId); return
+          case 'close': closeServiceConversation(svcId, params.conversationId); _sendResponse(worker, requestId); return
+          default: _sendResponse(worker, requestId, undefined, 'Unknown ai method: ' + method); return
         }
       } catch (e: any) { _sendResponse(worker, requestId, undefined, e?.message || String(e)); return }
     }

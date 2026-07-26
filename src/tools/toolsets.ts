@@ -155,7 +155,7 @@ export function getToolDefinitions(
  * 将 ToolRegistry 中的工具转换为 AI SDK v7 的 ToolSet 格式
  * 供 streamText / generateText 使用
  */
-export function toAISdkTools(enabledToolsets: string[]): Record<string, any> {
+export function toAISdkTools(enabledToolsets: string[], allowedTools?: string[]): Record<string, any> {
   const toolNames = new Set<string>()
 
   for (const tsName of enabledToolsets) {
@@ -164,9 +164,13 @@ export function toAISdkTools(enabledToolsets: string[]): Record<string, any> {
     }
   }
 
+  // 白名单过滤：传入时仅保留交集（服务 AI 场景的最小授权）
+  const allow = allowedTools ? new Set(allowedTools) : null
+
   const tools: Record<string, any> = {}
 
   for (const name of toolNames) {
+    if (allow && !allow.has(name)) continue
     const entry = toolRegistry.getEntry(name)
     if (!entry || (entry.checkFn && !entry.checkFn())) continue
 

@@ -14,7 +14,7 @@ import {
   serviceDataRemove,
   serviceDataKeys,
 } from '../config/storage'
-import type { ServiceEntry, ServiceManifest, ServicePackage, ServiceFile, BackgroundConfig } from '../types/service'
+import type { ServiceEntry, ServiceManifest, ServicePackage, ServiceFile, BackgroundConfig, ServiceAiConfig, Permission } from '../types/service'
 
 const REGISTRY_KEY = 'amiba_service_registry'
 
@@ -106,6 +106,29 @@ export async function toggleService(id: string, enabled: boolean) {
   if (userServices[id]) {
     userServices[id].enabled = enabled
     await saveRegistry()
+  }
+}
+
+/** 更新服务的 AI 对话配置（enabled / tools） */
+export async function updateServiceAiConfig(id: string, config: ServiceAiConfig) {
+  if (userServices[id]) {
+    userServices[id].aiConfig = config
+    await saveRegistry()
+  }
+}
+
+/** 为服务补充声明权限（用户在服务设置中授权时调用），同步写回 manifest.json */
+export async function grantServicePermission(id: string, permission: Permission) {
+  const svc = userServices[id]
+  if (!svc) return
+  if (svc.manifest.permissions.includes(permission)) return
+  svc.manifest.permissions.push(permission)
+  await saveRegistry()
+  // 同步写回 manifest.json（桥检查以 registry 为准，文件保持同步便于导出/分享）
+  try {
+    await writeServiceFile(id, 'manifest.json', JSON.stringify(svc.manifest, null, 2))
+  } catch (e) {
+    console.warn('[Registry] manifest.json 回写失败:', e)
   }
 }
 
@@ -280,6 +303,12 @@ export async function destroyServiceRuntime(serviceId: string): Promise<void> {
     for (const id of ids) { delete widgetStates[id] }
     console.log('[Registry] ✓ 服务运行时已销毁: ' + serviceId)
   } catch (e) { console.warn('[Registry] 清理悬浮块失败:', e) }
+
+  // 5. 清理服务 AI 会话
+  try {
+    const { dropServiceAi } = await import('../ai/service-ai')
+    dropServiceAi(serviceId)
+  } catch (e) { console.warn('[Registry] dropServiceAi 失败:', e) }
 }
 
 // ============================================================

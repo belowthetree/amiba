@@ -269,6 +269,30 @@ const checkNotificationPermissionConsistency: CheckFn = (filePath, content, mani
 }
 
 // ================================================================
+// 规则 8.5: AI 权限一致性
+// ================================================================
+
+const checkAiPermissionConsistency: CheckFn = (filePath, content, manifest) => {
+  const results: ValidationCheck[] = []
+  if (!manifest) return results
+
+  const declared = manifest.permissions || []
+
+  // 使用了 __amiba__.ai.* 但没声明 ai 权限
+  if (/__amiba__\.ai\./.test(content) && !declared.includes('ai')) {
+    results.push({
+      check: 'ai 权限缺失',
+      status: 'fail',
+      message: '代码使用了 __amiba__.ai.* 但 manifest 未声明 ai 权限',
+      file: filePath,
+      suggestion: '在 manifest.permissions 中添加 "ai"',
+    })
+  }
+
+  return results
+}
+
+// ================================================================
 // 规则 9: index.html 存在性 + 结构
 // ================================================================
 
@@ -456,6 +480,7 @@ const ALL_CHECKS: CheckFn[] = [
   checkNetworkPermissionConsistency,
   checkWidgetPermissionConsistency,
   checkNotificationPermissionConsistency,
+  checkAiPermissionConsistency,
   checkIndexHtml,
   checkAmibaApiUsage,
   checkVueLibMissing,

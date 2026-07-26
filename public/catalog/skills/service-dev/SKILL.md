@@ -42,6 +42,7 @@ keywords:
 | 需要后台定时任务/事件监听 | `"background"` |
 | 需要读取本地磁盘文件 | `"fileAccess"` |
 | 需要 HTTP 请求外部 API | `"fetch"` |
+| 服务内需要 AI 对话/智能问答 | 声明 `ai` 权限 |
 | 以上组合 | 多项并列，如 `["storage","network"]` |
 
 **生成前务必先检查：**
@@ -79,7 +80,7 @@ keywords:
 | `name` | string | 显示名称（中文优先） |
 | `version` | string | 语义化版本，如 `"1.0.0"` |
 | `description` | string | 简短描述（≤30 字） |
-| `permissions` | string[] | 允许的值：`"storage"`、`"notification"`、`"widgets"`、`"network"`、`"background"`、`"fileAccess"`、`"fetch"` |
+| `permissions` | string[] | 允许的值：`"storage"`、`"notification"`、`"widgets"`、`"network"`、`"background"`、`"fileAccess"`、`"fetch"`、`"ai"` |
 
 ---
 
@@ -129,6 +130,7 @@ keywords:
 | 后台服务 | `__amiba__.background.start/stop/getState/postMessage(...)` — 需 `background` 权限 |
 | 文件访问 | `__amiba__.fileAccess.requestAccess/listFiles/readText(...)` — 需 `fileAccess` 权限 |
 | HTTP 请求 | `__amiba__.fetch.request({ url, method?, headers?, body? })` — 需 `fetch` 权限 |
+| AI 对话 | `__amiba__.ai.createConversation({ system? })` → conv.send/on/abort/close — 需 `ai` 权限，详见 doc_read("jbridge.md") |
 
 - **禁止** `alert()`、`prompt()`、`localStorage`、`BroadcastChannel`
 - **禁止** `fetch()` 访问外部 API（CORS + 沙箱限制）
@@ -207,7 +209,7 @@ init();
 
 - ❌ 在 HTML 中内联 `<script>` 和 `<style>` → 必须用独立文件
 - ❌ `manifest.id` 不以 `"user."` 开头
-- ❌ `permissions` 使用了 `"storage"` / `"notification"` / `"widgets"` / `"network"` / `"background"` / `"fileAccess"` / `"fetch"` 以外的值
+- ❌ `permissions` 使用了 `"storage"` / `"notification"` / `"widgets"` / `"network"` / `"background"` / `"fileAccess"` / `"fetch"` / `"ai"` 以外的值
 - ❌ 使用 `localStorage` / `sessionStorage` → 必须用 `__amiba__.storage.*`
 - ❌ 使用 `BroadcastChannel` / `SharedWorker` → 多人通信必须用 `network` 权限 + P2P API
 - ❌ 使用 `alert()` / `confirm()` / `prompt()` → 用 `__amiba__.showToast()` 替代
