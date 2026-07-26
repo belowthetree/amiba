@@ -59,6 +59,8 @@ export interface LocalesSchema {
     reviewComplete: string
     reviewSkipped: string
     reviewError: string
+    retry: string
+    retryHint: string
   }
   settings: {
     title: string

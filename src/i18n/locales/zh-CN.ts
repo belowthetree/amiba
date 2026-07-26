@@ -60,6 +60,8 @@ const zhCN: LocalesSchema = {
     reviewComplete: '技能库整理完成 | 创建 {created} 个 / 修补 {patched} 个 / 删除 {deleted} 个',
     reviewSkipped: '审查跳过：消息不足或已有审查在进行中',
     reviewError: '审查失败：{error}',
+    retry: '重新生成',
+    retryHint: '此回复可能不完整',
   },
   settings: {
     title: '设置',

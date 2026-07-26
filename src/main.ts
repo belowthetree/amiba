@@ -22,6 +22,8 @@ import { initNetworkBridge } from './host/network-bridge'
 import { initPersistentWidgets } from './host/widget-lifecycle'
 import { initThemeStore, installPrebuiltThemes } from './config/theme-store'
 import { initCustomViewStore } from './config/custom-view-store'
+import { initAppLifecycle } from './app-lifecycle'
+import { onAppBackground, checkRecoveryNeeded } from './ai/task-recovery'
 
 async function bootstrap() {
   await initStorage()
@@ -91,6 +93,19 @@ async function bootstrap() {
   app.use(router)
 
   app.mount('#app')
+
+  // 注册 App 生命周期监听（后台保存中断快照）
+  console.log('[Bootstrap] 注册 App 生命周期监听')
+  initAppLifecycle({
+    onBackground: () => onAppBackground(),
+    onForeground: async () => {
+      try {
+        await checkRecoveryNeeded()
+      } catch (e) {
+        console.error('[Bootstrap] onForeground 恢复检查失败:', e)
+      }
+    },
+  })
 }
 
 bootstrap()

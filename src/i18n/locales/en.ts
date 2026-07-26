@@ -60,6 +60,8 @@ const en: LocalesSchema = {
     reviewComplete: 'Skill library updated | Created {created} / Patched {patched} / Deleted {deleted}',
     reviewSkipped: 'Review skipped: not enough messages or review already in progress',
     reviewError: 'Review failed: {error}',
+    retry: 'Regenerate',
+    retryHint: 'This response may be incomplete',
   },
   settings: {
     title: 'Settings',

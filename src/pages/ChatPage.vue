@@ -20,6 +20,12 @@
             <div class="reasoning-content">{{ msg.reasoning }}</div>
           </details>
           {{ msg.content }}
+          <button
+            v-if="msg.role === 'assistant' && idx === retryMsgIndex"
+            class="retry-btn"
+            :title="$t('chat.retry')"
+            @click="doRetry"
+          >🔄 {{ $t('chat.retry') }}</button>
         </div>
       </div>
 
@@ -61,9 +67,9 @@
         <!-- 功能面板（宽度动画滑出） -->
         <div class="input-panel" :class="{ open: panelOpen }">
           <div class="input-panel-inner">
-            <button class="panel-btn" :title="$t('chat.newSession')" @click="doNewSession">＋</button>
-            <button class="panel-btn" :title="$t('chat.stats.title')" @click="showStats = true">📊</button>
-            <button class="panel-btn" :title="$t('chat.sessions')" @click="showSessions = !showSessions">🗂️</button>
+            <button class="panel-btn" :title="$t('chat.newSession')" @click="doNewSession(); panelOpen = false">＋</button>
+            <button class="panel-btn" :title="$t('chat.stats.title')" @click="showStats = true; panelOpen = false">📊</button>
+            <button class="panel-btn" :title="$t('chat.sessions')" @click="showSessions = !showSessions; panelOpen = false">🗂️</button>
           </div>
         </div>
 
@@ -161,6 +167,7 @@
         </div>
       </div>
     </div>
+
   </div>
 </template>
 
@@ -201,6 +208,7 @@ import {
 } from '../host/network-bridge'
 import SlotRenderer from '../components/SlotRenderer.vue'
 import { themeState } from '../config/theme-store'
+import { checkRecoveryNeeded, clearSnapshot } from '../ai/task-recovery'
 
 const { t } = useI18n()
 
@@ -216,6 +224,25 @@ const showSessions = ref(false)
 const panelOpen = ref(false)
 const sessionList = ref<SessionMeta[]>([])
 const currentId = ref<string | null>(null)
+
+// 中断恢复：被中断的 assistant 消息在 visibleMessages 中的索引，-1 表示无
+const retryMsgIndex = ref(-1)
+
+/** 回前台时检查中断快照（组件已挂载场景） */
+async function onVisibilityChange() {
+  if (document.hidden) return
+  const s = await checkRecoveryNeeded()
+  if (s) {
+    console.log('[ChatPage] visibilitychange: 检测到中断快照，显示刷新按钮')
+    const visible = getVisibleMessages()
+    for (let i = visible.length - 1; i >= 0; i--) {
+      if (visible[i].role === 'assistant') {
+        retryMsgIndex.value = i
+        break
+      }
+    }
+  }
+}
 
 // Agent 执行状态由 agent-runner 全局管理；ChatPage 只读绑定
 
@@ -333,6 +360,34 @@ async function doDeleteSession(id: string) {
   scrollToBottom()
 }
 
+// ==== 中断恢复：内联刷新 ====
+
+async function doRetry() {
+  console.log('[ChatPage] 用户点击重新生成')
+  retryMsgIndex.value = -1
+  await clearSnapshot()
+
+  // 找到最后一条 user 消息，移除它之后的所有不完整消息
+  const msgs = session.messages.value
+  let lastUserIdx = -1
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    if (msgs[i].role === 'user' && !msgs[i].hidden) {
+      lastUserIdx = i
+      break
+    }
+  }
+  if (lastUserIdx === -1) return
+
+  const userContent = msgs[lastUserIdx].content
+  // 移除该 user 消息之后的所有消息（不完整的 assistant + tool）
+  msgs.splice(lastUserIdx + 1)
+  await saveHistory()
+
+  // 重新发送 user 消息获取新输出
+  scrollToBottom()
+  await sendMessage(userContent)
+}
+
 function scrollToBottom() {
   nextTick(() => {
     const el = messagesEl.value?.$el ?? messagesEl.value
@@ -402,6 +457,22 @@ onMounted(async () => {
   if (dirty) saveHistory()
 
   scrollToBottom()
+
+  // 检查是否有中断的 AI 任务需要恢复：在最后一条 assistant 消息旁显示刷新按钮
+  const snap = await checkRecoveryNeeded()
+  if (snap) {
+    console.log('[ChatPage] onMounted: 检测到中断快照，显示刷新按钮')
+    const visible = getVisibleMessages()
+    for (let i = visible.length - 1; i >= 0; i--) {
+      if (visible[i].role === 'assistant') {
+        retryMsgIndex.value = i
+        break
+      }
+    }
+  }
+
+  // 回前台时重新检查（组件已挂载，onMounted 不会再次触发）
+  document.addEventListener('visibilitychange', onVisibilityChange)
 })
 
 // 离开聊天页时清除残留错误提示（errorMsg 为会话级状态，不清理会跨页面驻留）
@@ -409,6 +480,7 @@ onUnmounted(() => {
   errorMsg.value = ''
   window.visualViewport?.removeEventListener('resize', syncKeyboardInset)
   window.visualViewport?.removeEventListener('scroll', syncKeyboardInset)
+  document.removeEventListener('visibilitychange', onVisibilityChange)
 })
 
 watch(
@@ -1071,6 +1143,29 @@ watch(lastReviewResult, (result) => {
 
 .modal-close:active {
   transform: scale(0.98);
+}
+
+.retry-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 4px 12px;
+  background: var(--color-warning-light);
+  color: var(--color-warning);
+  border: 1px solid color-mix(in srgb, var(--color-warning) 30%, transparent);
+  border-radius: 999px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.15s ease;
+}
+
+.retry-btn:hover {
+  background: color-mix(in srgb, var(--color-warning) 20%, var(--color-warning-light));
+}
+
+.retry-btn:active {
+  transform: scale(0.96);
 }
 
 .limit-actions {
