@@ -314,6 +314,14 @@ const zhCN: LocalesSchema = {
         ui_slot_set: '注入界面插槽内容',
       },
     },
+    svcTools: {
+      title: '服务工具',
+      enable: '允许 AI 调用该服务的工具',
+      enableHint: '服务经 __amiba__.tools.register 暴露的工具可被主聊天 AI 调用；仅在服务运行时可用。',
+      grantConfirm: '服务「{name}」未声明 tools 权限，启用将为其补充权限声明。是否继续？',
+      noTools: '该服务尚未提供工具（manifest.aiTools 声明或服务运行时注册后可见）。',
+      sensitiveBadge: '敏感',
+    },
   },
   host: {
     loading: '正在加载服务...',

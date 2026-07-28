@@ -31,6 +31,8 @@ const CORE_TOOLS = [
 export interface ToolsetDef {
   tools: string[]
   includes?: string[] // 继承其他工具集
+  /** 动态工具集：tools 为空，运行时从 ToolRegistry 按 toolset 名现取（如 svc 服务工具） */
+  dynamic?: boolean
 }
 
 export const TOOLSETS: Record<string, ToolsetDef> = {
@@ -53,9 +55,12 @@ export const TOOLSETS: Record<string, ToolsetDef> = {
     tools: ['doc_list', 'doc_read', 'doc_search'],
   },
 
+  // 服务运行时注册的工具（service-tools.ts 同步进 ToolRegistry，这里现取）
+  svc: { tools: [], dynamic: true },
+
   chat: {
     tools: ['memory'],
-    includes: ['core', 'service', 'docs', 'ui'],
+    includes: ['core', 'service', 'docs', 'ui', 'svc'],
   },
 
   review: {
@@ -121,6 +126,13 @@ export function resolveToolset(
       for (const t of resolveToolset(inc, visited)) {
         names.add(t)
       }
+    }
+  }
+
+  // 动态工具集：从 registry 按 toolset 名现取（getAllToolNames 已过 checkFn 门控）
+  if (def.dynamic) {
+    for (const n of toolRegistry.getAllToolNames()) {
+      if (toolRegistry.getToolsetForTool(n) === name) names.add(n)
     }
   }
 

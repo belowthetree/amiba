@@ -11,9 +11,11 @@ export interface ServiceManifest {
   version: string
   description: string
   permissions: Permission[]
+  /** 静态工具声明（发现层：设置页展示 + 校验）；执行以运行时 __amiba__.tools.register 为准 */
+  aiTools?: ServiceToolDecl[]
 }
 
-export type Permission = 'storage' | 'notification' | 'widgets' | 'network' | 'background' | 'fileAccess' | 'fetch' | 'ai'
+export type Permission = 'storage' | 'notification' | 'widgets' | 'network' | 'background' | 'fileAccess' | 'fetch' | 'ai' | 'tools'
 
 // --- Service AI Config ---
 
@@ -22,6 +24,23 @@ export interface ServiceAiConfig {
   enabled: boolean
   /** 启用的工具名列表；undefined = 默认（全部只读工具） */
   tools?: string[]
+}
+
+// --- Service-Provided Tools（服务向 AI 提供工具） ---
+
+/** 服务工具声明（manifest.aiTools 静态声明 / 运行时 register 元数据，均不含 handler） */
+export interface ServiceToolDecl {
+  name: string                    // ^[a-zA-Z0-9_-]{1,32}$
+  description: string             // ≤ 512 字符
+  parameters?: Record<string, any> // JSON Schema object；缺省 = 无参空 schema
+  level?: 'readonly' | 'sensitive' // 缺省 readonly；sensitive 默认关闭，需用户逐项开启
+}
+
+/** 服务工具用户配置（manifest 声明 tools 权限后生效，缺省 = 启用且仅 readonly 工具） */
+export interface ServiceToolsConfig {
+  enabled: boolean
+  /** 显式启用的工具名列表；undefined = 默认（全部 readonly 工具） */
+  enabledTools?: string[]
 }
 
 // --- Background Service Config ---
@@ -50,6 +69,7 @@ export interface ServiceEntry {
   backgroundConfig?: BackgroundConfig | null  // 来自 background.json 的配置
   backgroundState?: 'running' | 'stopped' | 'error'  // 当前后台运行状态
   aiConfig?: ServiceAiConfig      // AI 对话配置（声明 ai 权限后生效，缺省 = 启用且仅只读工具）
+  toolsConfig?: ServiceToolsConfig // 服务工具配置（声明 tools 权限后生效，缺省 = 启用且仅 readonly 工具）
 }
 
 // --- Catalog Types ---
@@ -112,7 +132,7 @@ export interface ServicePackage {
 
 export interface ServiceRequest {
   type: 'api'
-  module: 'storage' | 'notification' | 'ui' | 'task' | 'widgets' | 'network' | 'background' | 'fileAccess' | 'fetch' | 'ai'
+  module: 'storage' | 'notification' | 'ui' | 'task' | 'widgets' | 'network' | 'background' | 'fileAccess' | 'fetch' | 'ai' | 'tools'
   method: string
   params: Record<string, any>
   requestId: string
@@ -120,6 +140,22 @@ export interface ServiceRequest {
 
 export interface ServiceResponse {
   type: 'api-response'
+  requestId: string
+  result?: any
+  error?: string
+}
+
+// --- 服务工具调用（host → service 请求/响应，不走 event，因为需要响应） ---
+
+export interface ToolCallMessage {
+  type: 'tool-call'
+  requestId: string
+  tool: string                 // 服务内本地工具名（非 svc_ 前缀的 AI 可见名）
+  args: Record<string, any>
+}
+
+export interface ToolResultMessage {
+  type: 'tool-result'
   requestId: string
   result?: any
   error?: string

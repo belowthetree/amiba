@@ -313,6 +313,14 @@ export interface LocalesSchema {
         ui_slot_set: string
       }
     }
+    svcTools: {
+      title: string
+      enable: string
+      enableHint: string
+      grantConfirm: string
+      noTools: string
+      sensitiveBadge: string
+    }
   }
   host: {
     loading: string

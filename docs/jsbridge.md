@@ -12,7 +12,7 @@ JSBridge 是宿主（Vue SPA）与用户服务（iframe）之间的唯一通信�
 // 服务 → 宿主 请求
 interface ServiceRequest {
   type: 'api'
-  module: string          // storage | notification | ui | widgets | network | background | fileAccess | fetch | ai
+  module: string          // storage | notification | ui | widgets | network | background | fileAccess | fetch | ai | tools
   method: string          // setStorage | showToast | navigateTo | ...
   params: Record<string, any>
   requestId: string       // UUID，用于匹配响应
@@ -197,6 +197,24 @@ HTTP 请求代理（Rust reqwest 实现），绕过浏览器 CORS 和移动端�
 | 事件名 | 触发时机 | data |
 |--------|----------|------|
 | `ai-event` | AI 会话流式输出 | `{ conversationId, event, data }` — event: `chunk`/`reasoning`/`tool`/`done`/`error`，路由到对应会话代理的 on() 回调 |
+
+### tools
+
+服务向主聊天 AI 暴露工具（service-provided tools）。服务运行时注册，经 `service-tools.ts` 窄腰校验后同步进全局 `ToolRegistry`（动态工具集 `svc`），AI 调用经 `tool-call`/`tool-result` 消息对路由回 iframe 执行。仅服务主页面与后台 worker 可用，Widget 暂不支持。详见 docs/service-tools.md。
+
+| 方法 | 参数 | 返回 | 权限 |
+|------|------|------|------|
+| `register` | `{ decls: ServiceToolDecl[] }` | `{ registered: string[], rejected: [{name, reason}] }` | tools |
+| `unregister` | `{ names: string[] }` | `void`（服务卸载时宿主自动清理） | tools |
+
+**host → service 消息对**（不走 `event`，因为需要响应）：
+
+| 消息 type | 方向 | 载荷 | 说明 |
+|-----------|------|------|------|
+| `tool-call` | host → iframe | `{ requestId, tool, args }` | AI 调用服务工具；iframe 侧查 `toolHandlers` 执行，30s 超时 |
+| `tool-result` | iframe → host | `{ requestId, result?, error? }` | 执行回执；宿主 JSON 化后回填 Agent 工具循环 |
+
+AI 可见工具名为 `svc_<serviceId>__<本地名>`（≤64 字符，防跨服务撞名），description 自动前缀【服务名】。readonly 工具默认可调用，sensitive 工具需用户在服务设置中逐项开启；每服务最多 8 个。
 
 ## 服务内全局注入
 

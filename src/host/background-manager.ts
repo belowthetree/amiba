@@ -21,7 +21,7 @@ import {
   setWidgetVisible,
 } from './floating-widget-manager'
 import router from '../router'
-import type { BackgroundConfig, FloatingWidgetConfig } from '../types/service'
+import type { BackgroundConfig, FloatingWidgetConfig, ToolCallMessage } from '../types/service'
 import {
   createServiceConversation,
   sendServiceConversationMessage,
@@ -29,6 +29,8 @@ import {
   closeServiceConversation,
 } from '../ai/service-ai'
 import type { ServiceAiSink } from '../ai/service-ai'
+import { registerServiceTools, unregisterServiceTools } from './service-tools'
+import type { ServiceToolCaller } from './service-tools'
 
 // ---- 类型 ----
 
@@ -42,6 +44,13 @@ interface BackgroundWorker {
   state: 'running' | 'error'
   intervalId: ReturnType<typeof setInterval> | null
   eventUnsubs: (() => void)[]
+  /** 服务工具调用（host → service 请求/响应） */
+  callServiceTool: ServiceToolCaller
+  pendingToolCalls: Map<string, {
+    resolve: (v: any) => void
+    reject: (e: Error) => void
+    timer: ReturnType<typeof setTimeout>
+  }>
 }
 
 // ---- 状态 ----
@@ -514,6 +523,13 @@ function _destroyWorker(worker: BackgroundWorker) {
   if (worker.intervalId) { clearInterval(worker.intervalId); worker.intervalId = null }
   for (const unsub of worker.eventUnsubs) { try { unsub() } catch { /* ignore */ } }
   worker.eventUnsubs = []
+  // 拒绝进行中的工具调用并注销本实例注册的服务工具
+  for (const [, p] of worker.pendingToolCalls) {
+    clearTimeout(p.timer)
+    p.reject(new Error('后台服务已停止'))
+  }
+  worker.pendingToolCalls.clear()
+  unregisterServiceTools(worker.serviceId, undefined, worker.callServiceTool)
   try { worker.iframe.remove(); worker.container.remove() } catch { /* ignore */ }
   worker.state = 'error'
 }
@@ -692,6 +708,30 @@ async function handleBgAPI(req: { module: string; method: string; params: Record
         }
       } catch (e: any) { _sendResponse(worker, requestId, undefined, e?.message || String(e)); return }
     }
+    case 'tools': {
+      // 服务工具注册：后台路径无桥层权限检查，这里按 serviceId 补验 manifest 权限
+      const svc = getService(svcId)
+      if (!svc || !svc.manifest.permissions.includes('tools')) {
+        _sendResponse(worker, requestId, undefined, 'Permission denied: tools')
+        return
+      }
+      try {
+        switch (method) {
+          case 'register': {
+            const r = registerServiceTools(svcId, params.decls || [], worker.callServiceTool)
+            _sendResponse(worker, requestId, r)
+            return
+          }
+          case 'unregister':
+            unregisterServiceTools(svcId, params.names, worker.callServiceTool)
+            _sendResponse(worker, requestId)
+            return
+          default:
+            _sendResponse(worker, requestId, undefined, 'Unknown tools method: ' + method)
+            return
+        }
+      } catch (e: any) { _sendResponse(worker, requestId, undefined, e?.message || String(e)); return }
+    }
     default:
       _sendResponse(worker, requestId, undefined, 'Unknown module: ' + module)
   }
@@ -742,18 +782,45 @@ export async function startService(serviceId: string): Promise<void> {
     startCount: (existing?.startCount ?? 0) + 1,
     lastRun: new Date().toISOString(), state: 'running',
     intervalId: null, eventUnsubs,
+    pendingToolCalls: new Map(),
+    callServiceTool: () => Promise.reject(new Error('后台桥未就绪')), // 下方立即替换
   }
+
+  let toolReqSeq = 0
+  worker.callServiceTool = (tool, args) => new Promise((resolve, reject) => {
+    if (!iframe.contentWindow) { reject(new Error('服务窗口不可用')); return }
+    const id = 'tc_' + (++toolReqSeq) + '_' + Math.random().toString(36).slice(2)
+    const timer = setTimeout(() => {
+      if (worker.pendingToolCalls.delete(id)) reject(new Error(`工具调用超时: ${tool}`))
+    }, 30000)
+    worker.pendingToolCalls.set(id, { resolve, reject, timer })
+    const msg: ToolCallMessage = { type: 'tool-call', requestId: id, tool, args }
+    iframe.contentWindow.postMessage(msg, '*')
+  })
 
   const msgHandler = (event: MessageEvent) => {
     if (event.source !== iframe.contentWindow) return
     const data = event.data
-    if (!data || data.type !== 'api') return
+    if (!data) return
+    // 服务工具调用结果回执（tool-result）
+    if (data.type === 'tool-result') {
+      const p = worker.pendingToolCalls.get(data.requestId)
+      if (!p) return
+      worker.pendingToolCalls.delete(data.requestId)
+      clearTimeout(p.timer)
+      if (data.error) p.reject(new Error(data.error))
+      else p.resolve(data.result)
+      return
+    }
+    if (data.type !== 'api') return
     handleBgAPI(data, worker).catch((e) => {
       console.warn('[BgManager] ' + serviceId + ' API error:', e)
     })
   }
 
   window.addEventListener('message', msgHandler)
+  // worker 销毁时一并摘除监听，避免重启累积
+  eventUnsubs.push(() => window.removeEventListener('message', msgHandler))
 
   iframe.onerror = () => {
     console.log('[BgManager] ' + serviceId + ' 后台 iframe 异常，静默重启')

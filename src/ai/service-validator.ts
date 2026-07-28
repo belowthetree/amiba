@@ -293,6 +293,30 @@ const checkAiPermissionConsistency: CheckFn = (filePath, content, manifest) => {
 }
 
 // ================================================================
+// 规则 8.6: tools 权限一致性（服务向 AI 提供工具）
+// ================================================================
+
+const checkToolsPermissionConsistency: CheckFn = (filePath, content, manifest) => {
+  const results: ValidationCheck[] = []
+  if (!manifest) return results
+
+  const declared = manifest.permissions || []
+
+  // 使用了 __amiba__.tools.* 但没声明 tools 权限
+  if (/__amiba__\.tools\./.test(content) && !declared.includes('tools')) {
+    results.push({
+      check: 'tools 权限缺失',
+      status: 'fail',
+      message: '代码使用了 __amiba__.tools.* 但 manifest 未声明 tools 权限',
+      file: filePath,
+      suggestion: '在 manifest.permissions 中添加 "tools"',
+    })
+  }
+
+  return results
+}
+
+// ================================================================
 // 规则 9: index.html 存在性 + 结构
 // ================================================================
 
@@ -481,6 +505,7 @@ const ALL_CHECKS: CheckFn[] = [
   checkWidgetPermissionConsistency,
   checkNotificationPermissionConsistency,
   checkAiPermissionConsistency,
+  checkToolsPermissionConsistency,
   checkIndexHtml,
   checkAmibaApiUsage,
   checkVueLibMissing,
@@ -607,6 +632,39 @@ export async function validateService(
       }
     } catch {
       // 跳过无法读取的文件
+    }
+  }
+
+  // ---- manifest 级检查：aiTools 声明与 tools 权限一致性 ----
+  if (manifest) {
+    const declared: string[] = manifest.permissions || []
+    const aiTools = manifest.aiTools
+    if (Array.isArray(aiTools) && aiTools.length > 0 && !declared.includes('tools')) {
+      checks.push({
+        check: 'aiTools/tools 权限一致性',
+        status: 'fail',
+        message: 'manifest 声明了 aiTools 但未声明 tools 权限',
+        suggestion: '在 manifest.permissions 中添加 "tools"',
+      })
+    }
+    if (Array.isArray(aiTools)) {
+      for (const t of aiTools) {
+        if (!t || typeof t.name !== 'string' || !/^[a-zA-Z0-9_-]{1,32}$/.test(t.name)) {
+          checks.push({
+            check: 'aiTools 声明格式',
+            status: 'fail',
+            message: `aiTools 条目工具名非法: ${String(t?.name)}`,
+            suggestion: '工具名需满足 ^[a-zA-Z0-9_-]{1,32}$',
+          })
+        } else if (typeof t.description !== 'string' || !t.description.trim()) {
+          checks.push({
+            check: 'aiTools 声明格式',
+            status: 'fail',
+            message: `aiTools 条目 ${t.name} 缺少 description`,
+            suggestion: '为每个工具提供 description 与 parameters（JSON Schema）',
+          })
+        }
+      }
     }
   }
 

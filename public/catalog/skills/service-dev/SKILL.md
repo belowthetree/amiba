@@ -43,6 +43,7 @@ keywords:
 | 需要读取本地磁盘文件 | `"fileAccess"` |
 | 需要 HTTP 请求外部 API | `"fetch"` |
 | 服务内需要 AI 对话/智能问答 | 声明 `ai` 权限 |
+| 希望主聊天 AI 能调用服务能力（如"帮我开始番茄钟"） | 声明 `tools` 权限 |
 | 以上组合 | 多项并列，如 `["storage","network"]` |
 
 **生成前务必先检查：**
@@ -80,7 +81,8 @@ keywords:
 | `name` | string | 显示名称（中文优先） |
 | `version` | string | 语义化版本，如 `"1.0.0"` |
 | `description` | string | 简短描述（≤30 字） |
-| `permissions` | string[] | 允许的值：`"storage"`、`"notification"`、`"widgets"`、`"network"`、`"background"`、`"fileAccess"`、`"fetch"`、`"ai"` |
+| `permissions` | string[] | 允许的值：`"storage"`、`"notification"`、`"widgets"`、`"network"`、`"background"`、`"fileAccess"`、`"fetch"`、`"ai"`、`"tools"` |
+| `aiTools` | object[] | 可选，服务工具静态声明（不含 handler），与运行时 `__amiba__.tools.register` 的元数据同构，用于设置页展示与校验 |
 
 ---
 
@@ -131,6 +133,7 @@ keywords:
 | 文件访问 | `__amiba__.fileAccess.requestAccess/listFiles/readText(...)` — 需 `fileAccess` 权限 |
 | HTTP 请求 | `__amiba__.fetch.request({ url, method?, headers?, body? })` — 需 `fetch` 权限 |
 | AI 对话 | `__amiba__.ai.createConversation({ system? })` → conv.send/on/abort/close — 需 `ai` 权限，详见 doc_read("jbridge.md") |
+| 服务工具 | `__amiba__.tools.register/unregister(...)` — 需 `tools` 权限，向主聊天 AI 暴露服务能力，详见 doc_read("jbridge.md") |
 
 - **禁止** `alert()`、`prompt()`、`localStorage`、`BroadcastChannel`
 - **禁止** `fetch()` 访问外部 API（CORS + 沙箱限制）
@@ -209,7 +212,7 @@ init();
 
 - ❌ 在 HTML 中内联 `<script>` 和 `<style>` → 必须用独立文件
 - ❌ `manifest.id` 不以 `"user."` 开头
-- ❌ `permissions` 使用了 `"storage"` / `"notification"` / `"widgets"` / `"network"` / `"background"` / `"fileAccess"` / `"fetch"` / `"ai"` 以外的值
+- ❌ `permissions` 使用了 `"storage"` / `"notification"` / `"widgets"` / `"network"` / `"background"` / `"fileAccess"` / `"fetch"` / `"ai"` / `"tools"` 以外的值
 - ❌ 使用 `localStorage` / `sessionStorage` → 必须用 `__amiba__.storage.*`
 - ❌ 使用 `BroadcastChannel` / `SharedWorker` → 多人通信必须用 `network` 权限 + P2P API
 - ❌ 使用 `alert()` / `confirm()` / `prompt()` → 用 `__amiba__.showToast()` 替代
@@ -517,11 +520,44 @@ createApp({
 - Widget HTML 放在 `widgets/<name>.html`，第一行写 `<!-- AMIBA_BRIDGE -->`
 - 不含 `<html>/<body>` 标签，直接以 `<div class="widget-root">` 开始
 - 也可通过 `__amiba__.widgets.register(config)` 运行时动态注册
-- **Widget 内可使用全部 `__amiba__` API（8 模块），与服务主页面完全一致**
+- **Widget 内可使用几乎全部 `__amiba__` API（tools 模块除外），与服务主页面一致**
 
 ---
 
-## 16. 检查清单
+## 16. 服务工具（向 AI 暴露能力）
+
+当用户希望**主聊天 AI 能直接操作服务**（如"帮我开始一个番茄钟""查一下今天的支出"）时，声明 `tools` 权限并注册服务工具。
+
+**要点：**
+- manifest.permissions 包含 `"tools"`；manifest.json 中同步静态声明 `aiTools`（不含 handler 的同构元数据，用于设置页展示与校验）
+- `app.js` 中用 `__amiba__.tools.register([{ name, description, parameters?, level?, handler }])` 运行时注册（执行真相）
+- 工具名 `^[a-zA-Z0-9_-]{1,32}$`，description ≤512 字符写清何时该用；每服务最多 8 个
+- `level: 'sensitive'` 用于会改变状态的操作（默认关闭，用户在服务设置中逐项开启）；只读查询不设或设 `readonly`
+- handler 返回可 JSON 序列化的值；仅服务运行时工具可用
+- tools 模块仅服务主页面与后台 worker 可用，Widget 不支持
+
+```js
+await __amiba__.tools.register([
+  {
+    name: 'get_stats',
+    description: '获取今日番茄钟统计（只读）',
+    handler: async () => ({ today: stats.today }),
+  },
+  {
+    name: 'start_timer',
+    description: '开始一个番茄钟计时',
+    parameters: { type: 'object', properties: { minutes: { type: 'number' } } },
+    level: 'sensitive',
+    handler: async (args) => { startTimer(args.minutes || 25); return { ok: true } },
+  },
+])
+```
+
+**完整协议用 doc_read("jbridge.md") 的「服务工具 (tools)」一节查看。**
+
+---
+
+## 17. 检查清单
 
 - [ ] 已用 `service_list` 检查无重复服务
 - [ ] `service_create` 的 `id` 以 `"user."` 开头，无非法字符
@@ -534,6 +570,7 @@ createApp({
 - [ ] 未使用 `alert()`/`confirm()`/`prompt()`/`BroadcastChannel`/`SharedWorker`
 - [ ] 如含 widget，`manifest.permissions` 包含 `"widgets"`
 - [ ] 如含网络功能，`manifest.permissions` 包含 `"network"`，且 `app.js` 调用了 `startListening(SERVICE_KEY)` + `connect(peerId, SERVICE_KEY)`
+- [ ] 如需 AI 调用服务能力：`manifest.permissions` 包含 `"tools"`，manifest.json 声明 `aiTools`，`app.js` 用 `__amiba__.tools.register` 注册
 - [ ] widget.json 格式正确，引用路径与 files 一致
 - [ ] 无外部依赖、无 fetch 外部 API
 - [ ] 如果使用 Vue：已正确引用 `/libs/vue.global.prod.js`，Options API 正确

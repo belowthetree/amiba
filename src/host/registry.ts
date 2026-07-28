@@ -14,7 +14,7 @@ import {
   serviceDataRemove,
   serviceDataKeys,
 } from '../config/storage'
-import type { ServiceEntry, ServiceManifest, ServicePackage, ServiceFile, BackgroundConfig, ServiceAiConfig, Permission } from '../types/service'
+import type { ServiceEntry, ServiceManifest, ServicePackage, ServiceFile, BackgroundConfig, ServiceAiConfig, ServiceToolsConfig, Permission } from '../types/service'
 
 const REGISTRY_KEY = 'amiba_service_registry'
 
@@ -113,6 +113,14 @@ export async function toggleService(id: string, enabled: boolean) {
 export async function updateServiceAiConfig(id: string, config: ServiceAiConfig) {
   if (userServices[id]) {
     userServices[id].aiConfig = config
+    await saveRegistry()
+  }
+}
+
+/** 更新服务的工具配置（enabled / enabledTools） */
+export async function updateServiceToolsConfig(id: string, config: ServiceToolsConfig) {
+  if (userServices[id]) {
+    userServices[id].toolsConfig = config
     await saveRegistry()
   }
 }

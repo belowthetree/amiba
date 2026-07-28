@@ -83,6 +83,7 @@ import {
   detachServiceAi,
 } from '../ai/service-ai'
 import type { ServiceAiEvent } from '../ai/service-ai'
+import { registerServiceTools, unregisterServiceTools } from './service-tools'
 import type { ApiHandler } from './bridge'
 import type { ServicePackage, FloatingWidgetManifest } from '../types/service'
 
@@ -440,6 +441,21 @@ function makeApiHandler(): ApiHandler {
             throw new Error(`Unknown ai method: ${method}`)
         }
       }
+      case 'tools': {
+        // 服务工具注册/注销：调用经 ctx.callServiceTool 路由回本 iframe 执行
+        switch (method) {
+          case 'register': {
+            const call = ctx?.callServiceTool
+            if (!call) throw new Error('服务桥未就绪')
+            return registerServiceTools(serviceId.value, params.decls || [], call)
+          }
+          case 'unregister':
+            unregisterServiceTools(serviceId.value, params.names, ctx?.callServiceTool ?? undefined)
+            return
+          default:
+            throw new Error(`Unknown tools method: ${method}`)
+        }
+      }
       default:
         throw new Error(`Unknown module: ${module}`)
     }
@@ -521,7 +537,7 @@ onMounted(async () => {
     const permissions = svc.manifest.permissions || []
     const apiHandler = makeApiHandler()
     const bridge = createBridge(iframe, permissions, apiHandler)
-    ctx!.registerBridge(bridge.destroy, bridge.sendEvent)
+    ctx!.registerBridge(bridge.destroy, bridge.sendEvent, bridge.callServiceTool)
 
     // ---- 订阅网络事件，转发到 iframe ----
     if (permissions.includes('network')) {

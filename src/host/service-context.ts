@@ -7,6 +7,8 @@
 
 import { sessions } from './network-bridge'
 import { unregisterServiceWidgets } from './floating-widget-manager'
+import { unregisterServiceTools } from './service-tools'
+import type { ServiceToolCaller } from './service-tools'
 
 export class ServiceContext {
   readonly serviceId: string
@@ -21,6 +23,9 @@ export class ServiceContext {
   /** bridge 清理函数 */
   private _bridgeDestroy: (() => void) | null = null
 
+  /** 服务工具调用函数（host → service 请求/响应） */
+  private _callServiceTool: ServiceToolCaller | null = null
+
   /** 网络事件取消订阅 */
   private _networkUnsubs: (() => void)[] = []
 
@@ -33,14 +38,21 @@ export class ServiceContext {
     destroy: () => void,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     sendEvent: (...args: any[]) => void,
+    callServiceTool?: ServiceToolCaller,
   ) {
     this._bridgeDestroy = destroy
     this._sendEvent = sendEvent
+    this._callServiceTool = callServiceTool ?? null
   }
 
   /** 向 iframe 推送事件 */
   sendEvent(name: string, data?: any) {
     this._sendEvent?.(name, data)
+  }
+
+  /** 服务工具调用函数（tools 模块注册时经此路由回 iframe） */
+  get callServiceTool(): ServiceToolCaller | null {
+    return this._callServiceTool
   }
 
   /** 添加 session ID */
@@ -76,13 +88,17 @@ export class ServiceContext {
     // 3. 注销所有 widget
     unregisterServiceWidgets(this.serviceId)
 
-    // 4. 销毁 bridge
+    // 4. 注销本桥实例注册的服务工具（前台/后台并存时互不误删）
+    unregisterServiceTools(this.serviceId, undefined, this._callServiceTool ?? undefined)
+    this._callServiceTool = null
+
+    // 5. 销毁 bridge
     if (this._bridgeDestroy) {
       try { this._bridgeDestroy() } catch { /* ignore */ }
       this._bridgeDestroy = null
     }
 
-    // 5. 清空引用
+    // 6. 清空引用
     this._sendEvent = null
   }
 }

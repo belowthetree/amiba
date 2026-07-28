@@ -1,7 +1,7 @@
 // ============================================================
 // 变形虫 (Amiba) — postMessage Bridge (宿主侧)
 // ============================================================
-import type { ServiceRequest, ServiceResponse, HostEvent } from '../types/service'
+import type { ServiceRequest, ServiceResponse, HostEvent, ToolCallMessage } from '../types/service'
 
 export type ApiHandler = (
   module: string,
@@ -237,6 +237,33 @@ export const BRIDGE_SCRIPT = `
     return proxy;
   }
 
+  // ---- 服务工具（service-provided tools：host → service 调用）----
+  var toolHandlers = {}; // 本地工具名 → handler 函数（handler 无法经 postMessage 传输，留在 iframe 侧）
+
+  // 监听 host 推送的 tool-call 请求，执行后回发 tool-result
+  window.addEventListener('message', function(event) {
+    var data = event.data;
+    if (!data || data.type !== 'tool-call') return;
+    var respond = function(result, error) {
+      window.parent.postMessage({
+        type: 'tool-result',
+        requestId: data.requestId,
+        result: result,
+        error: error
+      }, '*');
+    };
+    var handler = toolHandlers[data.tool];
+    if (!handler) { respond(undefined, '工具未注册: ' + data.tool); return; }
+    try {
+      Promise.resolve(handler(data.args || {})).then(
+        function(r) { respond(r === undefined ? null : r); },
+        function(e) { respond(undefined, (e && e.message) ? e.message : String(e)); }
+      );
+    } catch (e) {
+      respond(undefined, (e && e.message) ? e.message : String(e));
+    }
+  });
+
   window.__amiba__ = {
     storage: {
       set: function(key, data) { return callHost('storage', 'setStorage', { key: key, data: data, serviceId: window.__amiba_service_id__ || undefined }); },
@@ -367,6 +394,31 @@ export const BRIDGE_SCRIPT = `
         });
       },
     },
+    tools: {
+      // 注册服务工具：handler 留在 iframe 侧，仅元数据上报宿主校验。
+      // 宿主回执 { registered: [...], rejected: [{ name, reason }] }，被拒绝的 handler 自动清理。
+      register: function(decls) {
+        if (!Array.isArray(decls)) return Promise.reject(new Error('tools.register 需要数组参数'));
+        var metas = [];
+        for (var i = 0; i < decls.length; i++) {
+          var d = decls[i] || {};
+          if (typeof d.name !== 'string' || !d.name) continue;
+          if (typeof d.handler === 'function') toolHandlers[d.name] = d.handler;
+          metas.push({ name: d.name, description: d.description, parameters: d.parameters, level: d.level });
+        }
+        return callHost('tools', 'register', { decls: metas }).then(function(res) {
+          if (res && res.rejected) {
+            for (var i = 0; i < res.rejected.length; i++) delete toolHandlers[res.rejected[i].name];
+          }
+          return res;
+        });
+      },
+      unregister: function(names) {
+        if (!Array.isArray(names)) names = [names];
+        for (var i = 0; i < names.length; i++) delete toolHandlers[names[i]];
+        return callHost('tools', 'unregister', { names: names });
+      },
+    },
   };
 })();
 
@@ -376,12 +428,36 @@ export function createBridge(
   allowedPermissions: string[],
   handler: ApiHandler
 ) {
+  // 服务工具调用的 pending 表（host → service 请求/响应）
+  const pendingToolCalls = new Map<string, {
+    resolve: (v: any) => void
+    reject: (e: Error) => void
+    timer: ReturnType<typeof setTimeout>
+  }>()
+  let toolReqSeq = 0
+
   function handleMessage(event: MessageEvent) {
     if (event.source !== iframe.contentWindow) return // 只处理来自自身 iframe 的消息
     // Verify origin — in production, check against known origins
     const data = event.data
 
-    if (!data || data.type !== 'api') return
+    if (!data) return
+
+    // 服务工具调用结果回执（tool-result）
+    if (data.type === 'tool-result') {
+      const p = pendingToolCalls.get(data.requestId)
+      if (!p) return
+      pendingToolCalls.delete(data.requestId)
+      clearTimeout(p.timer)
+      if (data.error) {
+        p.reject(new Error(data.error))
+      } else {
+        p.resolve(data.result)
+      }
+      return
+    }
+
+    if (data.type !== 'api') return
 
     const req = data as ServiceRequest
 
@@ -420,6 +496,10 @@ export function createBridge(
       sendResponse(req.requestId, undefined, 'Permission denied: ai')
       return
     }
+    if (req.module === 'tools' && !allowedPermissions.includes('tools')) {
+      sendResponse(req.requestId, undefined, 'Permission denied: tools')
+      return
+    }
 
     // Execute handler
     handler(req.module, req.method, req.params || {})
@@ -442,13 +522,39 @@ export function createBridge(
     iframe.contentWindow?.postMessage(msg, '*')
   }
 
+  /** 调用服务内注册的工具（host → service 请求/响应，30s 超时） */
+  function callServiceTool(tool: string, args: Record<string, any>): Promise<any> {
+    return new Promise((resolve, reject) => {
+      if (!iframe.contentWindow) {
+        reject(new Error('服务窗口不可用'))
+        return
+      }
+      const id = 'tc_' + (++toolReqSeq) + '_' + Math.random().toString(36).slice(2)
+      const timer = setTimeout(() => {
+        if (pendingToolCalls.delete(id)) {
+          reject(new Error(`工具调用超时: ${tool}`))
+        }
+      }, 30000)
+      pendingToolCalls.set(id, { resolve, reject, timer })
+      const msg: ToolCallMessage = { type: 'tool-call', requestId: id, tool, args }
+      iframe.contentWindow.postMessage(msg, '*')
+    })
+  }
+
   window.addEventListener('message', handleMessage)
 
   return {
     destroy() {
       window.removeEventListener('message', handleMessage)
+      // 桥销毁 = 服务卸载：拒绝全部进行中的工具调用
+      for (const [, p] of pendingToolCalls) {
+        clearTimeout(p.timer)
+        p.reject(new Error('服务已卸载'))
+      }
+      pendingToolCalls.clear()
     },
     sendEvent,
+    callServiceTool,
   }
 }
 

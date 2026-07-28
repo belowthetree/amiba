@@ -179,9 +179,57 @@ conv.on('error', (err) => { /* 错误处理 */ })
 await conv.send('今天午饭花了 35 元，帮我记一下')
 ```
 
+## 服务工具 (tools)
+
+**权限**: `"tools"`
+
+向主聊天 AI 暴露服务自己的能力。注册后，用户在 AI 对话中可直接触发（如"帮我开始一个番茄钟"）。仅服务运行时可用；readonly 工具默认可调用，`level: 'sensitive'` 的工具需用户在服务设置中逐项开启。每服务最多 8 个工具。
+
+| 方法 | 参数 | 返回 | 说明 |
+|------|------|------|------|
+| `register(decls)` | decls: 工具声明数组 | `Promise<{registered, rejected}>` | 注册工具；回执含被拒条目及原因 |
+| `unregister(names)` | names: 工具名数组 | `Promise<void>` | 注销工具（服务卸载时宿主自动清理，通常无需调用） |
+
+工具声明字段：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `name` | string | 工具名，`^[a-zA-Z0-9_-]{1,32}$` |
+| `description` | string | 给 AI 看的功能描述（≤512 字符，写清何时该用） |
+| `parameters` | object | 可选，JSON Schema 参数定义 |
+| `level` | string | 可选，`readonly`（默认）/ `sensitive`（会改变状态的操作） |
+| `handler` | function | `async (args) => result`，返回值需可 JSON 序列化 |
+
+```js
+await __amiba__.tools.register([
+  {
+    name: 'start_timer',
+    description: '开始一个番茄钟计时',
+    parameters: {
+      type: 'object',
+      properties: { minutes: { type: 'number', description: '时长（分钟），默认 25' } },
+    },
+    level: 'sensitive',
+    handler: async (args) => {
+      startTimer(args.minutes || 25)   // 服务内逻辑
+      return { ok: true, minutes: args.minutes || 25 }
+    },
+  },
+  {
+    name: 'get_stats',
+    description: '获取今日完成的番茄钟统计（只读）',
+    handler: async () => ({ today: stats.today, total: stats.total }),
+  },
+])
+```
+
+同时建议在 manifest.json 中静态声明 `aiTools`（不含 handler 的同构元数据），用于服务设置页展示与校验。
+
+**注意**：tools 模块仅服务主页面与后台 worker 可用，Widget 暂不支持。
+
 ## Widget 与服务 API 一致性
 
-Widget（悬浮块）iframe 与服务主页面 iframe 支持**完全相同的 `__amiba__` API**（以上全部 9 个模块）。Widget API 调用通过宿主全局消息处理器路由，自动注入 `serviceId` 识别来源服务。
+Widget（悬浮块）iframe 与服务主页面 iframe 支持**几乎相同的 `__amiba__` API**（除 tools 模块外的全部模块）。Widget API 调用通过宿主全局消息处理器路由，自动注入 `serviceId` 识别来源服务。
 
 ## 禁止事项
 

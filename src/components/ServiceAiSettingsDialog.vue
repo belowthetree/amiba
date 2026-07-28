@@ -40,6 +40,31 @@
 
         <button class="reset-btn" @click="resetDefault">↺ {{ $t('services.ai.resetDefault') }}</button>
       </template>
+
+      <!-- 服务工具（主聊天 AI 可调用本服务暴露的工具） -->
+      <div class="svc-tools-section">
+        <h3 class="section-title">🔌 {{ $t('services.svcTools.title') }}</h3>
+        <label class="enable-row">
+          <span class="toggle">
+            <input type="checkbox" :checked="toolsEnabled" @change="onToggleToolsEnabled" />
+            <span class="toggle-slider"></span>
+          </span>
+          <span class="enable-label">{{ $t('services.svcTools.enable') }}</span>
+        </label>
+        <p class="hint">{{ $t('services.svcTools.enableHint') }}</p>
+
+        <template v-if="toolsEnabled">
+          <p v-if="knownTools.length === 0" class="hint">{{ $t('services.svcTools.noTools') }}</p>
+          <div v-else class="tool-group">
+            <label v-for="tool in knownTools" :key="tool.name" class="tool-row">
+              <input type="checkbox" :checked="toolsSelected.has(tool.name)" @change="toggleSvcTool(tool.name)" />
+              <span class="tool-name">{{ tool.name }}</span>
+              <span v-if="tool.level === 'sensitive'" class="badge-sensitive">{{ $t('services.svcTools.sensitiveBadge') }}</span>
+              <span class="tool-desc">{{ tool.description }}</span>
+            </label>
+          </div>
+        </template>
+      </div>
     </div>
   </div>
 </template>
@@ -49,7 +74,8 @@ import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { ServiceEntry } from '../types/service'
 import { SERVICE_AI_TOOLS, getDefaultServiceAiTools } from '../ai/service-ai'
-import { updateServiceAiConfig, grantServicePermission } from '../host/registry'
+import { updateServiceAiConfig, updateServiceToolsConfig, grantServicePermission } from '../host/registry'
+import { getKnownServiceTools } from '../host/service-tools'
 
 const props = defineProps<{ service: ServiceEntry }>()
 const emit = defineEmits<{ close: [] }>()
@@ -95,6 +121,55 @@ function toggleTool(name: string) {
 function resetDefault() {
   selected.value = new Set(getDefaultServiceAiTools())
   save()
+}
+
+// ---- 服务工具（service-provided tools：主聊天 AI 调用服务暴露的工具） ----
+
+const knownTools = getKnownServiceTools(props.service.manifest.id)
+
+// 声明即启用：有 tools 权限且 toolsConfig.enabled 未显式关闭 → 视为启用
+const toolsEnabled = ref(
+  props.service.manifest.permissions.includes('tools') && props.service.toolsConfig?.enabled !== false
+)
+// 显式列表缺省 = readonly 全开 / sensitive 全关
+const toolsSelected = ref<Set<string>>(
+  new Set(
+    props.service.toolsConfig?.enabledTools ??
+      knownTools.filter((t) => t.level !== 'sensitive').map((t) => t.name)
+  )
+)
+
+// 总开关：保留已有 enabledTools（undefined = 默认全开 readonly），不主动写显式列表
+async function saveToolsEnabled() {
+  await updateServiceToolsConfig(props.service.manifest.id, {
+    enabled: toolsEnabled.value,
+    enabledTools: props.service.toolsConfig?.enabledTools,
+  })
+}
+
+async function onToggleToolsEnabled(e: Event) {
+  const checkbox = e.target as HTMLInputElement
+  const want = checkbox.checked
+  // 未声明 tools 权限：开启 = 用户授权，补充权限声明
+  if (want && !props.service.manifest.permissions.includes('tools')) {
+    if (!confirm(t('services.svcTools.grantConfirm', { name: props.service.manifest.name }))) {
+      checkbox.checked = false
+      return
+    }
+    await grantServicePermission(props.service.manifest.id, 'tools')
+  }
+  toolsEnabled.value = want
+  await saveToolsEnabled()
+}
+
+// 单项开关：写入显式列表
+function toggleSvcTool(name: string) {
+  if (toolsSelected.value.has(name)) toolsSelected.value.delete(name)
+  else toolsSelected.value.add(name)
+  updateServiceToolsConfig(props.service.manifest.id, {
+    enabled: toolsEnabled.value,
+    enabledTools: [...toolsSelected.value],
+  })
 }
 </script>
 
@@ -214,6 +289,28 @@ function resetDefault() {
 
 .reset-btn:hover {
   background: var(--color-primary-light);
+}
+
+/* ---- 服务工具区块 ---- */
+.svc-tools-section {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border);
+}
+
+.section-title {
+  margin: 0 0 10px;
+  font-size: var(--font-size-base);
+  color: var(--color-text);
+}
+
+.badge-sensitive {
+  flex-shrink: 0;
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  color: var(--color-error, #d92d20);
+  border: 1px solid var(--color-error, #d92d20);
 }
 
 /* 开关样式（与服务卡片 toggle 一致） */

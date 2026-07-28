@@ -314,6 +314,14 @@ const en: LocalesSchema = {
         ui_slot_set: 'Inject UI slot content',
       },
     },
+    svcTools: {
+      title: 'Service Tools',
+      enable: "Allow AI to call this service's tools",
+      enableHint: 'Tools exposed via __amiba__.tools.register can be called by the main chat AI; available only while the service is running.',
+      grantConfirm: 'Service "{name}" has not declared the tools permission. Enabling will add the permission declaration for it. Continue?',
+      noTools: 'No tools yet (declared via manifest.aiTools or registered at runtime).',
+      sensitiveBadge: 'sensitive',
+    },
   },
   host: {
     loading: 'Loading service...',

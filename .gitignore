@@ -28,3 +28,7 @@ example/
 servicehub/
 
 release.keystore
+
+# 视频生成产物与 Python 虚拟环境
+.venv-video/
+video-gen/
