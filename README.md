@@ -466,6 +466,10 @@ git push origin main   # 触发构建
 - **AI 对话操作**：用户说"换成深色"→ AI 调用 `ui_theme_switch("dark")`；"所有按钮改圆角"→ `ui_theme_set_variable("--radius-sm", "12px")`
 - **详细参考**：[界面定制指南](public/docs/ui-customization.md) — CSS 选择器速查表 + 变量说明 + 插槽列表
 
+## Star 增长趋势
+
+[![Star History Chart](https://api.star-history.com/svg?repos=belowthetree/amiba&type=Date)](https://star-history.com/#belowthetree/amiba&Date)
+
 ## License
 
 [MIT](./LICENSE) © 2026 belowthetree

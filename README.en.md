@@ -463,6 +463,10 @@ Amiba features a multi-theme system. Users can freely customize the UI appearanc
 - **AI-driven**: say "switch to dark mode" → AI calls `ui_theme_switch("dark")`; "round all buttons" → `ui_theme_set_variable("--radius-sm", "12px")`
 - **Reference**: [UI Customization Guide](public/docs/ui-customization.md) — CSS selector cheat sheet + variable reference + slot list
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=belowthetree/amiba&type=Date)](https://star-history.com/#belowthetree/amiba&Date)
+
 ## License
 
 [MIT](./LICENSE) © 2026 belowthetree
