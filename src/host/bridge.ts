@@ -493,10 +493,12 @@ export function createBridge(
       return
     }
     if (req.module === 'ai' && !allowedPermissions.includes('ai')) {
+      console.warn('[JSBridge] 权限拒绝: ai.' + req.method)
       sendResponse(req.requestId, undefined, 'Permission denied: ai')
       return
     }
     if (req.module === 'tools' && !allowedPermissions.includes('tools')) {
+      console.warn('[JSBridge] 权限拒绝: tools.' + req.method)
       sendResponse(req.requestId, undefined, 'Permission denied: tools')
       return
     }
@@ -547,6 +549,9 @@ export function createBridge(
     destroy() {
       window.removeEventListener('message', handleMessage)
       // 桥销毁 = 服务卸载：拒绝全部进行中的工具调用
+      if (pendingToolCalls.size > 0) {
+        console.log('[JSBridge] 桥销毁，取消进行中的工具调用 ×' + pendingToolCalls.size)
+      }
       for (const [, p] of pendingToolCalls) {
         clearTimeout(p.timer)
         p.reject(new Error('服务已卸载'))

@@ -97,8 +97,10 @@ export async function* streamChat(
     return
   }
 
-  // Refresh memory cache
-  await memoryStore.init()
+  // Refresh memory cache（服务内嵌 AI 走 systemPromptOverride，system prompt 不含记忆，跳过刷新）
+  if (!opts.systemPromptOverride) {
+    await memoryStore.init()
+  }
 
   // === AI SDK: 创建 provider + model ===
   const { model: languageModel, providerName } = createModelFromConfig(baseUrl, apiKey, modelName)

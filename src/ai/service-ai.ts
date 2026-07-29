@@ -151,6 +151,9 @@ async function runGeneration(conv: ServiceConversation, userText: string): Promi
   conv.abort = controller
   conv.lastActive = Date.now()
   conv.messages.push({ role: 'user', content: userText })
+  const key = convKey(conv.serviceId, conv.id)
+  const t0 = Date.now()
+  let toolCalls = 0
 
   const emit = (event: ServiceAiEvent['event'], data: any) => {
     conv.sink?.({ conversationId: conv.id, event, data })
@@ -175,6 +178,7 @@ async function runGeneration(conv: ServiceConversation, userText: string): Promi
         emit('reasoning', chunk.slice(11))
       } else if (chunk.startsWith('\x00TOOL:') && chunk.endsWith('\x00')) {
         const toolName = chunk.slice(6, -1)
+        toolCalls++
         console.log('[ServiceAI] 🔧', conv.serviceId, toolName)
         emit('tool', toolName)
       } else if (chunk.startsWith('\x00STEP_LIMIT:')) {
@@ -188,12 +192,20 @@ async function runGeneration(conv: ServiceConversation, userText: string): Promi
 
     conv.messages.push({ role: 'assistant', content: full })
     emit('done', full)
+    if (controller.signal.aborted) {
+      console.log(`[ServiceAI] 生成中止: ${key} (保留 ${full.length} 字符)`)
+    } else {
+      console.log(
+        `[ServiceAI] ✓ 生成完成: ${key} (耗时 ${Date.now() - t0}ms, 回复 ${full.length} 字符, 工具调用 ${toolCalls} 次)`,
+      )
+    }
   } catch (e: any) {
     if (e?.name === 'AbortError') {
       conv.messages.push({ role: 'assistant', content: full })
       emit('done', full)
+      console.log(`[ServiceAI] 生成中止: ${key} (上游 AbortError, 保留 ${full.length} 字符)`)
     } else {
-      console.error('[ServiceAI] 生成异常:', e)
+      console.error(`[ServiceAI] ✗ 生成异常: ${key}`, e)
       emit('error', e?.message || String(e))
     }
   } finally {
@@ -215,6 +227,7 @@ export function createServiceConversation(
   sink: ServiceAiSink,
 ): { conversationId: string; resumed: boolean } {
   if (!isServiceAiEnabled(serviceId)) {
+    console.warn('[ServiceAI] 会话创建被拒（AI 能力未启用）:', serviceId)
     throw new Error('AI 能力未启用（需要 manifest 声明 ai 权限，且在服务设置中开启）')
   }
   ensureSweep()
@@ -233,6 +246,7 @@ export function createServiceConversation(
 
   const count = [...conversations.values()].filter((c) => c.serviceId === serviceId).length
   if (count >= MAX_CONVERSATIONS_PER_SERVICE) {
+    console.warn('[ServiceAI] 会话创建被拒（超上限）:', serviceId, `(${count}/${MAX_CONVERSATIONS_PER_SERVICE})`)
     throw new Error(`AI 会话数已达上限（${MAX_CONVERSATIONS_PER_SERVICE} 个），请先 close 不再使用的会话`)
   }
 
@@ -260,18 +274,36 @@ export async function sendServiceConversationMessage(
   conversationId: string,
   text: string,
 ): Promise<void> {
-  const conv = conversations.get(convKey(serviceId, conversationId))
-  if (!conv) throw new Error('会话不存在或已回收，请重新 createConversation')
-  if (!conv.sink) throw new Error('会话已断开，请重新 createConversation（带原 conversationId）恢复')
-  if (conv.running) throw new Error('上一条消息正在生成中，请等待 done 或先 abort')
-  if (!isServiceAiEnabled(serviceId)) throw new Error('AI 能力已被禁用')
+  const key = convKey(serviceId, conversationId)
+  const conv = conversations.get(key)
+  if (!conv) {
+    console.warn('[ServiceAI] 消息被拒（会话不存在或已回收）:', key)
+    throw new Error('会话不存在或已回收，请重新 createConversation')
+  }
+  if (!conv.sink) {
+    console.warn('[ServiceAI] 消息被拒（会话已断开）:', key)
+    throw new Error('会话已断开，请重新 createConversation（带原 conversationId）恢复')
+  }
+  if (conv.running) {
+    console.warn('[ServiceAI] 消息被拒（生成中）:', key)
+    throw new Error('上一条消息正在生成中，请等待 done 或先 abort')
+  }
+  if (!isServiceAiEnabled(serviceId)) {
+    console.warn('[ServiceAI] 消息被拒（能力已禁用）:', key)
+    throw new Error('AI 能力已被禁用')
+  }
+  console.log(`[ServiceAI] 消息接收: ${key} (历史 ${conv.messages.length} 条, +${String(text ?? '').length} 字符)`)
   // 立即 ack，生成在后台进行，事件经 sink 推送
   runGeneration(conv, String(text ?? '')).catch((e) => console.warn('[ServiceAI] 生成异常:', e))
 }
 
 /** 中止当前生成（保留已产出内容） */
 export function abortServiceConversation(serviceId: string, conversationId: string): void {
-  conversations.get(convKey(serviceId, conversationId))?.abort?.abort()
+  const conv = conversations.get(convKey(serviceId, conversationId))
+  if (conv?.abort) {
+    console.log(`[ServiceAI] 中止请求: ${convKey(serviceId, conversationId)}`)
+    conv.abort.abort()
+  }
 }
 
 /** 关闭会话并释放历史 */
@@ -287,12 +319,15 @@ export function closeServiceConversation(serviceId: string, conversationId: stri
 
 /** 容器卸载：断开该事件出口的所有会话（中止生成，保留历史供恢复） */
 export function detachServiceAi(serviceId: string, sink: ServiceAiSink): void {
+  let detached = 0
   for (const conv of conversations.values()) {
     if (conv.serviceId === serviceId && conv.sink === sink) {
       conv.abort?.abort()
       conv.sink = null
+      detached++
     }
   }
+  if (detached > 0) console.log(`[ServiceAI] 事件出口断开: ${serviceId} (${detached} 个会话，历史保留可恢复)`)
 }
 
 /** 服务删除：清理其全部 AI 会话（registry.destroyServiceRuntime 收口） */

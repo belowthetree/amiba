@@ -134,9 +134,11 @@ function handleGlobalAi(
 ): void {
   const svc = getService(svcId)
   if (!svc || !svc.manifest.permissions.includes('ai')) {
+    console.warn('[BgManager] 全局 AI 权限拒绝:', svcId)
     reply(undefined, 'Permission denied: ai')
     return
   }
+  console.log('[BgManager] 全局 AI 请求:', method, svcId)
   const sink: ServiceAiSink = (payload) => {
     try { source.postMessage({ type: 'event', name: 'ai-event', data: payload }, '*') } catch { /* ignore */ }
   }
@@ -688,9 +690,11 @@ async function handleBgAPI(req: { module: string; method: string; params: Record
       // AI 涉及计费：后台路径无权限检查，这里按 serviceId 补验 manifest 权限
       const svc = getService(svcId)
       if (!svc || !svc.manifest.permissions.includes('ai')) {
+        console.warn('[BgManager] 后台 AI 权限拒绝:', svcId)
         _sendResponse(worker, requestId, undefined, 'Permission denied: ai')
         return
       }
+      console.log('[BgManager] 后台 AI 请求:', method, svcId)
       const aiSink: ServiceAiSink = (payload) => {
         try { worker.iframe.contentWindow?.postMessage({ type: 'event', name: 'ai-event', data: payload }, '*') } catch { /* ignore */ }
       }
@@ -712,9 +716,11 @@ async function handleBgAPI(req: { module: string; method: string; params: Record
       // 服务工具注册：后台路径无桥层权限检查，这里按 serviceId 补验 manifest 权限
       const svc = getService(svcId)
       if (!svc || !svc.manifest.permissions.includes('tools')) {
+        console.warn('[BgManager] 后台工具权限拒绝:', svcId)
         _sendResponse(worker, requestId, undefined, 'Permission denied: tools')
         return
       }
+      console.log('[BgManager] 后台工具请求:', method, svcId)
       try {
         switch (method) {
           case 'register': {

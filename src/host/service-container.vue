@@ -425,6 +425,9 @@ function makeApiHandler(): ApiHandler {
       }
       case 'ai': {
         // 事件经 aiSink → bridge.sendEvent('ai-event') 推入 iframe
+        console.log(
+          `[SvcContainer] AI 请求: ${method} (${serviceId.value}${params.conversationId ? ' ' + params.conversationId : ''})`,
+        )
         switch (method) {
           case 'createConversation':
             return createServiceConversation(serviceId.value, params.opts || {}, aiSink)
@@ -443,6 +446,9 @@ function makeApiHandler(): ApiHandler {
       }
       case 'tools': {
         // 服务工具注册/注销：调用经 ctx.callServiceTool 路由回本 iframe 执行
+        console.log(
+          `[SvcContainer] 工具请求: ${method} (${serviceId.value}${method === 'register' ? ', ' + (params.decls?.length ?? 0) + ' 个' : ''})`,
+        )
         switch (method) {
           case 'register': {
             const call = ctx?.callServiceTool

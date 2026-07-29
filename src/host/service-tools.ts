@@ -101,6 +101,11 @@ export function registerServiceTools(
 ): ServiceToolRegisterResult {
   const result: ServiceToolRegisterResult = { registered: [], rejected: [] }
   if (!isServiceToolsEnabled(serviceId)) {
+    console.warn(
+      '[SvcTools] 注册被拒（服务工具能力未启用）:',
+      serviceId,
+      (decls ?? []).map((d) => d?.name ?? '?').join(', '),
+    )
     for (const d of decls ?? []) {
       result.rejected.push({
         name: d?.name ?? '?',
@@ -163,11 +168,19 @@ export function registerServiceTools(
         handler: async (args) => {
           const argsSize = JSON.stringify(args ?? {}).length
           if (argsSize > MAX_ARGS_CHARS) {
+            console.warn('[SvcTools] 参数体积超限:', serviceId, localName, `(${argsSize} > ${MAX_ARGS_CHARS} 字符)`)
             return JSON.stringify({ error: `参数体积超限（${argsSize} > ${MAX_ARGS_CHARS} 字符）` })
           }
           console.log('[SvcTools] 🔌→', serviceId, localName)
-          const r = await call(localName, args ?? {})
-          return typeof r === 'string' ? r : JSON.stringify(r ?? null)
+          try {
+            const r = await call(localName, args ?? {})
+            const out = typeof r === 'string' ? r : JSON.stringify(r ?? null)
+            console.log('[SvcTools] 🔌✓', serviceId, localName, `(结果 ${out.length} 字符)`)
+            return out
+          } catch (e: any) {
+            console.warn('[SvcTools] 🔌✗', serviceId, localName, e?.message || e)
+            throw e
+          }
         },
       },
       true, // override：本模块自行管理生命周期（注销时 deregister）
@@ -195,6 +208,7 @@ export function unregisterServiceTools(serviceId: string, names?: string[], call
   const table = toolTable.get(serviceId)
   if (!table) return
   const targets = names ?? [...table.keys()]
+  const removed: string[] = []
   for (const n of targets) {
     const e = table.get(n)
     if (!e) continue
@@ -202,8 +216,10 @@ export function unregisterServiceTools(serviceId: string, names?: string[], call
     toolRegistry.deregister(e.aiName)
     aiNameOwners.delete(e.aiName)
     table.delete(n)
+    removed.push(n)
   }
   if (table.size === 0) toolTable.delete(serviceId)
+  if (removed.length > 0) console.log('[SvcTools] 服务工具注销:', serviceId, removed.join(', '))
 }
 
 // ---- 查询 ----

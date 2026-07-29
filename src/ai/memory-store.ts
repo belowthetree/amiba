@@ -35,6 +35,8 @@ const THREAT_PATTERNS: { pattern: RegExp; label: string; severity: 'high' | 'med
 export class MemoryStore {
   private memoryCache = ''
   private userCache = ''
+  /** 是否已完成首次初始化（重复 init 仅静默刷新缓存，不再打日志） */
+  private initialized = false
   /** 构建 system prompt 时冻结的快照（Prompt Cache 优化） */
   private snapshot: { memory: string; user: string } | null = null
   /** 快照版本号：写入后递增，触发 system prompt 重建 */
@@ -46,6 +48,8 @@ export class MemoryStore {
     this.memoryCache = (await storageGet(MEMORY_KEY)) || ''
     this.userCache = (await storageGet(USER_KEY)) || ''
     this.snapshot = { memory: this.memoryCache, user: this.userCache }
+    if (this.initialized) return // 后续调用仅刷新缓存（agent 每轮复用），静默
+    this.initialized = true
     console.log(
       `[MemoryStore] 初始化 — MEMORY ${this.memoryCache.length}/${MEMORY_MAX_CHARS} chars, USER ${this.userCache.length}/${USER_MAX_CHARS} chars`
     )
