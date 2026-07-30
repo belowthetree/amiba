@@ -113,13 +113,13 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 ## Theme System
 
 - **Theme directory:** `{AppData}/amiba/theme/{name}/` — 每个主题一个目录，包含 `variables.json` + `custom.css`
-- **Built-in themes:** `default`（玉石玻璃风：玉青主色 + 半透明白表面）、`dark`（深色模式）、`ocean`（蓝色系）— 从 `public/themes/` 安装，不可修改
+- **Built-in themes:** `default`（玉石玻璃风：玉青主色 + 半透明白表面）、`dark`（黑色玉石：墨玉底色 + 玉青主色 + 深色玻璃表面）、`ocean`（蓝色系）— 从 `public/themes/` 安装，不可修改
 - **User themes:** 从内置主题另存创建，可自由修改删除
 - **Active theme:** 存储在 `settings.active_theme`，切换时立即重新加载并注入到 document.head；主题名同步到 `<html data-theme>`
 - **Slot directory:** `{AppData}/amiba/theme/slots/` — 插槽 HTML（不随主题切换）；可用插槽：`chat.above-messages` / `chat.below-input` / `settings.extra` / `services.above-list`
 - **CSS variables:** 30 个变量定义在 `:root` 中，所有页面样式通过 `var(--*)` 引用
 - **Doc:** `public/docs/ui-customization.md` — CSS 选择器速查表 + 变量参考 + 插槽列表
-- **Prebuilt themes:** `public/themes/{name}/variables.json` + `custom.css` → `installPrebuiltThemes()` 在首次启动时复制到 AppData
+- **Prebuilt themes:** `public/themes/{name}/variables.json` + `custom.css` → `installPrebuiltThemes()` 每次启动覆盖刷新到 AppData（内置主题只读，刷新安全），激活的内置主题会立即重载
 - **Migration:** 无旧格式迁移需求（全新功能）
 
 ## UI Structure

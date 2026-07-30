@@ -115,10 +115,8 @@ export async function installPrebuiltThemes(): Promise<number> {
     for (const name of BUILTIN_THEMES) {
       const themeDir = `amiba/theme/${name}`
       const alreadyExists = await exists(themeDir, { baseDir: BaseDirectory.AppData }).catch(() => false)
-      if (alreadyExists) {
-        console.log(`[ThemeStore] 内置主题已存在: ${name}，跳过`)
-        continue
-      }
+      // 内置主题只读，每次启动都用 public/themes/ 的最新文件覆盖刷新，
+      // 保证内置主题更新能下发到已有安装
       await mkdir(themeDir, { baseDir: BaseDirectory.AppData, recursive: true }).catch(() => {})
       try {
         const varsResp = await fetch(`/themes/${name}/variables.json`)
@@ -134,8 +132,12 @@ export async function installPrebuiltThemes(): Promise<number> {
       } catch {
         await writeTextFile(`${themeDir}/custom.css`, '', { baseDir: BaseDirectory.AppData })
       }
-      installed++
-      console.log(`[ThemeStore] 已安装内置主题: ${name}`)
+      if (alreadyExists) {
+        console.log(`[ThemeStore] 内置主题已刷新: ${name}`)
+      } else {
+        installed++
+        console.log(`[ThemeStore] 已安装内置主题: ${name}`)
+      }
     }
     if (installed > 0) {
       await scanThemes()
@@ -144,6 +146,9 @@ export async function installPrebuiltThemes(): Promise<number> {
         themeState.activeTheme = 'default'
         settings.active_theme = 'default'
       }
+    }
+    // 激活的是内置主题时重新加载，让本次刷新立即生效
+    if (isBuiltinTheme(themeState.activeTheme)) {
       await loadActiveTheme()
     }
   } catch (e) {
