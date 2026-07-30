@@ -20,6 +20,15 @@ export interface LocalesSchema {
   quick: {
     emptyHint: string
   }
+  apiSetup: {
+    title: string
+    descMissing: string
+    descUnavailable: string
+    testing: string
+    testSuccess: string
+    testFailed: string
+    verify: string
+  }
   chat: {
     newSession: string
     delete: string

@@ -21,6 +21,15 @@ const zhCN: LocalesSchema = {
   quick: {
     emptyHint: '这是一个可自定义的快捷页面。告诉 AI 你想要什么，它会帮你定制这里的内容。',
   },
+  apiSetup: {
+    title: '配置 AI API',
+    descMissing: '尚未配置 AI API。请填写以下信息，验证通过后即可开始使用。',
+    descUnavailable: '当前 AI API 无法连接。请检查网络与以下配置，验证通过后即可继续使用。',
+    testing: '正在测试连接…',
+    testSuccess: '✓ 连接成功',
+    testFailed: '✗ 连接失败：{error}',
+    verify: '验证并继续',
+  },
   chat: {
     newSession: '新会话',
     delete: '删除',

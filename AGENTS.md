@@ -63,6 +63,7 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 | `service-validator.ts` | Service code validation: storage API, sandbox APIs, permission consistency |
 | `doc-index.ts` | Document index/search/read for builtin (`public/docs/`) and user (`{AppData}/docs/`) docs |
 | `provider-store.ts` | Multi-provider AI vendor management: reactive list, CRUD, auto-persist to `amiba_providers` |
+| `api-check.ts` | API 可用性检测：最小化 chat 请求验证 baseUrl/Key/模型（启动门 + 设置引导共用） |
 | `custom-agent-store.ts` | Custom agent management: reactive list + settings.active_agent_id, CRUD, auto-persist to `amiba_custom_agents` |
 | `service-ai.ts` | 服务内嵌 AI 对话：工具双层白名单（SERVICE_AI_TOOLS，默认只读）、ServiceAiRunner（每服务≤3会话/10轮上限/30min空闲回收）、绕开 agent-runner 复用 streamChat |
 
@@ -128,6 +129,7 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 - **页面过渡:** 手势切换用空过渡（JS 已驱动位移）；箭头/编程导航用同步横滑（新页滑入 + 旧页滑出，过渡期间两页 absolute 叠放，`left/right: 0` 保持 max-width 页面居中）；复位由 `@after-enter` 触发避免旧页闪回
 - **全局背景:** `src/components/GlassBackground.vue` — 玉色辉光 + 流光动画，fixed 铺满全局，随 `data-theme` 自适应，`prefers-reduced-motion` 时关闭动画
 - **服务页返回:** `service-container.vue` 左上角浮动玻璃返回按钮（无顶栏后的唯一返回入口）
+- **API 启动门:** `App.vue` onMounted 检查 `settings.api_key`，缺失时直接弹出全屏 `ApiSetupOverlay.vue`；已配置则经 `src/ai/api-check.ts` 发最小化 chat 请求验证连通性，失败同样弹出。遮罩不可关闭，用户填写供应商/BaseURL/Key/模型并「验证并继续」通过后才进入应用
 - **聊天页输入区:** 无聊天记录时输入框垂直居中（`.chat-page.empty`），有消息后沉底；输入条左侧 › 开关展开功能面板（新建会话/统计/会话列表），会话列表为输入条上方弹出层；消息列表用 `<TransitionGroup>`，入场动画仅对新增消息触发（切页/历史不重放）
 - **服务风格指南:** `public/docs/service-style.md` + `public/libs/jade.css`（可复用基础样式表：设计令牌 + 玻璃辉光背景 + 卡片/按钮/输入框/模态类，服务 `<link href="/libs/jade.css">` 引入）— service-dev skill、系统提示 DOCS/SERVICE 指引均已引用，AI 生成服务必须遵循
 

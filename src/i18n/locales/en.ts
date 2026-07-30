@@ -21,6 +21,15 @@ const en: LocalesSchema = {
   quick: {
     emptyHint: 'This is a customizable quick page. Tell the AI what you want, and it will personalize this space for you.',
   },
+  apiSetup: {
+    title: 'Configure AI API',
+    descMissing: 'No AI API configured yet. Fill in the details below — you can start once verification passes.',
+    descUnavailable: 'The current AI API is unreachable. Check your network and the settings below — you can continue once verification passes.',
+    testing: 'Testing connection…',
+    testSuccess: '✓ Connection successful',
+    testFailed: '✗ Connection failed: {error}',
+    verify: 'Verify & Continue',
+  },
   chat: {
     newSession: 'New Session',
     delete: 'Delete',

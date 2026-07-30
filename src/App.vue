@@ -54,6 +54,13 @@
       <!-- WebView 预览悬浮控制栏 -->
       <WebviewOverlay />
     </main>
+
+    <!-- API 设置引导：无可用 API 时占满全屏，验证通过前不可关闭 -->
+    <ApiSetupOverlay
+      v-if="apiSetupRequired"
+      :reason="apiSetupReason"
+      @ready="apiSetupRequired = false"
+    />
   </div>
 </template>
 
@@ -64,6 +71,8 @@ import FloatingWidgetContainer from './host/floating-widget-container.vue'
 import WebviewOverlay from './components/WebviewOverlay.vue'
 import GlassBackground from './components/GlassBackground.vue'
 import EdgeNavHint from './components/EdgeNavHint.vue'
+import ApiSetupOverlay from './components/ApiSetupOverlay.vue'
+import { testApiConnection } from './ai/api-check'
 import { themeState } from './config/theme-store'
 import { settings } from './config/config'
 import { checkForUpdate } from './config/updater'
@@ -426,7 +435,31 @@ onMounted(() => {
   window.addEventListener('message', onIframeTouchMessage)
   // 启动后延时检查更新（避免阻塞首屏）
   setTimeout(() => checkUpdateBanner(), 2000)
+  // API 可用性检查：未配置或不可用时弹出全屏设置引导
+  checkApiAvailability()
 })
+
+// ==== API 可用性检查（启动门） ====
+const apiSetupRequired = ref(false)
+const apiSetupReason = ref<'missing' | 'unavailable'>('missing')
+
+async function checkApiAvailability() {
+  if (!settings.api_key) {
+    console.log('[App] 未配置 API Key，显示 API 设置引导')
+    apiSetupReason.value = 'missing'
+    apiSetupRequired.value = true
+    return
+  }
+  // 已配置 Key：后台验证连通性，不可用则弹出引导
+  const result = await testApiConnection(settings.ai_base_url, settings.api_key, settings.ai_model)
+  if (!result.ok) {
+    console.log('[App] API 不可用，显示 API 设置引导:', result.error)
+    apiSetupReason.value = 'unavailable'
+    apiSetupRequired.value = true
+  } else {
+    console.log('[App] ✓ API 可用性检查通过')
+  }
+}
 
 onUnmounted(() => {
   window.removeEventListener('message', onIframeTouchMessage)
