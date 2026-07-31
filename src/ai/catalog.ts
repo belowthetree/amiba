@@ -266,7 +266,7 @@ export interface ValidationError {
   message: string
 }
 
-const KNOWN_PERMISSIONS = ['storage', 'notification', 'widgets', 'network', 'background', 'fileAccess', 'fetch', 'ai']
+const KNOWN_PERMISSIONS = ['storage', 'notification', 'widgets', 'network', 'background', 'fileAccess', 'fetch', 'ai', 'tools', 'desktopWidgets']
 
 export function validatePermissions(permissions: string[]): ValidationError[] {
   const errors: ValidationError[] = []

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 变形虫桌面卡片 · AppWidget 元数据
+     updatePeriodMillis=0：不周期唤醒，仅前端推送时手动刷新 -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="110dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="0"
+    android:initialLayout="@layout/widget_card"
+    android:configure="com.amiba.desktop.WidgetConfigActivity"
+    android:widgetCategory="home_screen"
+    android:description="@string/app_name" />

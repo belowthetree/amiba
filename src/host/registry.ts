@@ -317,6 +317,12 @@ export async function destroyServiceRuntime(serviceId: string): Promise<void> {
     const { dropServiceAi } = await import('../ai/service-ai')
     dropServiceAi(serviceId)
   } catch (e) { console.warn('[Registry] dropServiceAi 失败:', e) }
+
+  // 6. 清理安卓桌面卡片周期调度
+  try {
+    const { stopServiceWidgetCards } = await import('./desktop-widget-runner')
+    stopServiceWidgetCards(serviceId)
+  } catch (e) { console.warn('[Registry] stopServiceWidgetCards 失败:', e) }
 }
 
 // ============================================================

@@ -216,6 +216,16 @@ HTTP 请求代理（Rust reqwest 实现），绕过浏览器 CORS 和移动端�
 
 AI 可见工具名为 `svc_<serviceId>__<本地名>`（≤64 字符，防跨服务撞名），description 自动前缀【服务名】。readonly 工具默认可调用，sensitive 工具需用户在服务设置中逐项开启；每服务最多 8 个。
 
+### desktopWidget
+
+安卓系统桌面卡片数据发布。**仅 `desktop-widget-runner.ts` 的隐藏 iframe（服务 `desktop-widgets/{cardId}/logic.js`）可用**，服务主页面/悬浮块调用会被宿主 handler 拒绝。详见 docs/android-widget.md。
+
+| 方法 | 参数 | 返回 | 权限 |
+|------|------|------|------|
+| `publish` | `{ payload: { title?, icon?, lines?, image?, footer? } }` | `void` | desktopWidgets |
+
+`image` 为相对卡片目录的路径（如 `assets/chart.png`），宿主转绝对路径后推送原生 RemoteViews 渲染；`lines` 限 6 条、每条 ≤60 字。logic.js 中同时可用 `storage` 模块（读写本服务数据），其余模块不可用。
+
 ## 服务内全局注入
 
 宿主在 iframe 加载完成后注入 `window.__amiba__` 对象，封装 postMessage 为 Promise 风格：

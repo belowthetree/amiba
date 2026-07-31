@@ -394,6 +394,11 @@ export const BRIDGE_SCRIPT = `
         });
       },
     },
+    desktopWidget: {
+      // 系统桌面卡片：发布渲染数据（供 desktop-widget-runner 的隐藏 iframe 使用，
+      // 宿主侧由 runner 注册的 handler 接收并写入 cache 推送原生）
+      publish: function(payload) { return callHost('desktopWidget', 'publish', { payload: payload }); },
+    },
     tools: {
       // 注册服务工具：handler 留在 iframe 侧，仅元数据上报宿主校验。
       // 宿主回执 { registered: [...], rejected: [{ name, reason }] }，被拒绝的 handler 自动清理。
@@ -500,6 +505,12 @@ export function createBridge(
     if (req.module === 'tools' && !allowedPermissions.includes('tools')) {
       console.warn('[JSBridge] 权限拒绝: tools.' + req.method)
       sendResponse(req.requestId, undefined, 'Permission denied: tools')
+      return
+    }
+
+    if (req.module === 'desktopWidget' && !allowedPermissions.includes('desktopWidgets')) {
+      console.warn('[JSBridge] 权限拒绝: desktopWidget.' + req.method)
+      sendResponse(req.requestId, undefined, 'Permission denied: desktopWidgets')
       return
     }
 

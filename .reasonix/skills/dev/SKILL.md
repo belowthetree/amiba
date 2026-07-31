@@ -25,6 +25,7 @@ description: 引导 agent 在任务前后阅读/更新项目开发规范文档�
 | 文件访问/fileAccess API | `docs/jbridge.md`（fileAccess 模块）、`src/host/file-access-grants.ts` |
 | 悬浮块/widget UI | `docs/services.md`（悬浮块 节）、`src/host/floating-widget-container.vue`、见下方「悬浮块 UI 规范」 |
 | Widget 开发/AI 生成 widget | `public/catalog/skills/widget-dev/SKILL.md`（内置 Widget 开发 skill）、见下方「Widget 开发内置 Skill」节 |
+| 安卓桌面卡片/系统桌面小组件 | `public/catalog/skills/desktop-widget-dev/SKILL.md`（内置桌面卡片开发 skill）、`docs/android-widget.md`、见下方「桌面卡片内置 Skill」节 |
 | 整体架构/模块关系 | `docs/architecture.md` |
 | 开发环境/构建/命名/多语言 | `docs/development.md` |
 | 预置服务（public/services/） | 见下方「预置用户服务」节 |
@@ -297,3 +298,17 @@ var b64  = await __amiba__.fileAccess.readBinary(grant.token, 'song.mp3')
 - 常见错误清单 + 检查清单
 
 当用户要求开发/创建悬浮块/快捷页面时，**必须先查阅此规范**。
+
+## 桌面卡片内置 Skill
+
+`public/catalog/skills/desktop-widget-dev/SKILL.md` 是 **AI 生成安卓系统桌面卡片的权威规范**，包含：
+
+- 与悬浮块（widget-dev）的区别对比（系统桌面 vs 应用内，勿混淆）
+- 卡片目录规范（`services/{id}/desktop-widgets/{cardId}/`：widget.json + logic.js + assets/）
+- widget.json 字段（layout: lines / bigText / image、tapPath、updateIntervalMin）
+- logic.js 沙箱约束（仅 `desktopWidget.publish` + `storage` 两模块，10s 超时，恰好 publish 一次）
+- publish 数据格式（title / icon / lines ≤6×60 字 / image 相对路径 / footer）
+- AI 管理工具（`android_widget_list` / `android_widget_enable` / `android_widget_refresh`）
+- 完整示例（记账本最近支出卡片）+ 常见错误清单 + 检查清单
+
+当用户要求把内容「放到手机/系统桌面」时，**必须先查阅此规范**。权限为 `desktopWidgets`（勿写成 `widgets`）。宿主侧实现参考 `docs/android-widget.md`。

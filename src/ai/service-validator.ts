@@ -317,6 +317,30 @@ const checkToolsPermissionConsistency: CheckFn = (filePath, content, manifest) =
 }
 
 // ================================================================
+// 规则 8.7: desktopWidgets 权限一致性（安卓系统桌面卡片）
+// ================================================================
+
+const checkDesktopWidgetPermissionConsistency: CheckFn = (filePath, content, manifest) => {
+  const results: ValidationCheck[] = []
+  if (!manifest) return results
+
+  const declared = manifest.permissions || []
+
+  // 使用了 __amiba__.desktopWidget.* 但没声明 desktopWidgets 权限
+  if (/__amiba__\.desktopWidget\./.test(content) && !declared.includes('desktopWidgets')) {
+    results.push({
+      check: 'desktopWidgets 权限缺失',
+      status: 'fail',
+      message: '代码使用了 __amiba__.desktopWidget.* 但 manifest 未声明 desktopWidgets 权限',
+      file: filePath,
+      suggestion: '在 manifest.permissions 中添加 "desktopWidgets"',
+    })
+  }
+
+  return results
+}
+
+// ================================================================
 // 规则 9: index.html 存在性 + 结构
 // ================================================================
 
@@ -506,6 +530,7 @@ const ALL_CHECKS: CheckFn[] = [
   checkNotificationPermissionConsistency,
   checkAiPermissionConsistency,
   checkToolsPermissionConsistency,
+  checkDesktopWidgetPermissionConsistency,
   checkIndexHtml,
   checkAmibaApiUsage,
   checkVueLibMissing,

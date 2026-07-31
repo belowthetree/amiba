@@ -10,6 +10,7 @@ AI 驱动的跨平台即时应用平台。用户用自然语言描述需求，AI
 | [服务模型](./services.md) | 服务注册、生命周期、沙箱运行 |
 | [AI 生成系统](./ai-generation.md) | 从自然语言到可运行服务的完整流程 |
 | [JSBridge 协议](./jsbridge.md) | 宿主与服务之间的通信协议，含 storage/network/background/fileAccess 模块 |
+| [安卓桌面卡片](./android-widget.md) | 服务自带卡片目录（widget.json + logic.js + assets），AppWidget 原生渲染 |
 | [网络互联](./network.md) | 局域网设备发现、P2P WebSocket 通信 |
 | [Catalog 组件规范](./catalog.md) | AI 可用的 UI 组件库定义 |
 | [记忆系统](./memory.md) | MEMORY.md / USER.md 持久记忆 |

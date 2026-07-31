@@ -429,10 +429,34 @@ function injectThemeStyles() {
   customEl.textContent = themeState.customCSS || ''
 }
 
+// ==== 安卓桌面卡片点击跳转 ====
+// 热启动：MainActivity 向 WebView 注入 amiba-widget-navigate 事件
+function onWidgetNavigate(e: Event) {
+  const path = (e as CustomEvent).detail
+  if (typeof path === 'string' && path.startsWith('/')) {
+    console.log('[App] 桌面卡片跳转:', path)
+    router.push(path).catch(() => {})
+  }
+}
+
+// 冷启动兜底：bootstrap 后消费一次原生侧暂存的跳转路径
+async function consumePendingWidgetTap() {
+  try {
+    const { consumeWidgetTapPath } = await import('./config/desktop-widget-store')
+    const path = await consumeWidgetTapPath()
+    if (path && path.startsWith('/')) {
+      console.log('[App] 桌面卡片冷启动跳转:', path)
+      router.push(path).catch(() => {})
+    }
+  } catch { /* 非 Android 或调用失败，静默 */ }
+}
+
 onMounted(() => {
   injectThemeStyles()
   watch(() => ({ ...themeState.variables, css: themeState.customCSS }), injectThemeStyles, { deep: true })
   window.addEventListener('message', onIframeTouchMessage)
+  window.addEventListener('amiba-widget-navigate', onWidgetNavigate)
+  consumePendingWidgetTap()
   // 启动后延时检查更新（避免阻塞首屏）
   setTimeout(() => checkUpdateBanner(), 2000)
   // API 可用性检查：未配置或不可用时弹出全屏设置引导
@@ -463,6 +487,7 @@ async function checkApiAvailability() {
 
 onUnmounted(() => {
   window.removeEventListener('message', onIframeTouchMessage)
+  window.removeEventListener('amiba-widget-navigate', onWidgetNavigate)
 })
 </script>
 

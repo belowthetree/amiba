@@ -66,6 +66,59 @@ class MainActivity : TauriActivity() {
     // 崩溃诊断涉及跨进程 IPC + tombstone I/O，移到后台线程避免 ANR
     bgExecutor.execute { logPreviousExitReasons() }
     ensureStoragePermission()
+    handleWidgetTap(intent)
+  }
+
+  // ============================================================
+  // 桌面卡片点击跳转：AmibaWidgetProvider 的 PendingIntent 带
+  // widget_tap_path extra。双通道：
+  //   1) 写入 SharedPreferences（冷启动兜底，前端 bootstrap 时经
+  //      android_widget_consume_tap 消费）
+  //   2) 尽力向 Tauri WebView 注入 JS 事件（热启动即时跳转，
+  //      WebView 未就绪时重试 3 次共 ~3s，失败则等下次冷启动消费）
+  // 注意: gen/android 会被 `tauri android init` 重置,重置后需重新写入本段
+  // ============================================================
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    handleWidgetTap(intent)
+  }
+
+  private fun handleWidgetTap(intent: Intent?) {
+    val path = intent?.getStringExtra("widget_tap_path") ?: return
+    if (path.isEmpty() || !path.startsWith("/")) return
+    android.util.Log.i("[amiba-widget]", "=== 桌面卡片点击: $path ===")
+    WidgetHelper.recordTapPath(this, path)
+    dispatchWidgetNavigate(path, 0)
+  }
+
+  private fun dispatchWidgetNavigate(path: String, attempt: Int) {
+    val wv = findWebView(findViewById(android.R.id.content))
+    if (wv != null) {
+      val safe = path.replace("\\", "\\\\").replace("'", "\\'")
+      wv.evaluateJavascript(
+        "window.dispatchEvent(new CustomEvent('amiba-widget-navigate',{detail:'$safe'}))",
+        null
+      )
+      android.util.Log.i("[amiba-widget]", "跳转事件已注入 WebView (attempt=$attempt)")
+    } else if (attempt < 3) {
+      android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+        dispatchWidgetNavigate(path, attempt + 1)
+      }, 1000)
+    } else {
+      android.util.Log.i("[amiba-widget]", "WebView 未就绪，跳转路径留待冷启动消费: $path")
+    }
+  }
+
+  private fun findWebView(v: android.view.View?): android.webkit.WebView? {
+    if (v == null) return null
+    if (v is android.webkit.WebView) return v
+    if (v is android.view.ViewGroup) {
+      for (i in 0 until v.childCount) {
+        val found = findWebView(v.getChildAt(i))
+        if (found != null) return found
+      }
+    }
+    return null
   }
 
   // ============================================================

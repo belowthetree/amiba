@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 变形虫桌面卡片 · 圆角半透明深色背景（系统色，不依赖主题资源） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <corners android:radius="16dp" />
+    <solid android:color="#E61E1E22" />
+</shape>

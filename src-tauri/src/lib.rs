@@ -3,6 +3,7 @@ mod web;
 mod network_visibility;
 mod network_session;
 mod picker;
+mod widget;
 mod android_util;
 use std::sync::Mutex;
 use std::collections::HashMap;
@@ -310,6 +311,8 @@ pub fn run() {
       network_visibility::network_get_device_id,
       network_visibility::network_get_device_name,
       picker::read_tombstone,
+      widget::android_widget_update,
+      widget::android_widget_consume_tap,
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

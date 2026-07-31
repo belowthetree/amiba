@@ -57,6 +57,17 @@ async function bootstrap() {
   // 预加载 persistent widget
   await initPersistentWidgets()
 
+  // 安卓桌面卡片：扫描服务卡片定义 → 推送原生缓存 → 启动逻辑 runner
+  // 非 Android 平台 runner 照常运行（写 cache），仅推送原生一步跳过
+  try {
+    const { initDesktopWidgetStore } = await import('./config/desktop-widget-store')
+    const { startDesktopWidgetRunner } = await import('./host/desktop-widget-runner')
+    await initDesktopWidgetStore()
+    await startDesktopWidgetRunner()
+  } catch (e) {
+    console.warn('[Bootstrap] 桌面卡片初始化失败:', e)
+  }
+
   // 工具自发现
   discoverTools()
 

@@ -15,7 +15,7 @@ export interface ServiceManifest {
   aiTools?: ServiceToolDecl[]
 }
 
-export type Permission = 'storage' | 'notification' | 'widgets' | 'network' | 'background' | 'fileAccess' | 'fetch' | 'ai' | 'tools'
+export type Permission = 'storage' | 'notification' | 'widgets' | 'network' | 'background' | 'fileAccess' | 'fetch' | 'ai' | 'tools' | 'desktopWidgets'
 
 // --- Service AI Config ---
 
@@ -132,7 +132,7 @@ export interface ServicePackage {
 
 export interface ServiceRequest {
   type: 'api'
-  module: 'storage' | 'notification' | 'ui' | 'task' | 'widgets' | 'network' | 'background' | 'fileAccess' | 'fetch' | 'ai' | 'tools'
+  module: 'storage' | 'notification' | 'ui' | 'task' | 'widgets' | 'network' | 'background' | 'fileAccess' | 'fetch' | 'ai' | 'tools' | 'desktopWidget'
   method: string
   params: Record<string, any>
   requestId: string

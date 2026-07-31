@@ -29,6 +29,26 @@
             </intent-filter>
         </activity>
 
+        <!-- 系统桌面卡片：Provider + 选卡配置页 -->
+        <receiver
+            android:name=".AmibaWidgetProvider"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_card_info" />
+        </receiver>
+
+        <activity
+            android:name=".WidgetConfigActivity"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
         <provider
           android:name="androidx.core.content.FileProvider"
           android:authorities="${applicationId}.fileprovider"
