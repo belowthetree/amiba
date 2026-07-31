@@ -62,6 +62,11 @@ cargo tauri build     # Tauri desktop (package EXE/DMG/deb)
 - **Jade glass style**: jade-green primary + translucent glass surfaces + global glow background with light streaks
 - **Floating input bar**: vertically centered when there's no chat history, sinks to the bottom once the conversation starts
 
+### Android Home-Screen Cards (AppWidget)
+- Services can ship **system home-screen cards**: a `desktop-widgets/{cardId}/` directory (widget.json UI config + logic.js data logic + assets images), rendered natively via RemoteViews
+- **Global cards** are also supported: just tell the AI "put an xx card on my home screen" — no full service needed
+- Long-press the Android launcher, add the "Amiba" widget and pick a card; cards refresh on a schedule and tap through to the service page
+
 ### Service Generation
 - Natural language → complete HTML/CSS/JS mini-app
 - Apps run in iframe sandbox; JSBridge (`window.__amiba__`) provides host capabilities (see "Service API" below)
@@ -122,6 +127,7 @@ Generated services run inside `<iframe sandbox>` and call host capabilities via 
 | `ui` | — | Page navigation |
 | `widgets` | `widgets` | Floating widget management |
 | `network` | `network` | LAN/BLE device discovery & P2P messaging |
+| `desktopWidget` | `desktopWidgets` | Android home-screen card data publishing (card logic.js sandbox only) |
 
 ### storage — Key-Value Store
 
@@ -271,6 +277,7 @@ __amiba__.network.onSession((session) => { /* same as above */ })
 | `background` | Background execution (hidden iframe), scheduled/event-driven tasks |
 | `fileAccess` | Authorized disk file access (pick folder, list/read files) |
 | `fetch` | HTTP requests to external APIs (Rust reqwest proxy, bypasses CORS) |
+| `desktopWidgets` | Android home-screen cards (service-owned `desktop-widgets/` card directory) |
 
 ### Service UI Style
 
@@ -384,6 +391,7 @@ adb install -r app-release-signed.apk
 | **Web** | `web_fetch` `web_browse` | Web page fetching & browser interaction |
 | **UI Theme** | `ui_theme_view/list/set_variable/set_css/reset/create/delete/switch` | Theme management & styling |
 | **UI Slot** | `ui_slot_list/get/set/remove` | Slot / inline component management |
+| **Home-Screen Cards** | `android_widget_create/list/enable/refresh` | Android home-screen card management (Android only) |
 
 ## Memory & Requirement Nudge
 
@@ -430,6 +438,7 @@ skills/               Skill files
 | [Development](./docs/development.md) | Dev guide |
 | [UI Customization](./public/docs/ui-customization.md) | CSS selector reference + variable guide + slots |
 | [Service Style Guide](./public/docs/service-style.md) | Jade glass style spec + jade.css usage |
+| [Android Home-Screen Cards](./docs/android-widget.md) | Home-screen widget (AppWidget) design & development |
 
 ## CI/CD
 

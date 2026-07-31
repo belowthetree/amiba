@@ -116,7 +116,7 @@ widget.json / logic.js 规范与 publish 数据格式两者完全一致，下文
 
 ## 4. logic.js 规范
 
-logic.js 在隐藏沙箱 iframe 中执行（自动注入 JSBridge），**只能使用两个模块**：
+logic.js 在隐藏沙箱 iframe 中执行（自动注入 JSBridge，**脚本会被自动包在 `async function` 中**，可直接顶层 `await`，无需手写 IIFE），**只能使用两个模块**：
 
 | 模块 | 说明 |
 |------|------|
@@ -216,6 +216,7 @@ App 被杀期间桌面卡片显示最后一次推送的内容（原生缓存）�
 - ❌ publish 多次 → 只有第一次生效
 - ❌ `image` 写绝对路径或含 `..` → 宿主拒绝（安全校验）
 - ❌ logic.js 使用 network/fetch/ai 等模块 → 宿主拒绝，仅 desktopWidget + storage 可用
+- ❌ 手写 `(async () => { ... })()` 又担心顶层 await → 不必，runner 已自动 async 包裹，直接顶层 `await` 即可（IIFE 写法也兼容）
 - ❌ `tapPath` 不以 `/` 开头 → 点击跳转被忽略
 - ❌ 期望 App 被杀后卡片还自动更新 → 逻辑只在 App 存活时执行，被杀显示最后缓存（正常行为）
 - ❌ 认为卡片必须等 logic.js 跑成功才出现在选卡页 → 启用后即推送占位（显示 label + "加载中…"），首次 publish 后替换为真实数据

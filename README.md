@@ -62,6 +62,11 @@ cargo tauri build     # Tauri 桌面应用（打包 EXE/DMG/deb）
 - **玉石玻璃风**：玉青主色 + 半透明玻璃表面 + 全局辉光背景，流光隐约划过
 - **悬浮输入框**：无聊天记录时输入框垂直居中，对话开始后沉底，玻璃质感浮于背景之上
 
+### 安卓桌面卡片（AppWidget）
+- 服务可自带**系统桌面卡片**：`desktop-widgets/{cardId}/` 目录（widget.json 界面配置 + logic.js 数据逻辑 + assets 图片），原生 RemoteViews 渲染
+- 也支持**全局卡片**：AI 一句"在桌面放个 xx 卡片"即可创建，无需完整服务
+- 长按安卓桌面添加"变形虫"小组件并选卡即用；卡片可定时刷新，点击跳转对应服务页
+
 ### AI 服务生成
 - 自然语言描述 → 生成完整 HTML/CSS/JS 小程序
 - 生成的服务运行在 iframe 沙箱中，通过 JSBridge (`window.__amiba__`) 调用宿主能力（详见下方「服务 API」）
@@ -123,6 +128,7 @@ AI 生成的服务运行在 `<iframe sandbox>` 中，通过 `window.__amiba__` �
 | `ui` | — | 页面导航 |
 | `widgets` | `widgets` | 悬浮块管理 |
 | `network` | `network` | 局域网/蓝牙设备发现与对等通信 |
+| `desktopWidget` | `desktopWidgets` | 安卓系统桌面卡片数据发布（仅卡片 logic.js 沙箱可用） |
 
 ### storage — 键值存储
 
@@ -272,6 +278,7 @@ __amiba__.network.onSession((session) => { /* 同上 */ })
 | `background` | 后台持续运行（隐藏 iframe），定时调度/事件驱动 |
 | `fileAccess` | 授权访问磁盘文件（选择文件夹、列出/读取） |
 | `fetch` | HTTP 请求外部 API（Rust reqwest 代理，绕过 CORS） |
+| `desktopWidgets` | 安卓系统桌面卡片（服务自带 `desktop-widgets/` 卡片目录） |
 
 ### 服务界面风格
 
@@ -387,6 +394,7 @@ adb install -r app-release-signed.apk
 | **网页** | `web_fetch` `web_browse` | 网页抓取与浏览器交互 |
 | **界面** | `ui_theme_view/list/set_variable/set_css/reset/create/delete/switch` | 主题管理与外观定制 |
 | **界面** | `ui_slot_list/get/set/remove` | 插槽/内嵌组件管理 |
+| **桌面卡片** | `android_widget_create/list/enable/refresh` | 安卓系统桌面卡片管理（仅 Android） |
 
 ## 记忆与需求机制
 
@@ -433,6 +441,7 @@ skills/               技能文件目录
 | [开发指南](./docs/development.md) | 开发规范 |
 | [界面定制](./public/docs/ui-customization.md) | CSS 选择器速查表 + 变量参考 + 插槽 |
 | [服务界面风格](./public/docs/service-style.md) | 玉石玻璃风实现说明 + jade.css 用法 |
+| [安卓桌面卡片](./docs/android-widget.md) | 系统桌面小组件（AppWidget）设计与开发 |
 
 ## CI/CD
 

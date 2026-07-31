@@ -40,7 +40,7 @@ services/{serviceId}/desktop-widgets/{cardId}/
 
 ## logic.js
 
-隐藏沙箱 iframe 中执行（自动注入 JSBridge + serviceId），仅开放两个模块，10s 超时：
+隐藏沙箱 iframe 中执行（自动注入 JSBridge + serviceId；**脚本自动包在 async 函数中，可直接顶层 `await`**），仅开放两个模块，10s 超时：
 
 - `__amiba__.desktopWidget.publish(data)` — 发布渲染数据，必须且只调一次
 - `__amiba__.storage` — `set/get/remove`，读写本服务数据

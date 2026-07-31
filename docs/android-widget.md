@@ -48,7 +48,7 @@ services/{serviceId}/desktop-widgets/{cardId}/
 | `updateIntervalMin` | App 存活期间逻辑重跑间隔（分钟），0 = 仅启动/手动刷新 |
 | `enabled` | 首次扫描时的默认启用状态（之后以全局 registry.json 为准） |
 
-**logic.js**：在隐藏沙箱 iframe 中执行（注入 JSBridge），可用 `desktopWidget.publish` + `storage`（读写本服务数据）两个模块，其余模块拒绝。完成后必须调用一次：
+**logic.js**：在隐藏沙箱 iframe 中执行（注入 JSBridge；**脚本自动包在 async 函数中，可直接顶层 `await`**），可用 `desktopWidget.publish` + `storage`（读写本服务数据）两个模块，其余模块拒绝。完成后必须调用一次：
 
 ```js
 // 例：读取服务数据并发布
@@ -110,6 +110,8 @@ desktop-widgets/
 
 - **2026-07-31**: `listServiceFiles(serviceId, 'desktop-widgets')` 返回的是**相对于该子目录**的路径（`{cardId}/widget.json`），不带 `desktop-widgets/` 前缀——扫描正则误加前缀导致服务卡片全部注册失败（选卡页"暂无可用卡片"）。教训：调用方必须先确认返回路径的基准目录，此类扫描逻辑要有"扫到 0 个"的告警日志。
 - **2026-07-31**: 原生选卡页的数据只来自推送的载荷数组，卡片"已启用但 logic.js 未成功运行过"时列表为空，用户无法区分"没创建"和"没跑成"。修复为无缓存时用 def 合成占位载荷（label + "加载中…"）一并推送，保证启用即可见。
+- **2026-07-31**: "新卡片并入启用列表"最初只在 init 执行，会话中途创建的服务卡片要重启才可见。修复为 `rescanDesktopWidgets()` 同样按默认值并入；registry 增加 `seen` 集合区分"新发现"与"用户显式停用"（顺带修了停用后重启被重新启用的问题）。
+- **2026-07-31**: logic.js 以经典 `<script>` 注入时顶层 `await` 直接 SyntaxError，卡片永远停在"加载中…"且只有超时日志。修复为 runner 注入时自动包 `(async function(){ ... })()`，顶层 await 与 IIFE 写法均兼容。文档示例此前误用顶层 await，已统一注明自动包裹行为。
 
 ## 原生层文件（gen/android，`tauri android init` 重置后需恢复）
 
