@@ -75,6 +75,8 @@ export interface DesktopWidgetPayload extends DesktopWidgetData {
 
 interface WidgetRegistry {
   enabled: string[]
+  /** 已见过的卡片 key：区分"新发现"（按默认值并入）与"用户显式停用"（不再自动启用） */
+  seen?: string[]
 }
 
 // ================================================================
@@ -103,12 +105,17 @@ export async function initDesktopWidgetStore(): Promise<void> {
     const defs = await scanDesktopWidgets()
     desktopWidgetDefs.value = defs
 
-    // 首次发现的卡片按 widget.json 的 enabled 默认值并入 registry
+    // 新发现的卡片按 widget.json 的 enabled 默认值并入 registry；
+    // 已见过但被用户停用的卡片不再自动启用（seen 集合区分）
+    const seen = new Set(_registry.seen ?? [])
     let changed = false
     for (const def of defs) {
-      if (!_registry.enabled.includes(def.key) && def.defaultEnabled) {
-        _registry.enabled.push(def.key)
+      if (!seen.has(def.key)) {
+        seen.add(def.key)
         changed = true
+        if (def.defaultEnabled && !_registry.enabled.includes(def.key)) {
+          _registry.enabled.push(def.key)
+        }
       }
     }
     // 清理 registry 中已不存在的卡片
@@ -119,6 +126,7 @@ export async function initDesktopWidgetStore(): Promise<void> {
       changed = true
     }
     if (changed) {
+      _registry.seen = [...seen]
       await saveRegistry()
       enabledWidgetKeys.value = [..._registry.enabled]
     }
@@ -263,9 +271,81 @@ export async function cardDataRemove(def: DesktopWidgetDef, key: string): Promis
   await removeServiceData(def.serviceId, key)
 }
 
-/** 重新扫描（服务文件变更后由工具/调用方触发） */
+/** 重新扫描（服务文件变更后由工具/调用方触发）。
+ *  新发现的卡片按默认值并入启用并推送——会话中途创建的卡片无需重启即可见 */
 export async function rescanDesktopWidgets(): Promise<void> {
-  desktopWidgetDefs.value = await scanDesktopWidgets()
+  const defs = await scanDesktopWidgets()
+  desktopWidgetDefs.value = defs
+
+  const seen = new Set(_registry.seen ?? [])
+  let changed = false
+  for (const def of defs) {
+    if (!seen.has(def.key)) {
+      seen.add(def.key)
+      changed = true
+      if (def.defaultEnabled && !_registry.enabled.includes(def.key)) {
+        _registry.enabled.push(def.key)
+        console.log(`[DesktopWidget] 新卡片自动启用: ${def.key}`)
+      }
+    }
+  }
+  // 清理 registry 中已不存在的卡片（文件被删除后不再推送）
+  const validKeys = new Set(defs.map((d) => d.key))
+  const pruned = _registry.enabled.filter((k) => validKeys.has(k))
+  if (pruned.length !== _registry.enabled.length) {
+    _registry.enabled = pruned
+    changed = true
+  }
+  if (changed) {
+    _registry.seen = [...seen]
+    await saveRegistry()
+    enabledWidgetKeys.value = [..._registry.enabled]
+    await pushToNative()
+  }
+}
+
+/** 删除一张卡片：删文件（全局卡片目录 / 服务卡片目录）+ 清 registry、数据与缓存 + 推送原生。
+ *  已放置在桌面的 widget 实例无法远程移除，会显示占位文本，需用户手动移除。 */
+export async function deleteWidgetCard(key: string): Promise<void> {
+  const def = desktopWidgetDefs.value.find((d) => d.key === key)
+  if (!def) throw new Error(`卡片不存在: ${key}`)
+
+  // 1. 删除卡片定义文件
+  if (def.scope === 'global') {
+    try {
+      const { remove, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+      await remove(`amiba/${GLOBAL_CARDS_DIR}/${def.cardId}`, { baseDir: BaseDirectory.AppData, recursive: true })
+    } catch { /* 目录可能已不存在 */ }
+    // 全局卡片 storage 数据一并清理
+    try {
+      const { remove, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+      await remove(`amiba/desktop-widgets/data/${def.cardId}`, { baseDir: BaseDirectory.AppData, recursive: true })
+    } catch { /* 可能不存在 */ }
+  } else {
+    const files = await listServiceFiles(def.serviceId, `desktop-widgets/${def.cardId}`)
+    const { removeServiceFile } = await import('./storage')
+    for (const f of files) {
+      await removeServiceFile(def.serviceId, `desktop-widgets/${def.cardId}/${f}`)
+    }
+  }
+
+  // 2. 清 registry 与缓存
+  const idx = _registry.enabled.indexOf(key)
+  if (idx >= 0) {
+    _registry.enabled.splice(idx, 1)
+    await saveRegistry()
+    enabledWidgetKeys.value = [..._registry.enabled]
+  }
+  await storageRemove(cacheKey(key))
+  console.log(`[DesktopWidget] ✓ 卡片已删除: ${key}`)
+
+  // 3. 重扫 + 重排周期调度 + 推送原生（选卡页不再列出该卡片）
+  await rescanDesktopWidgets()
+  try {
+    const { scheduleWidgetCards } = await import('../host/desktop-widget-runner')
+    scheduleWidgetCards()
+  } catch { /* runner 未启动时忽略 */ }
+  await pushToNative()
 }
 
 // ================================================================

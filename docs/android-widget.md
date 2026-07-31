@@ -98,6 +98,7 @@ desktop-widgets/
 | `android_widget_list` | view | 列出全部卡片（key/label/启用状态/最近推送时间） |
 | `android_widget_enable` | manage | 启用/停用卡片（key 格式 `serviceId/cardId` 或 `global/{cardId}`） |
 | `android_widget_refresh` | manage | 立即重跑 logic.js 并推送原生（不传 key 刷全部启用卡片） |
+| `android_widget_delete` | manage | 删除卡片（文件 + 启用状态 + 缓存 + 推送原生）；桌面已放置实例显示占位文本，需用户手动移除 |
 
 ## 边界与限制
 
@@ -112,6 +113,8 @@ desktop-widgets/
 - **2026-07-31**: 原生选卡页的数据只来自推送的载荷数组，卡片"已启用但 logic.js 未成功运行过"时列表为空，用户无法区分"没创建"和"没跑成"。修复为无缓存时用 def 合成占位载荷（label + "加载中…"）一并推送，保证启用即可见。
 - **2026-07-31**: "新卡片并入启用列表"最初只在 init 执行，会话中途创建的服务卡片要重启才可见。修复为 `rescanDesktopWidgets()` 同样按默认值并入；registry 增加 `seen` 集合区分"新发现"与"用户显式停用"（顺带修了停用后重启被重新启用的问题）。
 - **2026-07-31**: logic.js 以经典 `<script>` 注入时顶层 `await` 直接 SyntaxError，卡片永远停在"加载中…"且只有超时日志。修复为 runner 注入时自动包 `(async function(){ ... })()`，顶层 await 与 IIFE 写法均兼容。文档示例此前误用顶层 await，已统一注明自动包裹行为。
+- **2026-07-31**: runner 组 srcdoc 时直接拼接 `BRIDGE_SCRIPT` 裸 JS 字符串，未包 `<script>` 标签——垫片不执行、`__amiba__` 未定义，logic.js 立即 ReferenceError（真实表现为卡片永远"加载中…"）。`BRIDGE_SCRIPT` 是纯 JS 不是 HTML 片段，所有消费方（service-container / background-manager / widget-lifecycle）都自行包裹 `<script>` 标签，runner 漏了。教训：复用注入脚本时先核对既有消费方的包裹方式。
+- **2026-07-31**: 服务卡片经 `service_file_write/edit` 创建后无任何触发链路（rescan/enable/refresh 都靠 AI 自觉调工具），漏调就要重启才可见。修复为两个 service_file 工具在写入 `desktop-widgets/` 路径后自动 `rescanDesktopWidgets()` + `refreshWidgetCard()`（`afterDesktopWidgetFileChange` 钩子）。
 
 ## 原生层文件（gen/android，`tauri android init` 重置后需恢复）
 

@@ -114,6 +114,7 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 | `android_widget_enable` | ui | 启用/停用桌面卡片（改 registry.json 并推送原生） |
 | `android_widget_refresh` | ui | 立即重跑卡片 logic.js 并推送原生刷新显示 |
 | `android_widget_create` | ui | 创建全局桌面卡片（不依附服务，写入 `desktop-widgets/cards/{cardId}/`） |
+| `android_widget_delete` | ui | 删除桌面卡片（文件 + 启用状态 + 缓存 + 推送原生） |
 
 ## Theme System
 

@@ -14,6 +14,7 @@ import {
   setCardEnabled,
   loadCardPayload,
   writeGlobalCardFile,
+  deleteWidgetCard,
 } from '../config/desktop-widget-store'
 import { refreshWidgetCard, refreshAllWidgetCards } from '../host/desktop-widget-runner'
 
@@ -196,7 +197,12 @@ toolRegistry.register({
   },
   handler: async (args) => {
     const key = String(args.key || '')
-    const def = desktopWidgetDefs.value.find((d) => d.key === key)
+    let def = desktopWidgetDefs.value.find((d) => d.key === key)
+    if (!def) {
+      // 可能是会话中途刚创建的卡片，重扫一次再判
+      await rescanDesktopWidgets()
+      def = desktopWidgetDefs.value.find((d) => d.key === key)
+    }
     if (!def) return `错误：卡片不存在: ${key}。用 android_widget_list 查看可用卡片。`
     await setCardEnabled(key, !!args.enabled)
     return `✓ 已${args.enabled ? '启用' : '停用'}桌面卡片: ${def.label} (${key})`
@@ -242,5 +248,45 @@ toolRegistry.register({
     }
     await refreshAllWidgetCards()
     return `✓ 已刷新全部 ${enabledWidgetKeys.value.length} 张启用卡片`
+  },
+})
+
+// ================================================================
+// android_widget_delete — 删除卡片
+// ================================================================
+
+toolRegistry.register({
+  name: 'android_widget_delete',
+  toolset: 'ui',
+  category: 'manage',
+  emoji: '🗑️',
+  description:
+    '删除一张安卓桌面卡片：删定义文件（全局卡片整个目录 / 服务卡片 desktop-widgets/{cardId}/ 目录）+ 清启用状态与缓存 + 推送原生。不可恢复，删除前先与用户确认。已放置在桌面的 widget 实例无法远程移除（会显示占位文本），需提示用户手动移除。',
+  maxResultSizeChars: 2000,
+  schema: {
+    type: 'function',
+    function: {
+      name: 'android_widget_delete',
+      description: '删除指定桌面卡片（key 格式 "serviceId/cardId" 或 "global/{cardId}"，用 android_widget_list 查看）。删除后选卡页不再列出；桌面已放置的实例需用户手动移除。',
+      parameters: {
+        type: 'object',
+        properties: {
+          key: {
+            type: 'string',
+            description: '要删除的卡片 key',
+          },
+        },
+        required: ['key'],
+      },
+    },
+  },
+  handler: async (args) => {
+    const key = String(args.key || '')
+    try {
+      await deleteWidgetCard(key)
+      return `✓ 桌面卡片已删除: ${key}。若用户已在桌面放置该卡片，请提示其长按移除残留实例。`
+    } catch (e: any) {
+      return `✗ 删除失败: ${e.message}。用 android_widget_list 查看可用卡片。`
+    }
   },
 })

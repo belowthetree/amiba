@@ -78,6 +78,7 @@ publish 数据：
 | `android_widget_list` | 列出全部卡片（key 格式 `serviceId/cardId` 或 `global/{cardId}`） |
 | `android_widget_enable` | 启用/停用卡片 |
 | `android_widget_refresh` | 立即重跑 logic 并推送桌面 |
+| `android_widget_delete` | 删除卡片（文件 + 启用状态 + 缓存），桌面实例需用户手动移除 |
 
 ## 用户使用
 

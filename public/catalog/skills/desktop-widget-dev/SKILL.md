@@ -155,6 +155,7 @@ App 被杀期间桌面卡片显示最后一次推送的内容（原生缓存）�
 | `android_widget_list` | 列出全部卡片（key/启用状态/最近推送时间） |
 | `android_widget_enable` | 启用/停用卡片，key 格式 `serviceId/cardId` 或 `global/{cardId}` |
 | `android_widget_refresh` | 立即重跑 logic.js 并推送桌面（不传 key 刷全部） |
+| `android_widget_delete` | 删除卡片（文件 + 启用状态 + 缓存）；桌面已放置的实例需用户手动移除 |
 
 服务数据变更后应调用 `android_widget_refresh` 让桌面同步。
 

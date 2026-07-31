@@ -89,11 +89,12 @@ async function runCardLogic(def: DesktopWidgetDef): Promise<Record<string, any>>
 
     const bridge = createBridge(iframe, [...permissions, 'desktopWidgets'], handler)
 
-    // 组 srcdoc：bridge 垫片 → 服务身份 → logic.js
+    // 组 srcdoc：bridge 垫片（必须包 <script> 标签才执行）→ 服务身份 → logic.js
+    // logic.js 自动包在 async 函数中执行：允许顶层 await（IIFE 写法同样兼容）
     iframe.srcdoc =
-      BRIDGE_SCRIPT +
+      '<script>' + BRIDGE_SCRIPT + '<\/script>' +
       `<script>window.__amiba_service_id__ = ${JSON.stringify(def.serviceId)};</script>` +
-      `<script>\n${logic}\n</script>`
+      `<script>(async function () {\n${logic}\n})()</script>`
     document.body.appendChild(iframe)
   })
 }
