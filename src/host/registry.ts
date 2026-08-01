@@ -8,6 +8,7 @@ import {
   readServiceFile,
   removeServiceFile,
   listServiceFiles,
+  listServiceDirs,
   removeServiceDir,
   serviceDataGet,
   serviceDataSet,
@@ -46,23 +47,77 @@ const userServices = reactive<Record<string, ServiceEntry>>({})
 
 let registryLoaded = false
 
+/** 持久化层只存元数据（不含 manifest——以服务目录 manifest.json 为准） */
+type ServiceMeta = Omit<ServiceEntry, 'manifest'>
+
+async function saveRegistry() {
+  const stored: Record<string, ServiceMeta> = {}
+  for (const [id, entry] of Object.entries(userServices)) {
+    const { manifest: _omit, ...meta } = entry
+    stored[id] = meta
+  }
+  await storageSetJSON(REGISTRY_KEY, stored)
+}
+
+/** 从服务目录 manifest.json 读取并校验 manifest（服务信息的唯一权威来源） */
+async function loadManifestFromFile(id: string): Promise<ServiceManifest | null> {
+  try {
+    const raw = await readServiceFile(id, 'manifest.json')
+    if (!raw) return null
+    const m = JSON.parse(raw) as ServiceManifest
+    if (!m || !m.id || !m.name || !Array.isArray(m.permissions)) {
+      console.warn('[Registry] manifest.json 格式无效:', id)
+      return null
+    }
+    if (m.id !== id) {
+      console.warn(`[Registry] manifest id 与目录不一致 (${m.id} != ${id})，跳过`)
+      return null
+    }
+    return m
+  } catch (e) {
+    console.warn('[Registry] manifest.json 读取失败:', id, e)
+    return null
+  }
+}
+
 export async function initRegistry(): Promise<void> {
   if (registryLoaded) return
   registryLoaded = true
-  const saved = await storageGetJSON<Record<string, ServiceEntry>>(REGISTRY_KEY)
-  if (saved) {
-    Object.assign(userServices, saved)
+  const saved = (await storageGetJSON<Record<string, Partial<ServiceEntry>>>(REGISTRY_KEY)) ?? {}
+
+  // 以服务目录为准：扫描 services/{id}/manifest.json 重建内存注册表，
+  // 持久化的旧快照（含 manifest）只取元数据字段，manifest 一律读文件
+  const dirs = await listServiceDirs()
+  for (const id of dirs) {
+    const manifest = await loadManifestFromFile(id)
+    if (!manifest) continue
+    const meta = saved[id]
+    const entry: ServiceEntry = {
+      manifest,
+      enabled: meta?.enabled ?? true,
+      installedAt: meta?.installedAt ?? new Date().toISOString(),
+      source: meta?.source ?? 'ai-generated',
+    }
+    // 迁移持久化的可选元数据（不含 manifest）
+    for (const k of ['aiConfig', 'toolsConfig', 'hasWidgets', 'widgetsVisible', 'backgroundConfig'] as const) {
+      if (meta?.[k] !== undefined) (entry as any)[k] = meta[k]
+    }
+    userServices[id] = entry
   }
+
+  // 清理无文件残留的孤儿元数据（服务文件已删但注册表还在）
+  const orphans = Object.keys(saved).filter((id) => !userServices[id])
+  if (orphans.length > 0) {
+    console.log('[Registry] 清理无文件的服务元数据:', orphans.join(', '))
+  }
+  await saveRegistry()
+
   // 扫描已有服务的 background.json
   for (const svc of Object.values(userServices)) {
     if (svc.manifest.permissions.includes('background')) {
       await cacheBackgroundConfig(svc.manifest.id)
     }
   }
-}
-
-async function saveRegistry() {
-  await storageSetJSON(REGISTRY_KEY, { ...userServices })
 }
 
 export function getAllServices(): ServiceEntry[] {
@@ -88,8 +143,22 @@ export async function registerService(manifest: ServiceManifest, source: Service
     source,
   }
   userServices[manifest.id] = entry
+  // manifest 以服务目录文件为准：注册即落盘（持久层不存快照）
+  await writeServiceFile(manifest.id, 'manifest.json', JSON.stringify(manifest, null, 2))
   await saveRegistry()
   return entry
+}
+
+/** manifest.json 被直接改写后热刷新内存注册表（无需重启） */
+export async function refreshServiceManifest(id: string): Promise<boolean> {
+  const entry = userServices[id]
+  if (!entry) return false
+  const manifest = await loadManifestFromFile(id)
+  if (!manifest) return false
+  if (JSON.stringify(entry.manifest) === JSON.stringify(manifest)) return false
+  console.log('[Registry] manifest 已从文件刷新:', id, '权限:', manifest.permissions.join(',') || '(无)')
+  entry.manifest = manifest
+  return true
 }
 
 export async function unregisterService(id: string): Promise<boolean> {
@@ -125,14 +194,14 @@ export async function updateServiceToolsConfig(id: string, config: ServiceToolsC
   }
 }
 
-/** 为服务补充声明权限（用户在服务设置中授权时调用），同步写回 manifest.json */
+/** 为服务补充声明权限（用户在服务设置中授权时调用），同步写回 manifest.json（服务的权威配置） */
 export async function grantServicePermission(id: string, permission: Permission) {
   const svc = userServices[id]
   if (!svc) return
   if (svc.manifest.permissions.includes(permission)) return
   svc.manifest.permissions.push(permission)
   await saveRegistry()
-  // 同步写回 manifest.json（桥检查以 registry 为准，文件保持同步便于导出/分享）
+  // 同步写回 manifest.json（服务信息以文件为准，内存同步供桥检查即时生效）
   try {
     await writeServiceFile(id, 'manifest.json', JSON.stringify(svc.manifest, null, 2))
   } catch (e) {

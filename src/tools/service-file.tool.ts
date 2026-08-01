@@ -218,7 +218,7 @@ toolRegistry.register({
 
     try {
       await writeServiceFile(serviceId, filePath, content)
-      await afterDesktopWidgetFileChange(serviceId, filePath)
+      await afterServiceFileChange(serviceId, filePath)
       return JSON.stringify({
         success: true,
         service_id: serviceId,
@@ -231,9 +231,19 @@ toolRegistry.register({
   },
 })
 
-/** 写入 desktop-widgets/ 下的文件后：重扫卡片注册（新卡片自动启用推送，无需重启）
- *  并重跑该卡片逻辑刷新桌面显示 */
-async function afterDesktopWidgetFileChange(serviceId: string, filePath: string) {
+/** 服务文件写入后处理：
+ *  - manifest.json：热刷新注册表内存（权限等立即生效，无需重启）
+ *  - desktop-widgets/：重扫卡片注册（新卡片自动启用推送，无需重启），并重跑该卡片逻辑刷新桌面显示 */
+async function afterServiceFileChange(serviceId: string, filePath: string) {
+  if (filePath === 'manifest.json') {
+    try {
+      const { refreshServiceManifest } = await import('../host/registry')
+      await refreshServiceManifest(serviceId)
+    } catch (e) {
+      console.warn('[Registry] manifest 热刷新失败:', e)
+    }
+    return
+  }
   if (!filePath.startsWith('desktop-widgets/')) return
   try {
     const { rescanDesktopWidgets } = await import('../config/desktop-widget-store')
@@ -323,7 +333,7 @@ toolRegistry.register({
 
       const updated = content.replace(find, replace)
       await writeServiceFile(serviceId, filePath, updated)
-      await afterDesktopWidgetFileChange(serviceId, filePath)
+      await afterServiceFileChange(serviceId, filePath)
 
       return JSON.stringify({
         success: true,
