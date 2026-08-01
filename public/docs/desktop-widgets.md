@@ -34,6 +34,9 @@ services/{serviceId}/desktop-widgets/{cardId}/
 | `layout` | string | `"lines"`（默认）/ `"bigText"` / `"image"` |
 | `size` | string | 尺寸档位：`"small"`（2x2）/ `"medium"`（4x2，默认）/ `"large"`（4x4）。决定 Launcher 中从哪个「变形虫卡片·小/中/大」入口添加；小尺寸建议 bigText 或 `maxLines`≤2 |
 | `accentColor` | string | 标题颜色，如 `"#5f8f7b"` |
+| `backgroundColor` | string | 卡片背景色 `#RRGGBB` / `#AARRGGBB`（可半透明），原生画圆角位图铺底 |
+| `textColor` | string | 正文文本行颜色（lines/bigText 布局） |
+| `hideTitleBar` | boolean | true=隐藏标题栏（icon+标题行），配合 renderHtml 整卡自定义卡面，默认 false |
 | `maxLines` | number | lines 布局行数上限 1-6，默认 6 |
 | `tapPath` | string | 点击跳转路径，`/` 开头 |
 | `updateIntervalMin` | number | 逻辑重跑间隔（分钟），0=仅启动/手动，默认 0 |
@@ -41,9 +44,10 @@ services/{serviceId}/desktop-widgets/{cardId}/
 
 ## logic.js
 
-隐藏沙箱 iframe 中执行（自动注入 JSBridge + serviceId；**脚本自动包在 async 函数中，可直接顶层 `await`**），仅开放两个模块，10s 超时：
+隐藏沙箱 iframe 中执行（自动注入 JSBridge + serviceId；**脚本自动包在 async 函数中，可直接顶层 `await`**），仅开放以下能力，10s 超时：
 
 - `__amiba__.desktopWidget.publish(data)` — 发布渲染数据，必须且只调一次
+- `__amiba__.desktopWidget.renderHtml(html, opts?)` — HTML 片段（样式须内联/内嵌）或完整 SVG 字符串 → PNG dataURL；`opts`: `{width=480, height=width/2, scale=2}`（宽高 16-1600，scale 1-3）。建议渲染宽度：small 480 / medium 720 / large 720
 - `__amiba__.storage` — `set/get/remove`，读写本服务数据
 
 publish 数据：
@@ -54,7 +58,10 @@ publish 数据：
 | `icon` | 标题前 emoji |
 | `lines` | 文本行，≤6 条、每条 ≤60 字；bigText 布局只取 lines[0] |
 | `image` | 相对卡片目录的图片路径（如 `assets/chart.png`），image 布局用；拒绝绝对路径与 `..` |
+| `imageData` | PNG dataURL（`renderHtml` 产物），优先于 `image`；宿主落盘 `cache/img/{key}.png` 后推送。**自定义卡面**：layout 用 `image`，把整卡界面渲染成图 |
 | `footer` | 底部小字 |
+
+publish 还可带样式覆盖字段 `accentColor` / `backgroundColor` / `textColor` / `hideTitleBar`，优先于 widget.json 同名配置——用于按状态动态变色（如完成度低时背景变红）。
 
 ## 执行与刷新
 

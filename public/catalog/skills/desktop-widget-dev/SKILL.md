@@ -23,7 +23,7 @@ keywords:
 
 ## 1. 桌面卡片概述
 
-桌面卡片由服务自带定义，经宿主推送到安卓系统桌面，原生 RemoteViews 渲染（结构化文本 + 图片，**不支持 HTML/CSS**）。
+桌面卡片默认创建为**全局卡片**（不依附服务），也可由服务自带定义；经宿主推送到安卓系统桌面，原生 RemoteViews 渲染（结构化文本 + 图片，**不支持 HTML/CSS**，但可用 renderHtml 渲染成图）。
 
 | 特性 | 悬浮块（widget-dev） | 桌面卡片（本指南） |
 |------|---------------------|-------------------|
@@ -37,6 +37,16 @@ keywords:
 ---
 
 ## 2. 目录结构与权限
+
+### 选全局卡片还是服务卡片？
+
+**默认创建全局卡片**（`android_widget_create`，见 2.5 节）——用户说"在桌面放个 xx 卡片"一律走这条路：无需服务、无权限配置、一步到位。
+
+仅以下情况才做服务卡片：
+
+- 用户**明确指出**"给 xx 服务做桌面卡片" / "服务卡片"
+- 卡片需要读写服务自身数据（与服务页面共享 storage；全局卡片的 storage 是隔离的，读不到服务数据）
+- 卡片需随服务打包分发
 
 ### 权限声明
 
@@ -55,9 +65,9 @@ services/{serviceId}/desktop-widgets/{cardId}/
 
 用 `service_file_write` 创建这些文件（路径如 `desktop-widgets/todo-card/widget.json`）。cardId 用 kebab-case。
 
-### 2.5 全局卡片（不依附服务）
+### 2.5 全局卡片（不依附服务，**默认路径**）
 
-用户直接要求"在桌面上放一张卡片"且不需要完整服务时，用 `android_widget_create` 工具创建**全局卡片**：
+**默认选择**：用户要桌面卡片时优先用 `android_widget_create` 工具创建**全局卡片**，无需服务、无权限要求：
 
 ```
 {AppData}/amiba/desktop-widgets/cards/{cardId}/
@@ -101,6 +111,9 @@ widget.json / logic.js 规范与 publish 数据格式两者完全一致，下文
 | `layout` | `"lines"` \| `"image"` \| `"bigText"` | — | 布局骨架，默认 `"lines"` |
 | `size` | `"small"` \| `"medium"` \| `"large"` | — | 尺寸档位：small=2x2、medium=4x2（默认）、large=4x4。决定 Launcher 中从哪个「变形虫卡片·小/中/大」入口添加 |
 | `accentColor` | string | — | 标题颜色，如 `"#5f8f7b"` |
+| `backgroundColor` | string | — | 卡片背景色 `#RRGGBB` / `#AARRGGBB`（可半透明），原生画圆角位图铺底 |
+| `textColor` | string | — | 正文文本行颜色（lines/bigText 布局） |
+| `hideTitleBar` | boolean | — | true=隐藏标题栏（icon+标题行），配合 renderHtml 整卡自定义卡面，默认 false |
 | `maxLines` | number | — | lines 布局最多行数，1-6，默认 6 |
 | `tapPath` | string | — | 点击卡片的应用内跳转路径，必须 `/` 开头，如 `/service/user.xxx` |
 | `updateIntervalMin` | number | — | 逻辑重跑间隔（分钟），0 = 仅启动/手动刷新，默认 0 |
@@ -128,11 +141,12 @@ widget.json / logic.js 规范与 publish 数据格式两者完全一致，下文
 
 ## 4. logic.js 规范
 
-logic.js 在隐藏沙箱 iframe 中执行（自动注入 JSBridge，**脚本会被自动包在 `async function` 中**，可直接顶层 `await`，无需手写 IIFE），**只能使用两个模块**：
+logic.js 在隐藏沙箱 iframe 中执行（自动注入 JSBridge + renderHtml 辅助，**脚本会被自动包在 `async function` 中**，可直接顶层 `await`，无需手写 IIFE），**只能使用以下能力**：
 
 | 模块 | 说明 |
 |------|------|
 | `__amiba__.desktopWidget.publish(data)` | 发布渲染数据，必须且只调用一次 |
+| `__amiba__.desktopWidget.renderHtml(html, opts?)` | HTML 片段（内联样式）或 SVG 字符串 → PNG dataURL，沙箱内离屏渲染；`opts`: `{width=480, height=width/2, scale=2}`（宽高 16-1600，scale 1-3） |
 | `__amiba__.storage` | `set/get/remove`，读写本服务数据（与服务主页面共享） |
 
 其余模块（network / fetch / ai 等）一律拒绝。10 秒内未 publish 视为超时跳过。
@@ -144,10 +158,30 @@ __amiba__.desktopWidget.publish({
   title: '待办清单',        // 卡片标题（缺省用 widget.json 的 label）
   icon: '📝',               // 标题前 emoji
   lines: ['买牛奶', '写周报'], // ≤6 条，每条 ≤60 字（超出截断）
-  image: 'assets/chart.png',  // 可选，相对卡片目录；image 布局必填
-  footer: '更新于 14:30'      // 可选底部小字
+  image: 'assets/chart.png',  // 可选，相对卡片目录的静态图
+  imageData: 'data:image/png;base64,...', // 可选，renderHtml 产物，优先于 image
+  footer: '更新于 14:30',     // 可选底部小字
+  backgroundColor: '#CC1a2f27'  // 可选样式覆盖（accentColor/backgroundColor/textColor/hideTitleBar），
+                                // 优先于 widget.json，用于按状态动态变色
 })
 ```
+
+### 自定义卡面（renderHtml → imageData）
+
+三套骨架不够用时，把整卡界面用 HTML/CSS（内联样式）或纯 SVG 渲染成图片（layout 必须 `image`）：
+
+```js
+const html = `<div style="width:100%;height:100%;display:flex;flex-direction:column;justify-content:center;background:linear-gradient(135deg,#1a2f27,#0f1f1a);border-radius:24px;color:#e8f5e9;padding:24px;box-sizing:border-box;">
+  <div style="font-size:64px;font-weight:bold;">${count}</div>
+  <div style="font-size:24px;opacity:.7;">今日已完成</div>
+</div>`
+const imageData = await __amiba__.desktopWidget.renderHtml(html, { width: 720, height: 320, scale: 2 })
+__amiba__.desktopWidget.publish({ title: '打卡', imageData, footer: '更新于 14:30' })
+```
+
+- 渲染宽度建议 small 480 / medium 720 / large 720（原生解码上限 720px）
+- 样式必须内联/内嵌在字符串里——外链 CSS、外链图片会静默渲染空白；emoji 与系统字体可用
+- 纯 SVG 字符串可直接传（`<svg` 开头），适合做图表、进度环
 
 ### 执行时机
 
@@ -223,8 +257,9 @@ App 被杀期间桌面卡片显示最后一次推送的内容（原生缓存）�
 ## 7. 常见错误清单
 
 - ❌ 与悬浮块混淆：悬浮块是 `widget.json` + `widgets/*.html`（应用内），桌面卡片是 `desktop-widgets/` 目录（系统桌面）
+- ❌ 为桌面卡片需求顺手建完整服务 → **默认用 `android_widget_create` 建全局卡片**；服务卡片仅当用户明确要求、或需共享服务数据、或随服务分发时
 - ❌ `manifest.permissions` 遗漏 `"desktopWidgets"` → 卡片不注册
-- ❌ 在 logic.js 里写 HTML/DOM 操作 → 桌面卡片是原生渲染，DOM 无效且无人看
+- ❌ 在 logic.js 里直接操作 DOM 当界面 → 桌面卡片是原生渲染，DOM 无人看；自定义卡面用 `renderHtml(html)` 渲染成图片再 publish `imageData`
 - ❌ 忘记调用 `publish()` → 10s 超时，卡片无数据
 - ❌ publish 多次 → 只有第一次生效
 - ❌ `image` 写绝对路径或含 `..` → 宿主拒绝（安全校验）
@@ -239,11 +274,12 @@ App 被杀期间桌面卡片显示最后一次推送的内容（原生缓存）�
 
 ## 8. 检查清单
 
+- [ ] 已确认走服务卡路径（用户明确要求 / 共享服务数据 / 随服务分发）——否则改用全局卡片（`android_widget_create`，以下权限/目录项不适用）
 - [ ] `manifest.permissions` 包含 `"desktopWidgets"`
 - [ ] 卡片目录为 `desktop-widgets/{cardId}/`，含 `widget.json` + `logic.js`
 - [ ] `widget.json` 有 `label`，`tapPath` 以 `/` 开头
 - [ ] logic.js 恰好调用一次 `publish()`，数据字段合法
 - [ ] `lines` ≤6 条且每条 ≤60 字
-- [ ] `layout: "image"` 时 publish 带 `image`（相对路径，文件真实存在于 `assets/`）
+- [ ] `layout: "image"` 时 publish 带 `image`（相对路径，文件真实存在于 `assets/`）或 `imageData`（renderHtml 产物，渲染宽度 ≤720）
 - [ ] 创建后 `android_widget_enable` 启用 + `android_widget_refresh` 推送验证
 - [ ] 已告知用户：需在系统桌面长按添加"变形虫"小组件并选择该卡片

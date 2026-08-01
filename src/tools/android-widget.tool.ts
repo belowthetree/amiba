@@ -28,7 +28,7 @@ toolRegistry.register({
   category: 'manage',
   emoji: '✨',
   description:
-    '创建一张不依附任何服务的全局安卓桌面卡片（写入 {AppData}/amiba/desktop-widgets/cards/{cardId}/）。用户直接要求"在桌面上放一个 xx 卡片"且无需完整服务时用此工具。服务自带的卡片请改用 service_file_write 写 services/{id}/desktop-widgets/。',
+    '创建全局安卓桌面卡片（不依附任何服务，写入 {AppData}/amiba/desktop-widgets/cards/{cardId}/）。默认路径：用户要桌面卡片一律先用此工具。仅当用户明确要求"服务卡片"、卡片需读写某服务自身数据（共享 storage）、或需随服务分发时，才改用 service_file_write 写 services/{id}/desktop-widgets/（规范见 desktop-widget-dev 技能）。',
   maxResultSizeChars: 2000,
   schema: {
     type: 'function',
@@ -60,6 +60,9 @@ toolRegistry.register({
               '尺寸档位：small=2x2 格，medium=4x2 格（默认），large=4x4 格。决定用户在桌面添加哪个"变形虫卡片·小/中/大"入口时能选到此卡片。小尺寸建议 bigText 或 maxLines≤2。',
           },
           accentColor: { type: 'string', description: '可选。标题颜色，如 "#5f8f7b"' },
+          backgroundColor: { type: 'string', description: '可选。卡片背景色 #RRGGBB 或 #AARRGGBB（可半透明），如 "#CC1a2f27"' },
+          textColor: { type: 'string', description: '可选。正文文本行颜色（lines/bigText 布局）' },
+          hideTitleBar: { type: 'boolean', description: '可选。true=隐藏标题栏（icon+标题行），配合 renderHtml 整卡自定义卡面' },
           maxLines: { type: 'number', description: '可选。lines 布局行数上限 1-6，默认 6' },
           tapPath: { type: 'string', description: '可选。点击卡片的应用内跳转路径，必须 "/" 开头' },
           updateIntervalMin: { type: 'number', description: '可选。逻辑重跑间隔（分钟），0=仅启动/手动刷新' },
@@ -104,6 +107,9 @@ toolRegistry.register({
     if (args.layout) widgetJson.layout = String(args.layout)
     if (args.size) widgetJson.size = String(args.size)
     if (args.accentColor) widgetJson.accentColor = String(args.accentColor)
+    if (args.backgroundColor) widgetJson.backgroundColor = String(args.backgroundColor)
+    if (args.textColor) widgetJson.textColor = String(args.textColor)
+    if (args.hideTitleBar === true) widgetJson.hideTitleBar = true
     if (typeof args.maxLines === 'number') widgetJson.maxLines = args.maxLines
     if (args.tapPath) widgetJson.tapPath = String(args.tapPath)
     if (typeof args.updateIntervalMin === 'number') widgetJson.updateIntervalMin = args.updateIntervalMin

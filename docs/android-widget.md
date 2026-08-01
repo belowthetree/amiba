@@ -45,12 +45,15 @@ services/{serviceId}/desktop-widgets/{cardId}/
 | `layout` | `lines`（文本行列表，默认）/ `image`（图片为主）/ `bigText`（大字内容） |
 | `size` | 尺寸档位：`small`（2x2）/ `medium`（4x2，默认）/ `large`（4x4）。Android 小组件尺寸只能在 provider meta XML 声明，故三个档位注册为三个 Provider 入口（Launcher 显示「变形虫卡片·小/中/大」），选卡页只列出同尺寸卡片 |
 | `accentColor` | 标题颜色，十六进制 |
+| `backgroundColor` | 卡片背景色 `#RRGGBB` / `#AARRGGBB`（可半透明）。RemoteViews 运行期只能换资源/纯色背景（丢圆角），故原生程序内画 GradientDrawable 圆角位图铺底（192x192 fitXY） |
+| `textColor` | 正文文本行颜色（lines/bigText 布局） |
+| `hideTitleBar` | true=隐藏标题栏（icon+标题行），配合 renderHtml 整卡自定义卡面 |
 | `maxLines` | lines 布局最多行数（1-6，默认 6；每行超 60 字截断） |
 | `tapPath` | 点击卡片的应用内跳转路径（`/...` 开头） |
 | `updateIntervalMin` | App 存活期间逻辑重跑间隔（分钟），0 = 仅启动/手动刷新 |
 | `enabled` | 首次扫描时的默认启用状态（之后以全局 registry.json 为准） |
 
-**logic.js**：在隐藏沙箱 iframe 中执行（注入 JSBridge；**脚本自动包在 async 函数中，可直接顶层 `await`**），可用 `desktopWidget.publish` + `storage`（读写本服务数据）两个模块，其余模块拒绝。完成后必须调用一次：
+**logic.js**：在隐藏沙箱 iframe 中执行（注入 JSBridge + renderHtml 辅助；**脚本自动包在 async 函数中，可直接顶层 `await`**），可用 `desktopWidget.publish` / `desktopWidget.renderHtml` + `storage`（读写本服务数据），其余模块拒绝。完成后必须调用一次：
 
 ```js
 // 例：读取服务数据并发布
@@ -63,7 +66,9 @@ __amiba__.desktopWidget.publish({
 });
 ```
 
-publish 数据字段：`title` / `icon`（emoji）/ `lines`（≤6 条）/ `image`（相对卡片目录，如 `assets/chart.png`）/ `footer`。
+publish 数据字段：`title` / `icon`（emoji）/ `lines`（≤6 条）/ `image`（相对卡片目录，如 `assets/chart.png`）/ `imageData`（PNG dataURL，`renderHtml` 产物，优先于 `image`）/ `footer`。
+
+**自定义卡面（renderHtml）**：沙箱内注入 `desktopWidget.renderHtml(html, {width, height, scale})`——SVG `foreignObject` 离屏渲染 HTML 片段（样式须内联/内嵌）或完整 SVG 字符串为 PNG dataURL，沙箱内执行不经桥接。publish 时传 `imageData`，宿主解码二进制落盘 `desktop-widgets/cache/img/{key}.png` 并把绝对路径推给原生（layout 用 `image`，删除卡片时一并清理）。建议渲染宽度：small 480 / medium 720 / large 720（Kotlin 解码上限 720px）。
 
 **权限**：服务卡片要求 manifest 声明 `desktopWidgets` 权限，否则不注册；全局卡片无权限要求。
 
@@ -108,7 +113,7 @@ desktop-widgets/
 
 - **仅 Android**：桌面/浏览器端 runner 照常执行 logic 写 cache，推送原生一步跳过（no-op）
 - **逻辑只在 App 存活时执行**：`updatePeriodMillis=0`，系统不唤醒 App；被杀期间显示最后缓存
-- **RemoteViews 位图限制**：图片按 ≤480px 降采样解码；加载失败隐藏图片区
+- **RemoteViews 位图限制**：图片按 ≤720px 降采样解码（Binder 传输约 1MB 上限的折中）；加载失败隐藏图片区
 - **点击跳转**：热启动经 WebView JS 事件即时跳转；WebView 未就绪时暂存 SharedPreferences，下次冷启动由 App.vue 消费
 
 ## 经验教训
@@ -120,6 +125,8 @@ desktop-widgets/
 - **2026-07-31**: runner 组 srcdoc 时直接拼接 `BRIDGE_SCRIPT` 裸 JS 字符串，未包 `<script>` 标签——垫片不执行、`__amiba__` 未定义，logic.js 立即 ReferenceError（真实表现为卡片永远"加载中…"）。`BRIDGE_SCRIPT` 是纯 JS 不是 HTML 片段，所有消费方（service-container / background-manager / widget-lifecycle）都自行包裹 `<script>` 标签，runner 漏了。教训：复用注入脚本时先核对既有消费方的包裹方式。
 - **2026-07-31**: 服务卡片经 `service_file_write/edit` 创建后无任何触发链路（rescan/enable/refresh 都靠 AI 自觉调工具），漏调就要重启才可见。修复为两个 service_file 工具在写入 `desktop-widgets/` 路径后自动 `rescanDesktopWidgets()` + `refreshWidgetCard()`（`afterDesktopWidgetFileChange` 钩子）。
 - **2026-07-31**: 卡片尺寸是 AI 的需求（widget.json `size` 字段），但 Android 小组件尺寸只能在 manifest 注册的 provider meta XML 中声明，运行期无法给单个 Provider 改尺寸——方案是固定档位多 Provider（small/medium/large 三个 receiver + 三份 meta XML），选卡页按入口反查尺寸过滤卡片。教训：AppWidget 的"每卡片自定义尺寸"没有运行时 API，档位化是唯一落地路径；新增档位要同步改四处（meta XML / 子类 / manifest / WidgetHelper 刷新列表）。
+- **2026-07-31**: 自定义卡面走"HTML/SVG → PNG → ImageView"路线：RemoteViews 无 WebView，但 ImageView 是唯一逃生通道。渲染放在沙箱 iframe 内（SVG `foreignObject` + canvas 导出 dataURL，零依赖），不经桥接；宿主只新增"dataURL → 二进制落盘 cache/img/"一段通道，Kotlin 零改动。教训：foreignObject 方案样式必须内联/内嵌（外链 CSS 与图片会静默渲染空白），文档须明示；老 WebView 画 SVG 可能污染 canvas 导致 toDataURL 抛 SecurityError，renderHtml 要 try/catch 兜底。
+- **2026-07-31**: 卡片样式字段（backgroundColor/textColor/hideTitleBar）落地时的坑：RemoteViews 运行期改背景只有"资源/纯色"两条路（`setInt("setBackgroundColor")` 会丢圆角），自定义色保圆角需程序内画 GradientDrawable → Bitmap → 铺底层 ImageView（fitXY，固定 192x192 控制 Binder 体积）。骨架根容器因此从 LinearLayout 重构为 FrameLayout + 背景位图层，三套 XML 必须同步加 `widget_bg_img`/`widget_titlebar` id——buildViews 共享代码引用的每个 id 都要存在于全部骨架，缺一个即运行时崩溃。
 
 ## 原生层文件（gen/android，`tauri android init` 重置后需恢复）
 

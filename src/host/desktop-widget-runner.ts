@@ -2,10 +2,11 @@
 // 变形虫 (Amiba) — 安卓桌面卡片逻辑运行器
 //
 // 每张启用卡片的 logic.js 在一个隐藏沙箱 iframe 中执行：
-//   注入 BRIDGE_SCRIPT + __amiba_service_id__，logic.js 经
-//   __amiba__.desktopWidget.publish(data) 产出渲染数据。
-// 可用模块：desktopWidget.publish + storage（读写服务自身数据），
-// 其余模块一律拒绝。10s 未 publish 视为超时跳过。
+//   注入 BRIDGE_SCRIPT + RENDER_HTML_SCRIPT + __amiba_service_id__，
+//   logic.js 经 __amiba__.desktopWidget.publish(data) 产出渲染数据。
+// 可用模块：desktopWidget.publish / desktopWidget.renderHtml（HTML/SVG →
+//   PNG dataURL，沙箱内离屏渲染，不经桥接）+ storage（读写服务自身数据），
+//   其余模块一律拒绝。10s 未 publish 视为超时跳过。
 //
 // 触发时机：App 启动（init 后）+ updateIntervalMin 周期 + 手动刷新。
 // App 退出即全部停止，桌面卡片显示最后一次推送的缓存。
@@ -24,6 +25,52 @@ import {
 } from '../config/desktop-widget-store'
 
 const LOGIC_TIMEOUT_MS = 10_000
+
+/**
+ * 沙箱内渲染辅助：给 __amiba__.desktopWidget 挂 renderHtml(html, opts)。
+ * 在 iframe 内部执行（不经桥接 postMessage）：SVG foreignObject 离屏渲染
+ * HTML/SVG 字符串 → PNG dataURL，零依赖。结果经 publish({ imageData }) 回传。
+ * 纯 JS 字符串（BRIDGE_SCRIPT 同款注入方式），勿含 </script> 与模板占位符。
+ */
+const RENDER_HTML_SCRIPT = `
+;(function () {
+  var dw = window.__amiba__ && window.__amiba__.desktopWidget;
+  if (!dw) return;
+  // html: HTML 片段（样式须内联/内嵌）或完整 SVG 字符串
+  // opts: { width=480, height=width/2, scale=2 }，宽高 16-1600，scale 1-3
+  dw.renderHtml = function (html, opts) {
+    var o = opts || {};
+    var width = Math.min(Math.max(o.width || 480, 16), 1600);
+    var height = Math.min(Math.max(o.height || Math.round(width / 2), 16), 1600);
+    var scale = Math.min(Math.max(o.scale || 2, 1), 3);
+    var src = String(html || '').trim();
+    if (!src) return Promise.reject(new Error('renderHtml 需要非空 HTML/SVG 字符串'));
+    var svg = src.indexOf('<svg') === 0
+      ? src
+      : '<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="' + height + '">' +
+        '<foreignObject width="100%" height="100%">' +
+        '<div xmlns="http://www.w3.org/1999/xhtml" style="width:' + width + 'px;height:' + height +
+        'px;overflow:hidden;font-family:sans-serif;">' + src + '</div></foreignObject></svg>';
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      img.onload = function () {
+        try {
+          var canvas = document.createElement('canvas');
+          canvas.width = Math.round(width * scale);
+          canvas.height = Math.round(height * scale);
+          var ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/png'));
+        } catch (e) {
+          reject(new Error('renderHtml 导出失败（WebView 可能不支持 SVG 截图）: ' + e.message));
+        }
+      };
+      img.onerror = function () { reject(new Error('renderHtml 渲染失败：HTML/SVG 无法解析')); };
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    });
+  };
+})();
+`
 
 /** 周期刷新定时器：cardKey → interval id */
 const intervals = new Map<string, ReturnType<typeof setInterval>>()
@@ -89,10 +136,11 @@ async function runCardLogic(def: DesktopWidgetDef): Promise<Record<string, any>>
 
     const bridge = createBridge(iframe, [...permissions, 'desktopWidgets'], handler)
 
-    // 组 srcdoc：bridge 垫片（必须包 <script> 标签才执行）→ 服务身份 → logic.js
+    // 组 srcdoc：bridge 垫片（必须包 <script> 标签才执行）→ renderHtml 辅助 → 服务身份 → logic.js
     // logic.js 自动包在 async 函数中执行：允许顶层 await（IIFE 写法同样兼容）
     iframe.srcdoc =
       '<script>' + BRIDGE_SCRIPT + '<\/script>' +
+      '<script>' + RENDER_HTML_SCRIPT + '<\/script>' +
       `<script>window.__amiba_service_id__ = ${JSON.stringify(def.serviceId)};</script>` +
       `<script>(async function () {\n${logic}\n})()</script>`
     document.body.appendChild(iframe)

@@ -16,6 +16,8 @@ import { detectPlatform } from './updater'
 
 const REGISTRY_KEY = 'desktop-widgets/registry.json'
 const CACHE_PREFIX = 'desktop-widgets/cache/'
+/** renderHtml 产出的 PNG 落盘目录（相对 amiba 根，运行时产物与载荷 JSON 同级） */
+const CACHE_IMG_DIR = 'desktop-widgets/cache/img'
 /** 全局卡片定义目录（相对 amiba 根）：desktop-widgets/cards/{cardId}/ */
 const GLOBAL_CARDS_DIR = 'desktop-widgets/cards'
 
@@ -39,6 +41,12 @@ export interface DesktopWidgetDef {
   /** 尺寸档位：small(2x2) | medium(4x2，默认) | large(4x4) —— 对应原生三个 Provider 入口 */
   size: 'small' | 'medium' | 'large'
   accentColor?: string
+  /** 背景色 #RRGGBB / #AARRGGBB（可半透明），原生画圆角位图铺底，缺省用预置 drawable */
+  backgroundColor?: string
+  /** 正文文本行颜色（lines/bigText 布局） */
+  textColor?: string
+  /** 隐藏标题栏（icon+标题行），配合 renderHtml 整卡自定义卡面 */
+  hideTitleBar?: boolean
   maxLines?: number
   /** 点击卡片后的应用内跳转路径 */
   tapPath?: string
@@ -55,7 +63,14 @@ export interface DesktopWidgetData {
   lines?: string[]
   /** 相对卡片目录的图片路径，如 "assets/chart.png" */
   image?: string
+  /** PNG dataURL（renderHtml 产出），优先于 image；宿主解码写入 cache/img/ 后推送绝对路径 */
+  imageData?: string
   footer?: string
+  // ---- 样式覆盖（优先于 widget.json 同名字段，用于按状态动态变色）----
+  accentColor?: string
+  backgroundColor?: string
+  textColor?: string
+  hideTitleBar?: boolean
 }
 
 /** 推送原生侧的完整载荷（def + data 合并，图片转绝对路径） */
@@ -69,7 +84,6 @@ export interface DesktopWidgetPayload extends DesktopWidgetData {
   layout: string
   /** 尺寸档位 small|medium|large（Kotlin 选卡页按此过滤） */
   size: string
-  accentColor?: string
   maxLines?: number
   tapPath?: string
   /** 图片绝对路径（Kotlin 直接解码） */
@@ -178,6 +192,9 @@ export async function scanDesktopWidgets(): Promise<DesktopWidgetDef[]> {
           layout: (['lines', 'image', 'bigText'].includes(json.layout) ? json.layout : 'lines') as DesktopWidgetDef['layout'],
           size: (['small', 'medium', 'large'].includes(json.size) ? json.size : 'medium') as DesktopWidgetDef['size'],
           accentColor: json.accentColor ? String(json.accentColor) : undefined,
+          backgroundColor: json.backgroundColor ? String(json.backgroundColor) : undefined,
+          textColor: json.textColor ? String(json.textColor) : undefined,
+          hideTitleBar: json.hideTitleBar === true ? true : undefined,
           maxLines: typeof json.maxLines === 'number' ? json.maxLines : undefined,
           tapPath: json.tapPath ? String(json.tapPath) : undefined,
           updateIntervalMin: typeof json.updateIntervalMin === 'number' ? json.updateIntervalMin : 0,
@@ -206,6 +223,9 @@ export async function scanDesktopWidgets(): Promise<DesktopWidgetDef[]> {
         layout: (['lines', 'image', 'bigText'].includes(json.layout) ? json.layout : 'lines') as DesktopWidgetDef['layout'],
         size: (['small', 'medium', 'large'].includes(json.size) ? json.size : 'medium') as DesktopWidgetDef['size'],
         accentColor: json.accentColor ? String(json.accentColor) : undefined,
+        backgroundColor: json.backgroundColor ? String(json.backgroundColor) : undefined,
+        textColor: json.textColor ? String(json.textColor) : undefined,
+        hideTitleBar: json.hideTitleBar === true ? true : undefined,
         maxLines: typeof json.maxLines === 'number' ? json.maxLines : undefined,
         tapPath: json.tapPath ? String(json.tapPath) : undefined,
         updateIntervalMin: typeof json.updateIntervalMin === 'number' ? json.updateIntervalMin : 0,
@@ -343,6 +363,11 @@ export async function deleteWidgetCard(key: string): Promise<void> {
     enabledWidgetKeys.value = [..._registry.enabled]
   }
   await storageRemove(cacheKey(key))
+  // renderHtml 产出的 PNG 一并清理
+  try {
+    const { remove, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    await remove(`amiba/${CACHE_IMG_DIR}/${key.replace(/\//g, '__')}.png`, { baseDir: BaseDirectory.AppData })
+  } catch { /* 文件可能不存在 */ }
   console.log(`[DesktopWidget] ✓ 卡片已删除: ${key}`)
 
   // 3. 重扫 + 重排周期调度 + 推送原生（选卡页不再列出该卡片）
@@ -397,19 +422,56 @@ export async function updateCardPayload(def: DesktopWidgetDef, data: DesktopWidg
     description: def.description,
     layout: def.layout,
     size: def.size,
-    accentColor: def.accentColor,
+    // 样式字段：publish 可覆盖 widget.json（按状态动态变色）
+    accentColor: data.accentColor ?? def.accentColor,
+    backgroundColor: data.backgroundColor ?? def.backgroundColor,
+    textColor: data.textColor ?? def.textColor,
+    hideTitleBar: data.hideTitleBar ?? def.hideTitleBar,
     maxLines: def.maxLines,
     tapPath: def.tapPath,
     title: data.title,
     icon: data.icon,
     lines: Array.isArray(data.lines) ? data.lines.slice(0, 6).map((s) => String(s).slice(0, 60)) : undefined,
-    image: await resolveImagePath(def, data.image),
+    // imageData（renderHtml 产物）优先于静态 assets 图片
+    image: (await writeCardImage(def.key, data.imageData)) ?? (await resolveImagePath(def, data.image)),
     footer: data.footer,
     updatedAt: new Date().toISOString(),
   }
   await storageSetJSON(cacheKey(def.key), payload)
   console.log(`[DesktopWidget] ✓ 载荷已更新: ${def.key}`)
   await pushToNative()
+}
+
+/**
+ * publish 的 imageData（PNG dataURL）→ 二进制写入 cache/img/{key}.png，
+ * 返回绝对路径供 Kotlin 解码。非法/超大输入返回 undefined（回退静态图片）。
+ */
+async function writeCardImage(key: string, dataUrl?: string): Promise<string | undefined> {
+  if (!dataUrl) return undefined
+  const m = /^data:image\/[a-zA-Z0-9.+-]+;base64,([\s\S]+)$/.exec(dataUrl.trim())
+  if (!m) {
+    console.warn('[DesktopWidget] imageData 非 base64 dataURL（忽略）:', key)
+    return undefined
+  }
+  if (m[1]!.length > 8 * 1024 * 1024) {
+    console.warn('[DesktopWidget] imageData 过大（base64 > 8MB，忽略）:', key)
+    return undefined
+  }
+  try {
+    const bin = atob(m[1]!)
+    const bytes = new Uint8Array(bin.length)
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+    const { writeFile, mkdir, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { appDataDir, join } = await import('@tauri-apps/api/path')
+    const dir = `amiba/${CACHE_IMG_DIR}`
+    await mkdir(dir, { baseDir: BaseDirectory.AppData, recursive: true })
+    const file = key.replace(/\//g, '__') + '.png'
+    await writeFile(`${dir}/${file}`, bytes, { baseDir: BaseDirectory.AppData })
+    return await join(await appDataDir(), dir, file)
+  } catch (e) {
+    console.warn('[DesktopWidget] imageData 写盘失败:', key, e)
+    return undefined
+  }
 }
 
 /** 相对卡片目录的图片路径 → 绝对路径（Kotlin File 直接解码） */
@@ -474,6 +536,9 @@ function placeholderPayload(def: DesktopWidgetDef): DesktopWidgetPayload {
     layout: def.layout,
     size: def.size,
     accentColor: def.accentColor,
+    backgroundColor: def.backgroundColor,
+    textColor: def.textColor,
+    hideTitleBar: def.hideTitleBar,
     maxLines: def.maxLines,
     tapPath: def.tapPath,
     title: def.label,

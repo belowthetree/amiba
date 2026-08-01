@@ -23,8 +23,9 @@ import org.json.JSONObject
 //
 // 卡片 JSON（前端 desktop-widget-store.ts 推送，数组元素）：
 //   key / serviceId / label / description / size(small|medium|large)
-//   layout(lines|image|bigText) / accentColor / tapPath
-//   title / icon / lines[] / image(绝对路径) / footer / updatedAt
+//   layout(lines|image|bigText) / tapPath
+//   样式: accentColor(标题色) / textColor(正文色) / backgroundColor(背景色，可带 alpha) / hideTitleBar
+//   内容: title / icon / lines[] / image(绝对路径) / footer / updatedAt
 //
 // 尺寸档位：small(2x2) / medium(4x2, 本类) / large(4x4) 三个 Provider
 //   分别注册（尺寸只能在 meta XML 声明），选卡页按 Provider 过滤同尺寸卡片。
@@ -32,7 +33,8 @@ import org.json.JSONObject
 // 注意: gen/android 会被 `tauri android init` 重置,重置后需重新写入本文件
 // ============================================================
 
-class AmibaWidgetProvider : AppWidgetProvider() {
+// open：small/large 尺寸档位以纯标记子类继承（见 AmibaWidgetProviderSmall/Large）
+open class AmibaWidgetProvider : AppWidgetProvider() {
 
   override fun onUpdate(context: Context, mgr: AppWidgetManager, ids: IntArray) {
     for (id in ids) {
@@ -80,6 +82,27 @@ class AmibaWidgetProvider : AppWidgetProvider() {
       }
       val views = RemoteViews(context.packageName, layoutId)
 
+      // ---- 样式字段（widget.json 静态配置，publish 可覆盖）：背景色/隐藏标题栏/正文颜色 ----
+      val bg = card?.optString("backgroundColor", "") ?: ""
+      if (bg.isNotEmpty()) {
+        val bmp = buildBgBitmap(bg)
+        if (bmp != null) {
+          views.setViewVisibility(R.id.widget_bg_img, View.VISIBLE)
+          views.setImageViewBitmap(R.id.widget_bg_img, bmp)
+        }
+      }
+      if (card?.optBoolean("hideTitleBar", false) == true) {
+        views.setViewVisibility(R.id.widget_titlebar, View.GONE)
+      }
+      val bodyColor = card?.optString("textColor", "") ?: ""
+      if (bodyColor.isNotEmpty()) {
+        try {
+          val c = android.graphics.Color.parseColor(bodyColor)
+          for (i in 0 until MAX_LINES) views.setTextColor(lineId(i), c)
+          if (layout == "bigText") views.setTextColor(R.id.widget_bigtext, c)
+        } catch (_: IllegalArgumentException) {}
+      }
+
       if (card == null) {
         // 无绑定或无数据：显示占位
         views.setTextViewText(R.id.widget_title, "变形虫")
@@ -107,7 +130,8 @@ class AmibaWidgetProvider : AppWidgetProvider() {
         when (layout) {
           "image" -> {
             val path = card.optString("image", "")
-            val bmp = if (path.isNotEmpty()) decodeScaled(path, 480) else null
+            // 720：兼顾 renderHtml 渲染卡面的文字清晰度与 Binder 传输限制
+            val bmp = if (path.isNotEmpty()) decodeScaled(path, 720) else null
             if (bmp != null) {
               views.setViewVisibility(R.id.widget_image, View.VISIBLE)
               views.setImageViewBitmap(R.id.widget_image, bmp)
@@ -193,6 +217,31 @@ class AmibaWidgetProvider : AppWidgetProvider() {
         null
       }
     }
+
+    /**
+     * 自定义背景色 → 圆角位图（铺 widget_bg_img，fitXY 拉伸）。
+     * RemoteViews 只能换资源/纯色背景（丢圆角），故程序内画 GradientDrawable 转位图。
+     * 固定 192x192（147KB）控制 Binder 体积，圆角取拉伸后的视觉近似。
+     * 支持 #RRGGBB / #AARRGGBB（半透明与默认底色叠加）。
+     */
+    private fun buildBgBitmap(colorStr: String): Bitmap? {
+      return try {
+        val color = android.graphics.Color.parseColor(colorStr)
+        val w = 192
+        val h = 192
+        val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+        val d = android.graphics.drawable.GradientDrawable()
+        d.shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+        d.cornerRadius = 28f
+        d.setColor(color)
+        d.setBounds(0, 0, w, h)
+        d.draw(android.graphics.Canvas(bmp))
+        bmp
+      } catch (e: Exception) {
+        android.util.Log.w("[amiba-widget]", "背景色解析失败 $colorStr: ${e.message}")
+        null
+      }
+    }
   }
 }
 
@@ -223,7 +272,7 @@ object WidgetHelper {
 
       val mgr = AppWidgetManager.getInstance(ctx)
       // 三个尺寸档位的 Provider 都要刷新（appWidgetId 全局唯一，各自查实例）
-      val providers = listOf(
+      val providers: List<Class<out AmibaWidgetProvider>> = listOf(
         AmibaWidgetProvider::class.java,
         AmibaWidgetProviderSmall::class.java,
         AmibaWidgetProviderLarge::class.java,
