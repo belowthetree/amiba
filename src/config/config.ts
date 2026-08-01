@@ -11,7 +11,7 @@ import type { AppSettings } from '../types/service'
 const STORAGE_KEY = 'amiba_settings'
 
 const defaults: AppSettings = {
-  ai_base_url: 'https://api.deepseek.com/v1',
+  ai_base_url: 'https://api.deepseek.com',
   ai_model: 'deepseek-v4-flash',
   api_key: '',
   theme_mode: 'system',

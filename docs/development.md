@@ -61,8 +61,8 @@ libloading = "0.8"  # 用于动态加载 libnativehelper.so 获取 JVM
 1. 启动应用，进入 **设置** 页面
 2. 填入 API Key
 3. 默认使用 DeepSeek API，可改为任何 OpenAI 兼容接口：
-   - Base URL: `https://api.deepseek.com/v1`
-   - 对话模型: `deepseek-v4-flash`
+   - Base URL: `https://api.deepseek.com`
+   - 对话模型: `deepseek-v4-flash` / `deepseek-v4-pro`
 
 ### 多供应商配置
 

@@ -23,7 +23,7 @@
         <input
           v-model="settings.ai_base_url"
           class="form-input"
-          placeholder="https://api.deepseek.com/v1"
+          placeholder="https://api.deepseek.com"
         />
       </div>
 
