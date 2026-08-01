@@ -701,7 +701,9 @@ onUnmounted(() => {
   height: 34px;
   padding: 0;
   border-radius: 50%;
+  border: 1px solid var(--color-border);
   border: 1px solid color-mix(in srgb, var(--color-text) 10%, transparent);
+  background: var(--color-surface);
   background: color-mix(in srgb, var(--color-surface) 65%, transparent);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -719,6 +721,7 @@ onUnmounted(() => {
 
 .float-back-btn:hover {
   opacity: 1;
+  background: var(--color-surface);
   background: color-mix(in srgb, var(--color-surface) 88%, transparent);
 }
 

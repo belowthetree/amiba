@@ -270,6 +270,7 @@ onUnmounted(() => {
   padding: 8px 12px;
   border-bottom: 1px solid var(--color-divider);
   flex-shrink: 0;
+  background: var(--color-surface);
   background: color-mix(in srgb, var(--color-surface) 82%, transparent);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);

@@ -70,8 +70,10 @@ function go(path: string) {
   width: 26px;
   height: 62px;
   padding: 0;
+  border: 1px solid var(--color-border);
   border: 1px solid color-mix(in srgb, var(--color-text) 10%, transparent);
   border-radius: 999px;
+  background: var(--color-surface);
   background: color-mix(in srgb, var(--color-surface) 55%, transparent);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -91,6 +93,7 @@ function go(path: string) {
 .edge-hint:hover,
 .edge-hint:focus-visible {
   opacity: 0.95;
+  background: var(--color-surface);
   background: color-mix(in srgb, var(--color-surface) 80%, transparent);
 }
 

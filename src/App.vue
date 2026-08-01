@@ -618,9 +618,11 @@ button {
   gap: 8px;
   padding: 8px 16px;
   max-width: calc(100vw - 32px);
+  background: var(--color-surface);
   background: color-mix(in srgb, var(--color-surface) 82%, transparent);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--color-primary-light);
   border: 1px solid color-mix(in srgb, var(--color-primary) 35%, transparent);
   border-radius: 999px;
   box-shadow: var(--shadow-md);

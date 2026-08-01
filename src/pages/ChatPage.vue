@@ -575,9 +575,11 @@ watch(lastReviewResult, (result) => {
   bottom: calc(100% + 10px);
   left: 0;
   right: 0;
+  background: var(--color-surface);
   background: color-mix(in srgb, var(--color-surface) 92%, transparent);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
+  border: 1px solid var(--color-border-light);
   border: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
@@ -709,6 +711,7 @@ watch(lastReviewResult, (result) => {
 }
 
 .message.user .message-content {
+  background: var(--color-primary);
   background: linear-gradient(135deg, var(--color-primary), color-mix(in srgb, var(--color-primary) 70%, var(--color-primary-hover)));
   color: var(--color-on-primary);
   border-radius: var(--radius-lg) var(--radius-lg) var(--radius-sm) var(--radius-lg);
@@ -817,8 +820,10 @@ watch(lastReviewResult, (result) => {
   width: 28px;
   height: 28px;
   margin-right: 8px;
+  border: 1px solid var(--color-border);
   border: 1px solid color-mix(in srgb, var(--color-text) 10%, transparent);
   border-radius: 50%;
+  background: var(--color-surface);
   background: color-mix(in srgb, var(--color-surface) 60%, transparent);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -835,6 +840,7 @@ watch(lastReviewResult, (result) => {
 
 .panel-toggle:hover {
   opacity: 1;
+  background: var(--color-surface);
   background: color-mix(in srgb, var(--color-surface) 85%, transparent);
 }
 
@@ -877,8 +883,10 @@ watch(lastReviewResult, (result) => {
 .panel-btn {
   width: 36px;
   height: 36px;
+  border: 1px solid var(--color-border-light);
   border: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
   border-radius: 50%;
+  background: var(--color-surface);
   background: color-mix(in srgb, var(--color-surface) 80%, transparent);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
@@ -912,9 +920,11 @@ watch(lastReviewResult, (result) => {
   align-items: flex-end;
   gap: 10px;
   padding: 10px 10px 10px 18px;
+  background: var(--color-surface);
   background: color-mix(in srgb, var(--color-surface) 88%, transparent);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--color-border-light);
   border: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
   border-radius: var(--radius-lg);
   box-shadow:
@@ -924,7 +934,11 @@ watch(lastReviewResult, (result) => {
 }
 
 .chat-input-bar:focus-within {
+  border-color: var(--color-primary);
   border-color: color-mix(in srgb, var(--color-primary) 55%, transparent);
+  box-shadow:
+    0 12px 32px -8px rgba(16, 24, 40, 0.12),
+    0 2px 8px rgba(16, 24, 40, 0.06);
   box-shadow:
     0 12px 32px -8px color-mix(in srgb, var(--color-primary) 30%, transparent),
     0 2px 8px rgba(16, 24, 40, 0.06);
@@ -1028,9 +1042,11 @@ watch(lastReviewResult, (result) => {
 }
 
 .modal-box {
+  background: var(--color-surface);
   background: color-mix(in srgb, var(--color-surface) 92%, transparent);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
+  border: 1px solid var(--color-border-light);
   border: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
   border-radius: var(--radius-lg);
   padding: 24px;
@@ -1162,6 +1178,7 @@ watch(lastReviewResult, (result) => {
   padding: 4px 12px;
   background: var(--color-warning-light);
   color: var(--color-warning);
+  border: 1px solid var(--color-warning);
   border: 1px solid color-mix(in srgb, var(--color-warning) 30%, transparent);
   border-radius: 999px;
   font-size: 12px;
@@ -1170,6 +1187,7 @@ watch(lastReviewResult, (result) => {
 }
 
 .retry-btn:hover {
+  background: var(--color-warning-light);
   background: color-mix(in srgb, var(--color-warning) 20%, var(--color-warning-light));
 }
 

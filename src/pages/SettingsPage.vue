@@ -1330,6 +1330,7 @@ textarea.form-input {
 
 .form-input:focus {
   border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-light);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 15%, transparent);
 }
 
@@ -1928,6 +1929,7 @@ select.form-input {
 .tombstone-block {
   margin: 0;
   padding: 12px;
+  background: var(--color-text);
   background: color-mix(in srgb, var(--color-text) 94%, var(--color-bg));
   color: var(--color-surface);
   font-family: 'Fira Code', 'Cascadia Code', 'JetBrains Mono', monospace;
