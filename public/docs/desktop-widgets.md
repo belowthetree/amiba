@@ -32,6 +32,7 @@ services/{serviceId}/desktop-widgets/{cardId}/
 | `label` | string | 选卡页显示名称（必填） |
 | `description` | string | 选卡页副标题 |
 | `layout` | string | `"lines"`（默认）/ `"bigText"` / `"image"` |
+| `size` | string | 尺寸档位：`"small"`（2x2）/ `"medium"`（4x2，默认）/ `"large"`（4x4）。决定 Launcher 中从哪个「变形虫卡片·小/中/大」入口添加；小尺寸建议 bigText 或 `maxLines`≤2 |
 | `accentColor` | string | 标题颜色，如 `"#5f8f7b"` |
 | `maxLines` | number | lines 布局行数上限 1-6，默认 6 |
 | `tapPath` | string | 点击跳转路径，`/` 开头 |
@@ -82,7 +83,7 @@ publish 数据：
 
 ## 用户使用
 
-长按安卓桌面 → 小组件 → "变形虫" → 拖上桌面 → 选卡页选择卡片。
+长按安卓桌面 → 小组件 → 按卡片 `size` 选「变形虫卡片·小（2x2）/ 中（4x2）/ 大（4x4）」入口 → 拖上桌面 → 选卡页选择卡片（只列出与该入口同尺寸的卡片）。放置后也可按住 widget 边缘拖拽微调尺寸。
 
 ## 平台限制
 

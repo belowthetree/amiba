@@ -22,8 +22,12 @@ import org.json.JSONObject
 //   存 SharedPreferences 并刷新全部 widget 实例。
 //
 // 卡片 JSON（前端 desktop-widget-store.ts 推送，数组元素）：
-//   key / serviceId / label / description / layout(lines|image|bigText)
-//   accentColor / tapPath / title / icon / lines[] / image(绝对路径) / footer / updatedAt
+//   key / serviceId / label / description / size(small|medium|large)
+//   layout(lines|image|bigText) / accentColor / tapPath
+//   title / icon / lines[] / image(绝对路径) / footer / updatedAt
+//
+// 尺寸档位：small(2x2) / medium(4x2, 本类) / large(4x4) 三个 Provider
+//   分别注册（尺寸只能在 meta XML 声明），选卡页按 Provider 过滤同尺寸卡片。
 //
 // 注意: gen/android 会被 `tauri android init` 重置,重置后需重新写入本文件
 // ============================================================
@@ -218,13 +222,29 @@ object WidgetHelper {
         .apply()
 
       val mgr = AppWidgetManager.getInstance(ctx)
-      val ids = mgr.getAppWidgetIds(ComponentName(ctx, AmibaWidgetProvider::class.java))
-      if (ids.isEmpty()) {
-        android.util.Log.i("[amiba-widget]", "updateCards ✓ (${json.length}B)，无 widget 实例，仅落盘")
-        return
+      // 三个尺寸档位的 Provider 都要刷新（appWidgetId 全局唯一，各自查实例）
+      val providers = listOf(
+        AmibaWidgetProvider::class.java,
+        AmibaWidgetProviderSmall::class.java,
+        AmibaWidgetProviderLarge::class.java,
+      )
+      var total = 0
+      for (p in providers) {
+        val ids = mgr.getAppWidgetIds(ComponentName(ctx, p))
+        for (id in ids) {
+          try {
+            AmibaWidgetProvider.updateOne(ctx, mgr, id)
+            total++
+          } catch (e: Exception) {
+            android.util.Log.w("[amiba-widget]", "updateCards 刷新 id=$id 失败: ${e.message}")
+          }
+        }
       }
-      for (id in ids) AmibaWidgetProvider.updateOne(ctx, mgr, id)
-      android.util.Log.i("[amiba-widget]", "updateCards ✓ (${json.length}B)，已刷新 ${ids.size} 个实例")
+      if (total == 0) {
+        android.util.Log.i("[amiba-widget]", "updateCards ✓ (${json.length}B)，无 widget 实例，仅落盘")
+      } else {
+        android.util.Log.i("[amiba-widget]", "updateCards ✓ (${json.length}B)，已刷新 $total 个实例")
+      }
     } catch (e: Exception) {
       android.util.Log.w("[amiba-widget]", "updateCards 失败: ${e.message}")
     }

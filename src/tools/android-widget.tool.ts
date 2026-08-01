@@ -53,6 +53,12 @@ toolRegistry.register({
             enum: ['lines', 'bigText', 'image'],
             description: '布局骨架：lines=文本行列表（默认），bigText=大字单值，image=图片为主',
           },
+          size: {
+            type: 'string',
+            enum: ['small', 'medium', 'large'],
+            description:
+              '尺寸档位：small=2x2 格，medium=4x2 格（默认），large=4x4 格。决定用户在桌面添加哪个"变形虫卡片·小/中/大"入口时能选到此卡片。小尺寸建议 bigText 或 maxLines≤2。',
+          },
           accentColor: { type: 'string', description: '可选。标题颜色，如 "#5f8f7b"' },
           maxLines: { type: 'number', description: '可选。lines 布局行数上限 1-6，默认 6' },
           tapPath: { type: 'string', description: '可选。点击卡片的应用内跳转路径，必须 "/" 开头' },
@@ -96,6 +102,7 @@ toolRegistry.register({
     const widgetJson: Record<string, any> = { label: String(args.label || cardId) }
     if (args.description) widgetJson.description = String(args.description)
     if (args.layout) widgetJson.layout = String(args.layout)
+    if (args.size) widgetJson.size = String(args.size)
     if (args.accentColor) widgetJson.accentColor = String(args.accentColor)
     if (typeof args.maxLines === 'number') widgetJson.maxLines = args.maxLines
     if (args.tapPath) widgetJson.tapPath = String(args.tapPath)
@@ -116,7 +123,8 @@ toolRegistry.register({
     await rescanDesktopWidgets()
     await setCardEnabled(key, true)
     const ok = await refreshWidgetCard(key)
-    return `✓ 全局桌面卡片已创建并${ok ? '推送' : '等待推送'}: ${widgetJson.label} (${key})。请提示用户在系统桌面长按添加"变形虫"小组件并选择该卡片。`
+    const sizeEntry = widgetJson.size === 'small' ? '·小' : widgetJson.size === 'large' ? '·大' : '·中'
+    return `✓ 全局桌面卡片已创建并${ok ? '推送' : '等待推送'}: ${widgetJson.label} (${key})。请提示用户在系统桌面长按添加"变形虫卡片${sizeEntry}"小组件并选择该卡片。`
   },
 })
 
@@ -152,6 +160,7 @@ toolRegistry.register({
         label: def.label,
         service: def.serviceName,
         layout: def.layout,
+        size: def.size,
         enabled: enabledWidgetKeys.value.includes(def.key),
         updateIntervalMin: def.updateIntervalMin ?? 0,
         lastPush: cached?.updatedAt ?? null,

@@ -30,6 +30,7 @@ services/{serviceId}/desktop-widgets/{cardId}/
   "label": "待办速览",
   "description": "显示最近 5 条待办",
   "layout": "lines",
+  "size": "medium",
   "accentColor": "#5f8f7b",
   "maxLines": 5,
   "tapPath": "/service/user.note-service",
@@ -42,6 +43,7 @@ services/{serviceId}/desktop-widgets/{cardId}/
 |------|------|
 | `label` | 选卡页显示名称（必填） |
 | `layout` | `lines`（文本行列表，默认）/ `image`（图片为主）/ `bigText`（大字内容） |
+| `size` | 尺寸档位：`small`（2x2）/ `medium`（4x2，默认）/ `large`（4x4）。Android 小组件尺寸只能在 provider meta XML 声明，故三个档位注册为三个 Provider 入口（Launcher 显示「变形虫卡片·小/中/大」），选卡页只列出同尺寸卡片 |
 | `accentColor` | 标题颜色，十六进制 |
 | `maxLines` | lines 布局最多行数（1-6，默认 6；每行超 60 字截断） |
 | `tapPath` | 点击卡片的应用内跳转路径（`/...` 开头） |
@@ -86,9 +88,11 @@ desktop-widgets/
       （启动时 + updateIntervalMin 周期 + android_widget_refresh 手动）
   → publish(data) → 合并 widget.json + 图片绝对路径 → cache/*.json
   → invoke('android_widget_update') → Rust widget.rs → JNI
-  → Kotlin WidgetHelper.updateCards() → SharedPreferences + 刷新全部实例
-  → AmibaWidgetProvider 按 appWidgetId→cardKey 绑定渲染 RemoteViews
+  → Kotlin WidgetHelper.updateCards() → SharedPreferences + 刷新三个 Provider 全部实例
+  → AmibaWidgetProvider（中4x2）/ Small（小2x2）/ Large（大4x4）按 appWidgetId→cardKey 绑定渲染 RemoteViews
 ```
+
+尺寸档位：Android 小组件尺寸只能在 provider meta XML 声明，故 `size`（small/medium/large）注册为三个 Provider 入口（Launcher 显示「变形虫卡片·小/中/大」）；选卡配置页由 appWidgetId 反查 Provider 类名，只列出同尺寸卡片（载荷 `size` 缺省按 medium 兼容旧卡片）。
 
 ## AI 工具
 
@@ -115,14 +119,17 @@ desktop-widgets/
 - **2026-07-31**: logic.js 以经典 `<script>` 注入时顶层 `await` 直接 SyntaxError，卡片永远停在"加载中…"且只有超时日志。修复为 runner 注入时自动包 `(async function(){ ... })()`，顶层 await 与 IIFE 写法均兼容。文档示例此前误用顶层 await，已统一注明自动包裹行为。
 - **2026-07-31**: runner 组 srcdoc 时直接拼接 `BRIDGE_SCRIPT` 裸 JS 字符串，未包 `<script>` 标签——垫片不执行、`__amiba__` 未定义，logic.js 立即 ReferenceError（真实表现为卡片永远"加载中…"）。`BRIDGE_SCRIPT` 是纯 JS 不是 HTML 片段，所有消费方（service-container / background-manager / widget-lifecycle）都自行包裹 `<script>` 标签，runner 漏了。教训：复用注入脚本时先核对既有消费方的包裹方式。
 - **2026-07-31**: 服务卡片经 `service_file_write/edit` 创建后无任何触发链路（rescan/enable/refresh 都靠 AI 自觉调工具），漏调就要重启才可见。修复为两个 service_file 工具在写入 `desktop-widgets/` 路径后自动 `rescanDesktopWidgets()` + `refreshWidgetCard()`（`afterDesktopWidgetFileChange` 钩子）。
+- **2026-07-31**: 卡片尺寸是 AI 的需求（widget.json `size` 字段），但 Android 小组件尺寸只能在 manifest 注册的 provider meta XML 中声明，运行期无法给单个 Provider 改尺寸——方案是固定档位多 Provider（small/medium/large 三个 receiver + 三份 meta XML），选卡页按入口反查尺寸过滤卡片。教训：AppWidget 的"每卡片自定义尺寸"没有运行时 API，档位化是唯一落地路径；新增档位要同步改四处（meta XML / 子类 / manifest / WidgetHelper 刷新列表）。
 
 ## 原生层文件（gen/android，`tauri android init` 重置后需恢复）
 
-- `app/src/main/java/com/amiba/desktop/AmibaWidgetProvider.kt`（Provider + WidgetHelper JNI 入口）
-- `app/src/main/java/com/amiba/desktop/WidgetConfigActivity.kt`（选卡配置页）
+- `app/src/main/java/com/amiba/desktop/AmibaWidgetProvider.kt`（中尺寸 Provider + WidgetHelper JNI 入口）
+- `app/src/main/java/com/amiba/desktop/AmibaWidgetProviderSmall.kt` / `AmibaWidgetProviderLarge.kt`（小/大尺寸档位，纯标记子类）
+- `app/src/main/java/com/amiba/desktop/WidgetConfigActivity.kt`（选卡配置页，按入口尺寸过滤卡片）
 - `app/src/main/res/layout/widget_card.xml` / `widget_card_image.xml` / `widget_card_bigtext.xml` / `widget_config.xml`
 - `app/src/main/res/drawable/widget_bg.xml`
 - `app/src/main/res/values/styles_widget.xml`
-- `app/src/main/res/xml/widget_card_info.xml`
+- `app/src/main/res/xml/widget_card_info.xml`（中 4x2）/ `widget_card_info_small.xml`（小 2x2）/ `widget_card_info_large.xml`（大 4x4）
+- `AndroidManifest.xml`（三个 receiver 分别带「变形虫卡片·小/中/大」label + configure activity 注册）
 - `AndroidManifest.xml`（receiver + configure activity 注册）
 - `MainActivity.kt`（widget 点击跳转处理段）

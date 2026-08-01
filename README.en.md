@@ -65,7 +65,7 @@ cargo tauri build     # Tauri desktop (package EXE/DMG/deb)
 ### Android Home-Screen Cards (AppWidget)
 - Services can ship **system home-screen cards**: a `desktop-widgets/{cardId}/` directory (widget.json UI config + logic.js data logic + assets images), rendered natively via RemoteViews
 - **Global cards** are also supported: just tell the AI "put an xx card on my home screen" — no full service needed
-- Long-press the Android launcher, add the "Amiba" widget and pick a card; cards refresh on a schedule and tap through to the service page
+- Long-press the Android launcher, pick the "Amiba Card · Small (2x2) / Medium (4x2) / Large (4x4)" widget entry matching the card size and choose a card; cards refresh on a schedule and tap through to the service page
 
 ### Service Generation
 - Natural language → complete HTML/CSS/JS mini-app

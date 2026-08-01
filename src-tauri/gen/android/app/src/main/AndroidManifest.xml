@@ -29,9 +29,12 @@
             </intent-filter>
         </activity>
 
-        <!-- 系统桌面卡片：Provider + 选卡配置页 -->
+        <!-- 系统桌面卡片：三个尺寸档位各一个 Provider 入口（Android 小组件尺寸
+             只能在 provider meta XML 中声明，故小/中/大注册为三个 receiver），
+             选卡配置页按入口尺寸过滤同尺寸卡片 -->
         <receiver
             android:name=".AmibaWidgetProvider"
+            android:label="变形虫卡片·中"
             android:exported="false">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -39,6 +42,30 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_card_info" />
+        </receiver>
+
+        <receiver
+            android:name=".AmibaWidgetProviderSmall"
+            android:label="变形虫卡片·小"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_card_info_small" />
+        </receiver>
+
+        <receiver
+            android:name=".AmibaWidgetProviderLarge"
+            android:label="变形虫卡片·大"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_card_info_large" />
         </receiver>
 
         <activity

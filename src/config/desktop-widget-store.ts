@@ -36,6 +36,8 @@ export interface DesktopWidgetDef {
   description?: string
   /** lines | image | bigText —— 对应原生三种 RemoteViews 骨架 */
   layout: 'lines' | 'image' | 'bigText'
+  /** 尺寸档位：small(2x2) | medium(4x2，默认) | large(4x4) —— 对应原生三个 Provider 入口 */
+  size: 'small' | 'medium' | 'large'
   accentColor?: string
   maxLines?: number
   /** 点击卡片后的应用内跳转路径 */
@@ -65,6 +67,8 @@ export interface DesktopWidgetPayload extends DesktopWidgetData {
   label: string
   description?: string
   layout: string
+  /** 尺寸档位 small|medium|large（Kotlin 选卡页按此过滤） */
+  size: string
   accentColor?: string
   maxLines?: number
   tapPath?: string
@@ -172,6 +176,7 @@ export async function scanDesktopWidgets(): Promise<DesktopWidgetDef[]> {
           label: String(json.label || cardId),
           description: json.description ? String(json.description) : undefined,
           layout: (['lines', 'image', 'bigText'].includes(json.layout) ? json.layout : 'lines') as DesktopWidgetDef['layout'],
+          size: (['small', 'medium', 'large'].includes(json.size) ? json.size : 'medium') as DesktopWidgetDef['size'],
           accentColor: json.accentColor ? String(json.accentColor) : undefined,
           maxLines: typeof json.maxLines === 'number' ? json.maxLines : undefined,
           tapPath: json.tapPath ? String(json.tapPath) : undefined,
@@ -199,6 +204,7 @@ export async function scanDesktopWidgets(): Promise<DesktopWidgetDef[]> {
         label: String(json.label || cardId),
         description: json.description ? String(json.description) : undefined,
         layout: (['lines', 'image', 'bigText'].includes(json.layout) ? json.layout : 'lines') as DesktopWidgetDef['layout'],
+        size: (['small', 'medium', 'large'].includes(json.size) ? json.size : 'medium') as DesktopWidgetDef['size'],
         accentColor: json.accentColor ? String(json.accentColor) : undefined,
         maxLines: typeof json.maxLines === 'number' ? json.maxLines : undefined,
         tapPath: json.tapPath ? String(json.tapPath) : undefined,
@@ -390,6 +396,7 @@ export async function updateCardPayload(def: DesktopWidgetDef, data: DesktopWidg
     label: def.label,
     description: def.description,
     layout: def.layout,
+    size: def.size,
     accentColor: def.accentColor,
     maxLines: def.maxLines,
     tapPath: def.tapPath,
@@ -465,6 +472,7 @@ function placeholderPayload(def: DesktopWidgetDef): DesktopWidgetPayload {
     label: def.label,
     description: def.description,
     layout: def.layout,
+    size: def.size,
     accentColor: def.accentColor,
     maxLines: def.maxLines,
     tapPath: def.tapPath,

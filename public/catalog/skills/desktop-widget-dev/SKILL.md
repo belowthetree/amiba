@@ -85,6 +85,7 @@ widget.json / logic.js 规范与 publish 数据格式两者完全一致，下文
   "label": "待办速览",
   "description": "显示最近 5 条待办",
   "layout": "lines",
+  "size": "medium",
   "accentColor": "#5f8f7b",
   "maxLines": 5,
   "tapPath": "/service/user.note-service",
@@ -98,6 +99,7 @@ widget.json / logic.js 规范与 publish 数据格式两者完全一致，下文
 | `label` | string | ✅ | 选卡页显示名称（2-8 字） |
 | `description` | string | — | 选卡页副标题说明 |
 | `layout` | `"lines"` \| `"image"` \| `"bigText"` | — | 布局骨架，默认 `"lines"` |
+| `size` | `"small"` \| `"medium"` \| `"large"` | — | 尺寸档位：small=2x2、medium=4x2（默认）、large=4x4。决定 Launcher 中从哪个「变形虫卡片·小/中/大」入口添加 |
 | `accentColor` | string | — | 标题颜色，如 `"#5f8f7b"` |
 | `maxLines` | number | — | lines 布局最多行数，1-6，默认 6 |
 | `tapPath` | string | — | 点击卡片的应用内跳转路径，必须 `/` 开头，如 `/service/user.xxx` |
@@ -111,6 +113,16 @@ widget.json / logic.js 规范与 publish 数据格式两者完全一致，下文
 | `lines` | 标题行 + 最多 6 行文本 + footer | 列表类：待办、账单、消息 |
 | `bigText` | 标题行 + 大字内容（lines[0]，≤3 行）+ footer | 单值类：计数、状态、名言 |
 | `image` | 标题行 + 图片 + footer | 图表、封面、二维码 |
+
+### size 尺寸档位
+
+| 尺寸 | 格子 | Launcher 入口 | 建议搭配 |
+|------|------|--------------|---------|
+| `small` | 2x2 | 变形虫卡片·小 | `bigText` 单值，或 `lines` + `maxLines`≤2 |
+| `medium`（默认） | 4x2 | 变形虫卡片·中 | `lines` 3-5 行 / `image` |
+| `large` | 4x4 | 变形虫卡片·大 | `lines` 6 行 / 大图 |
+
+用户添加小组件时按尺寸选入口，选卡页只列出同尺寸卡片；尺寸创建后不可改（改 size 字段需用户重新添加 widget）。
 
 ---
 

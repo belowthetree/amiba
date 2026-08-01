@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 变形虫桌面卡片 · 小尺寸档（2x2）AppWidget 元数据
+     与 widget_card_info.xml（中 4x2）/ widget_card_info_large.xml（大 4x4）并列，
+     三个 Provider 在 Launcher 小组件列表中是三个独立入口，选卡页按 size 过滤 -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="110dp"
+    android:minHeight="110dp"
+    android:targetCellWidth="2"
+    android:targetCellHeight="2"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="0"
+    android:initialLayout="@layout/widget_card"
+    android:configure="com.amiba.desktop.WidgetConfigActivity"
+    android:widgetCategory="home_screen"
+    android:description="@string/app_name" />

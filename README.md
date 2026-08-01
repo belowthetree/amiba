@@ -65,7 +65,7 @@ cargo tauri build     # Tauri 桌面应用（打包 EXE/DMG/deb）
 ### 安卓桌面卡片（AppWidget）
 - 服务可自带**系统桌面卡片**：`desktop-widgets/{cardId}/` 目录（widget.json 界面配置 + logic.js 数据逻辑 + assets 图片），原生 RemoteViews 渲染
 - 也支持**全局卡片**：AI 一句"在桌面放个 xx 卡片"即可创建，无需完整服务
-- 长按安卓桌面添加"变形虫"小组件并选卡即用；卡片可定时刷新，点击跳转对应服务页
+- 长按安卓桌面，按卡片尺寸选"变形虫卡片·小（2x2）/中（4x2）/大（4x4）"小组件并选卡即用；卡片可定时刷新，点击跳转对应服务页
 
 ### AI 服务生成
 - 自然语言描述 → 生成完整 HTML/CSS/JS 小程序
