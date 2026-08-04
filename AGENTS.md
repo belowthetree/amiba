@@ -159,7 +159,7 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 
 - **Vue 预置库:** 服务可加载 `/libs/vue.global.prod.js`（Vue 3 全局构建），实现响应式 UI；支持多文件组件目录结构（`components/*.js`、`styles/*.css`），所有引用文件由 packager 自动内联
 - **玉石玻璃风样式库:** 服务通过 `<link href="/libs/jade.css">` 引入 `public/libs/jade.css`（设计令牌 + 玻璃辉光背景 + 组件类），风格规范见 `public/docs/service-style.md`
-- **鸿蒙迁移（harmony-migration 分支进行中）:** 方案见 `docs/harmonyos-migration.md`；鸿蒙壳工程在 `harmony/`（ArkTS 薄壳 + ArkWeb 容器，DevEco Studio 打开，已含桥协议 + fs 命令族 PoC）；`npm run harmony:sync` 把 `dist/` 同步到 `harmony/entry/src/main/resources/rawfile/dist/`（不入库）；前端经 `platform-bridge.ts`/`native-fs.ts` 适配层分发宿主能力，业务代码不得直连 `@tauri-apps/api/*`、`@tauri-apps/plugin-fs`
+- **鸿蒙迁移（harmony-migration 分支进行中）:** 方案见 `docs/harmonyos-migration.md`；鸿蒙壳工程在 `harmony/`（ArkTS 薄壳 + ArkWeb 容器，DevEco Studio 打开，已含桥协议 + fs 命令族 PoC）；`npm run harmony:sync` 把 `dist/` 同步到 `harmony/entry/src/main/resources/rawfile/` 根（产物不入库）；前端经 `platform-bridge.ts`/`native-fs.ts` 适配层分发宿主能力，业务代码不得直连 `@tauri-apps/api/*`、`@tauri-apps/plugin-fs`
 - **Storage layout:** `{AppData}/amiba/` →
   - `amiba_settings` — 统一配置（api_key, network_lan_visible, active_agent_id, device_id 等已合并至此）
   - `state.db` — SQLite (WAL mode) with sessions/messages tables + messages_fts FTS5 virtual table

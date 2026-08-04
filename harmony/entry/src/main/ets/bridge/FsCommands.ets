@@ -56,6 +56,14 @@ function reqStr(v: Object | undefined, name: string): string {
   return v as string
 }
 
+// 允许空串（写文件 data 等合法空内容场景）
+function reqStrAllowEmpty(v: Object | undefined, name: string): string {
+  if (typeof v !== 'string') {
+    throw new Error(`缺少参数: ${name}`)
+  }
+  return v as string
+}
+
 function optBaseDir(v: Object | undefined): number {
   return typeof v === 'number' ? (v as number) : BASE_APP_DATA
 }
@@ -74,7 +82,7 @@ function resolveSafe(path: string, baseDir: number): string {
     }
     full = `${root}/${path}`
   }
-  if (!full.startsWith(appFilesDir) && !full.startsWith(appCacheDirPath)) {
+  if (!full.startsWith(`${appFilesDir}/`) && !full.startsWith(`${appCacheDirPath}/`)) {
     throw new Error(`路径越出沙箱: ${path}`)
   }
   return full
@@ -175,8 +183,10 @@ export async function handleFsCommand(cmd: string, args: Record<string, Object>)
     }
     case 'fs_write_text_file': {
       const p = resolveSafe(reqStr(args['path'], 'path'), baseDir)
-      const text = reqStr(args['data'], 'data')
-      writeAllBytes(p, new util.TextEncoder().encodeInto(text))
+      const text = reqStrAllowEmpty(args['data'], 'data')
+      // 注意：encodeInto('') 在部分系统版本会返回 undefined（与声明类型不符），空串显式走零长数组
+      const bytes = text.length === 0 ? new Uint8Array(0) : new util.TextEncoder().encodeInto(text)
+      writeAllBytes(p, bytes)
       return null
     }
     case 'fs_read_file': {
@@ -261,11 +271,12 @@ export async function handleFsCommand(cmd: string, args: Record<string, Object>)
       return r
     }
     case 'fs_app_data_dir': {
-      const r: PathResult = { path: appFilesDir }
+      // 与 Tauri 目录 API 行为一致：返回带尾斜杠（前端按 appDataDir + 'amiba/...' 直接拼接）
+      const r: PathResult = { path: `${appFilesDir}/` }
       return r
     }
     case 'fs_app_cache_dir': {
-      const r: PathResult = { path: appCacheDirPath }
+      const r: PathResult = { path: `${appCacheDirPath}/` }
       return r
     }
     default:

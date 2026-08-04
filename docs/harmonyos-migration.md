@@ -92,7 +92,7 @@ Android Kotlin 层（src-tauri/gen/android/）
 ┌─ HarmonyOS 应用（DevEco 工程，主仓 harmony/ 目录）─────────────────┐
 │ EntryAbility（单 UIAbility，edge-to-edge，avoidArea 处理）          │
 │  └─ Index.ets（单 Page）                                            │
-│       └─ Web 组件（ArkWeb，resource://rawfile/dist/index.html）     │
+│       └─ Web 组件（ArkWeb，resource://rawfile/index.html）          │
 │            ├─ javaScriptProxy 注入 window.__AMIBA_HARMONY__         │
 │            │    invoke(cmd, argsJson): Promise<string>  ← H5→原生   │
 │            └─ runJavaScript("__amiba_harmony_emit__(evt,payload)")  │
@@ -136,11 +136,11 @@ export async function nativeInvoke<T>(cmd: string, args?: unknown): Promise<T> {
 
 ### 4.2 dist 加载方式
 
-推荐 **`resource://rawfile/dist/index.html`**（dist 随 HAP 打包）：
+推荐 **`resource://rawfile/index.html`**（dist 内容同步到 rawfile **根**，随 HAP 打包）：
 
-- 只读但够用——服务 HTML 走 `iframe srcdoc`（`service-container.vue:20`），不依赖 dist 目录可写。
+- 只读但够用——服务 HTML 走 `iframe srcdoc`（`service-container.vue:20`），不依赖 rawfile 可写。
+- 必须放 rawfile 根：Vite 产物（`/assets/*`）与服务沙箱内引用（`/libs/jade.css`、`/docs/*`）均为绝对路径，根布局与 Tauri 自定义协议一致，全部直接生效（PoC 实测：`rawfile/dist/` 子目录布局会导致 `/assets/*` 404 白屏）。
 - 合规：鸿蒙审核对「动态下发可执行代码」敏感，rawfile 内置前端、版本随应用更新，无热更新风险。
-- 待验证项：`/libs/jade.css`、`/docs/*` 等**绝对路径引用**在 resource 协议下的解析行为；若异常则前端改为相对路径或 ArkWeb 拦截器映射。
 
 备选：首启解压到 filesDir 用 `file://` 加载——为将来的「前端资源随服务仓库更新」留口子，首期不做。
 

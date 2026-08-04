@@ -8,8 +8,9 @@ oh_modules/
 **/oh_modules/
 **/package-lock.json
 
-# 前端产物同步目标（由 npm run harmony:sync 生成）
-entry/src/main/resources/rawfile/dist/
+# 前端产物同步目标（由 npm run harmony:sync 生成；dist.README.txt 入库保留）
+entry/src/main/resources/rawfile/*
+!entry/src/main/resources/rawfile/dist.README.txt
 
 # 签名材料（勿入库）
 *.p12

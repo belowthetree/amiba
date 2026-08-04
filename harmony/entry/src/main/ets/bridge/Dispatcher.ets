@@ -9,7 +9,10 @@ const TAG = '[AmibaDispatcher]'
 //   阶段2: web_click / web_input_text / web_get_content / web_capture_screenshot / picker
 //   阶段3: network_* / form_*（FormKit 卡片）
 export async function dispatchCommand(cmd: string, argsJson: string): Promise<Object | null> {
-  const args: Record<string, Object> = argsJson ? JSON.parse(argsJson) as Record<string, Object> : {}
+  let args: Record<string, Object> = {}
+  if (argsJson) {
+    args = JSON.parse(argsJson) as Record<string, Object>
+  }
   if (cmd.startsWith('fs_')) {
     return await handleFsCommand(cmd, args)
   }

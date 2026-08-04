@@ -1,2 +1,3 @@
-# rawfile/dist 由 `npm run harmony:sync` 从主仓 dist/ 同步生成，不入库。
-# ArkWeb 加载入口：resource://rawfile/dist/index.html
+# rawfile 根下的 index.html、assets/、libs/ 等由 `npm run harmony:sync` 从主仓 dist/ 同步生成，不入库。
+# ArkWeb 加载入口：resource://rawfile/index.html
+# 注：必须放 rawfile 根——Vite 产物与服务沙箱内引用均为绝对路径（/assets/*、/libs/*、/docs/*）。

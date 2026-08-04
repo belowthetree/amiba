@@ -1,6 +1,8 @@
 import { AbilityConstant, UIAbility, Want } from '@kit.AbilityKit'
 import { window } from '@kit.ArkUI'
+import { webview } from '@kit.ArkWeb'
 import { initFsDirs } from '../bridge/FsCommands'
+import { AMIBA_SCHEME, initRawfileContext } from '../bridge/RawfileScheme'
 
 const TAG = '[AmibaShell]'
 
@@ -9,6 +11,15 @@ export default class EntryAbility extends UIAbility {
     console.log(`${TAG} === onCreate ===`)
     // 初始化 fs 桥沙箱根目录（filesDir/cacheDir）
     initFsDirs(this.context)
+    initRawfileContext(this.context)
+    // 注册自定义协议（须在 Web 引擎初始化前）：amiba://local/* → rawfile 离线包（RawfileScheme.ets）
+    const scheme: webview.WebCustomScheme = {
+      schemeName: AMIBA_SCHEME,
+      isSupportCORS: true,
+      isSupportFetch: true,
+      isStandard: true
+    }
+    webview.WebviewController.customizeSchemes([scheme])
   }
 
   onWindowStageCreate(windowStage: window.WindowStage): void {

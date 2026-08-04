@@ -8,6 +8,7 @@ Vue 3 前端（主仓 `dist/` 产物）+ ArkTS 薄壳（ArkWeb 容器 + 原生�
 已实现：
 
 - `javaScriptProxy` 双向桥（H5 `window.__AMIBA_HARMONY__.invoke(cmd, json)` ⇄ ArkTS `Dispatcher`；原生事件经 `__amiba_harmony_emit__` 推送）
+- `WebSchemeHandler` 自定义协议离线包（`amiba://local/*` → rawfile，页面与子资源全部由 `RawfileScheme.ets` 喂数据；旧 `resource://` + `onInterceptRequest` 方案已被新 SDK 移除）
 - `fs_*` 文件系统命令族（对应 `@tauri-apps/plugin-fs` 兼容 shim，沙箱根 = `filesDir`/`cacheDir`）
 - `get_app_info`（应用版本）
 
@@ -47,13 +48,13 @@ harmony/
 │   ├── module.json5                 # ability + INTERNET 权限
 │   ├── ets/
 │   │   ├── entryability/EntryAbility.ets   # 入口 ability（初始化 fs 目录）
-│   │   ├── pages/Index.ets                 # ArkWeb 容器页（加载 rawfile/dist）
+│   │   ├── pages/Index.ets                 # ArkWeb 容器页（加载 resource://rawfile/index.html）
 │   │   └── bridge/
 │   │       ├── HarmonyBridge.ets           # javaScriptProxy 桥对象（invoke/emitToWeb）
 │   │       ├── Dispatcher.ets              # 命令分发（未实现命令显式报错）
 │   │       ├── FsCommands.ets              # fs_* 命令族（fileIo）
 │   │       └── AppCommands.ets             # get_app_info
-│   └── resources/rawfile/dist/      # 前端产物（sync 脚本填充，不入库）
+│   └── resources/rawfile/           # 前端产物同步到根（index.html、assets/、libs/…，sync 脚本填充，不入库）
 └── scripts/sync-dist.mjs            # npm run harmony:sync
 ```
 
