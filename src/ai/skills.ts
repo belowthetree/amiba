@@ -113,7 +113,7 @@ export async function deleteUserSkill(name: string): Promise<void> {
 export async function importSkillFromFolder(
   sourceDir: string
 ): Promise<Skill> {
-  const { readTextFile } = await import('@tauri-apps/plugin-fs')
+  const { readTextFile } = await import('../config/native-fs')
 
   let raw: string
   try {
@@ -179,7 +179,7 @@ async function writeSkillAsMarkdown(skill: Skill): Promise<void> {
 
   try {
     const { writeTextFile, mkdir, BaseDirectory } = await import(
-      '@tauri-apps/plugin-fs'
+      '../config/native-fs'
     )
     await mkdir(`skills/${slug}`, {
       baseDir: BaseDirectory.AppData,

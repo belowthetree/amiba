@@ -51,7 +51,7 @@ interface CuratorState {
 
 async function loadCuratorState(): Promise<CuratorState> {
   try {
-    const { readTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { readTextFile, BaseDirectory } = await import('../config/native-fs')
     const raw = await readTextFile(CURATOR_STATE_KEY, {
       baseDir: BaseDirectory.AppData,
     })
@@ -64,7 +64,7 @@ async function loadCuratorState(): Promise<CuratorState> {
 async function saveCuratorState(state: CuratorState): Promise<void> {
   try {
     const { writeTextFile, mkdir, BaseDirectory } = await import(
-      '@tauri-apps/plugin-fs'
+      '../config/native-fs'
     )
     await mkdir('skills', {
       baseDir: BaseDirectory.AppData,
@@ -172,7 +172,7 @@ async function applyAutomaticTransitions(
 // ---- 归档/恢复目录操作 ----
 
 async function archiveSkillDir(slug: string): Promise<string> {
-  const { rename, mkdir, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+  const { rename, mkdir, BaseDirectory } = await import('../config/native-fs')
 
   await mkdir(ARCHIVE_ROOT, {
     baseDir: BaseDirectory.AppData,
@@ -181,7 +181,7 @@ async function archiveSkillDir(slug: string): Promise<string> {
 
   // 处理同名冲突
   let archiveSlug = slug
-  const { exists } = await import('@tauri-apps/plugin-fs')
+  const { exists } = await import('../config/native-fs')
   const alreadyExists = await exists(`${ARCHIVE_ROOT}/${archiveSlug}`, {
     baseDir: BaseDirectory.AppData,
   }).catch(() => false)
@@ -203,11 +203,11 @@ async function archiveSkillDir(slug: string): Promise<string> {
 }
 
 export async function restoreSkillDir(slug: string): Promise<void> {
-  const { rename, BaseDirectory } = await import('@tauri-apps/plugin-fs')
-  const { exists } = await import('@tauri-apps/plugin-fs')
+  const { rename, BaseDirectory } = await import('../config/native-fs')
+  const { exists } = await import('../config/native-fs')
 
   // 查找归档目录
-  const { readDir } = await import('@tauri-apps/plugin-fs')
+  const { readDir } = await import('../config/native-fs')
   let archiveSlug = slug
 
   // 先尝试精确匹配
@@ -274,7 +274,7 @@ interface ConsolidationResult {
 async function saveReport(report: CuratorReport): Promise<void> {
   try {
     const { writeTextFile, mkdir, BaseDirectory } = await import(
-      '@tauri-apps/plugin-fs'
+      '../config/native-fs'
     )
     const ts = new Date()
       .toISOString()
@@ -432,7 +432,7 @@ export async function runCuratorNow(
  */
 export async function getLastReport(): Promise<CuratorReport | null> {
   try {
-    const { readDir, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { readDir, BaseDirectory } = await import('../config/native-fs')
     const entries = await readDir(CURATOR_LOGS_DIR, {
       baseDir: BaseDirectory.AppData,
     })
@@ -443,7 +443,7 @@ export async function getLastReport(): Promise<CuratorReport | null> {
 
     if (dirs.length === 0) return null
 
-    const { readTextFile } = await import('@tauri-apps/plugin-fs')
+    const { readTextFile } = await import('../config/native-fs')
     const raw = await readTextFile(
       `${CURATOR_LOGS_DIR}/${dirs[0].name}/report.json`,
       { baseDir: BaseDirectory.AppData }
@@ -462,7 +462,7 @@ export async function getCuratorHistory(): Promise<
 > {
   try {
     const { readDir, readTextFile, BaseDirectory } = await import(
-      '@tauri-apps/plugin-fs'
+      '../config/native-fs'
     )
     const entries = await readDir(CURATOR_LOGS_DIR, {
       baseDir: BaseDirectory.AppData,
@@ -520,7 +520,7 @@ async function readSkillInfo(
   slug: string
 ): Promise<{ name: string; description: string }> {
   try {
-    const { readTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { readTextFile, BaseDirectory } = await import('../config/native-fs')
     const raw = await readTextFile(`skills/${slug}/SKILL.md`, {
       baseDir: BaseDirectory.AppData,
     })
@@ -889,7 +889,7 @@ function buildUmbrellaMd(fm: { name: string; description: string; keywords: stri
 
 async function readSkillFile(slug: string): Promise<string | null> {
   try {
-    const { readTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { readTextFile, BaseDirectory } = await import('../config/native-fs')
     return await readTextFile(`skills/${slug}/SKILL.md`, {
       baseDir: BaseDirectory.AppData,
     })
@@ -900,7 +900,7 @@ async function readSkillFile(slug: string): Promise<string | null> {
 
 async function writeSkillFile(slug: string, content: string): Promise<void> {
   const { writeTextFile, mkdir, BaseDirectory } = await import(
-    '@tauri-apps/plugin-fs'
+    '../config/native-fs'
   )
   await mkdir(`skills/${slug}`, {
     baseDir: BaseDirectory.AppData,

@@ -23,7 +23,7 @@ let _initialized = false
 export async function initCustomViewStore(): Promise<void> {
   if (_initialized) return
   try {
-    const { mkdir, exists, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { mkdir, exists, BaseDirectory } = await import('./native-fs')
     const ok = await exists(CUSTOM_VIEWS_DIR, { baseDir: BaseDirectory.AppData })
     if (!ok) {
       await mkdir(CUSTOM_VIEWS_DIR, { baseDir: BaseDirectory.AppData, recursive: true })
@@ -43,7 +43,7 @@ export async function initCustomViewStore(): Promise<void> {
 
 export async function loadCustomView(name: string): Promise<string> {
   try {
-    const { readTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { readTextFile, BaseDirectory } = await import('./native-fs')
     const content = await readTextFile(`${CUSTOM_VIEWS_DIR}/${name}.html`, { baseDir: BaseDirectory.AppData })
     console.log('[CustomViewStore] 加载视图:', name, `(${content.length} 字节)`)
     if (name === 'quick') quickViewContent.value = content
@@ -57,7 +57,7 @@ export async function loadCustomView(name: string): Promise<string> {
 
 export async function saveCustomView(name: string, html: string): Promise<void> {
   try {
-    const { writeTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { writeTextFile, BaseDirectory } = await import('./native-fs')
     await writeTextFile(`${CUSTOM_VIEWS_DIR}/${name}.html`, html, { baseDir: BaseDirectory.AppData })
     if (name === 'quick') quickViewContent.value = html
     console.log('[CustomViewStore] 已保存视图:', name, `(${html.length} 字节)`)
@@ -69,7 +69,7 @@ export async function saveCustomView(name: string, html: string): Promise<void> 
 
 export async function resetCustomView(name: string): Promise<void> {
   try {
-    const { remove, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { remove, BaseDirectory } = await import('./native-fs')
     await remove(`${CUSTOM_VIEWS_DIR}/${name}.html`, { baseDir: BaseDirectory.AppData })
     if (name === 'quick') quickViewContent.value = ''
     console.log('[CustomViewStore] 已重置视图:', name)
@@ -80,14 +80,14 @@ export async function resetCustomView(name: string): Promise<void> {
 
 export async function listCustomViews(): Promise<CustomViewInfo[]> {
   try {
-    const { readDir, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { readDir, BaseDirectory } = await import('./native-fs')
     const entries = await readDir(CUSTOM_VIEWS_DIR, { baseDir: BaseDirectory.AppData })
     const result: CustomViewInfo[] = []
     for (const e of entries as any[]) {
       if (e.name.endsWith('.html')) {
         const viewName = e.name.replace(/\.html$/, '')
         try {
-          const { readTextFile } = await import('@tauri-apps/plugin-fs')
+          const { readTextFile } = await import('./native-fs')
           const content = await readTextFile(`${CUSTOM_VIEWS_DIR}/${e.name}`, { baseDir: BaseDirectory.AppData })
           result.push({ name: viewName, hasContent: true, contentLength: content.length })
         } catch {

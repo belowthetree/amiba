@@ -212,8 +212,8 @@ function normalizeBaseUrl(input: string): string {
 async function safeFetch(url: string): Promise<string> {
   // 尝试 Tauri Rust HTTP（绕过 CORS）
   try {
-    const { invoke } = await import('@tauri-apps/api/core')
-    const result = await invoke<{ text: string; raw: string; content_type: string }>('web_fetch', {
+    const { nativeInvoke } = await import('../config/platform-bridge')
+    const result = await nativeInvoke<{ text: string; raw: string; content_type: string }>('web_fetch', {
       url,
       useWebview: false,
     })

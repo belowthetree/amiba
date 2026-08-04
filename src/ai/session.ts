@@ -121,8 +121,8 @@ async function saveMessages(id: string, messages: Message[]): Promise<void> {
 
   // 3. SQLite session meta 同步
   try {
-    const { invoke } = await import('@tauri-apps/api/core')
-    await invoke('get_session', { sessionId: id }).catch(() => {})
+    const { nativeInvoke } = await import('../config/platform-bridge')
+    await nativeInvoke('get_session', { sessionId: id }).catch(() => {})
   } catch { /* best-effort */ }
 
   if (errors.length > 0) {
@@ -133,7 +133,7 @@ async function saveMessages(id: string, messages: Message[]): Promise<void> {
 async function deleteSessionFile(id: string): Promise<void> {
   // 1. 删除 JSON 文件
   try {
-    const { remove, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { remove, BaseDirectory } = await import('../config/native-fs')
     await remove(`amiba/${historyKey(id)}`, {
       baseDir: BaseDirectory.AppData,
     }).catch(() => {})

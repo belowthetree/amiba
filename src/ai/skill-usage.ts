@@ -49,7 +49,7 @@ async function loadUsage(): Promise<UsageDb> {
 
   // 尝试从 Tauri FS 读取
   try {
-    const { readTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { readTextFile, BaseDirectory } = await import('../config/native-fs')
     const raw = await readTextFile(USAGE_PATH, { baseDir: BaseDirectory.AppData })
     usageCache = JSON.parse(raw) as UsageDb
   } catch {
@@ -67,7 +67,7 @@ async function saveUsage(db: UsageDb): Promise<void> {
 
   try {
     const { writeTextFile, mkdir, BaseDirectory } = await import(
-      '@tauri-apps/plugin-fs'
+      '../config/native-fs'
     )
     // 确保 skills 目录存在
     await mkdir('skills', {
@@ -78,7 +78,7 @@ async function saveUsage(db: UsageDb): Promise<void> {
     // 原子写入：先写临时文件，再 rename
     const tmpPath = USAGE_PATH + '.tmp'
     await writeTextFile(tmpPath, json, { baseDir: BaseDirectory.AppData })
-    const { rename, remove } = await import('@tauri-apps/plugin-fs')
+    const { rename, remove } = await import('../config/native-fs')
     // Windows rename 可能因目标存在而失败，先删旧文件
     try {
       await remove(USAGE_PATH, { baseDir: BaseDirectory.AppData })

@@ -245,7 +245,7 @@ export async function scanDesktopWidgets(): Promise<DesktopWidgetDef[]> {
 /** 列出全局卡片目录名（desktop-widgets/cards/ 下的子目录） */
 async function listGlobalCardDirs(): Promise<string[]> {
   try {
-    const { readDir, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { readDir, BaseDirectory } = await import('./native-fs')
     const entries = await readDir(`amiba/${GLOBAL_CARDS_DIR}`, { baseDir: BaseDirectory.AppData })
     return entries.filter((e: any) => e.isDirectory).map((e: any) => e.name as string)
   } catch {
@@ -339,12 +339,12 @@ export async function deleteWidgetCard(key: string): Promise<void> {
   // 1. 删除卡片定义文件
   if (def.scope === 'global') {
     try {
-      const { remove, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+      const { remove, BaseDirectory } = await import('./native-fs')
       await remove(`amiba/${GLOBAL_CARDS_DIR}/${def.cardId}`, { baseDir: BaseDirectory.AppData, recursive: true })
     } catch { /* 目录可能已不存在 */ }
     // 全局卡片 storage 数据一并清理
     try {
-      const { remove, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+      const { remove, BaseDirectory } = await import('./native-fs')
       await remove(`amiba/desktop-widgets/data/${def.cardId}`, { baseDir: BaseDirectory.AppData, recursive: true })
     } catch { /* 可能不存在 */ }
   } else {
@@ -365,7 +365,7 @@ export async function deleteWidgetCard(key: string): Promise<void> {
   await storageRemove(cacheKey(key))
   // renderHtml 产出的 PNG 一并清理
   try {
-    const { remove, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { remove, BaseDirectory } = await import('./native-fs')
     await remove(`amiba/${CACHE_IMG_DIR}/${key.replace(/\//g, '__')}.png`, { baseDir: BaseDirectory.AppData })
   } catch { /* 文件可能不存在 */ }
   console.log(`[DesktopWidget] ✓ 卡片已删除: ${key}`)
@@ -461,8 +461,7 @@ async function writeCardImage(key: string, dataUrl?: string): Promise<string | u
     const bin = atob(m[1]!)
     const bytes = new Uint8Array(bin.length)
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
-    const { writeFile, mkdir, BaseDirectory } = await import('@tauri-apps/plugin-fs')
-    const { appDataDir, join } = await import('@tauri-apps/api/path')
+    const { writeFile, mkdir, BaseDirectory, appDataDir, join } = await import('./native-fs')
     const dir = `amiba/${CACHE_IMG_DIR}`
     await mkdir(dir, { baseDir: BaseDirectory.AppData, recursive: true })
     const file = key.replace(/\//g, '__') + '.png'
@@ -478,7 +477,7 @@ async function writeCardImage(key: string, dataUrl?: string): Promise<string | u
 async function resolveImagePath(def: DesktopWidgetDef, image?: string): Promise<string | undefined> {
   if (!image) return undefined
   try {
-    const { appDataDir, join } = await import('@tauri-apps/api/path')
+    const { appDataDir, join } = await import('./native-fs')
     // 防路径逃逸：不允许 .. 与绝对路径
     if (image.includes('..') || image.startsWith('/') || /^[a-zA-Z]:/.test(image)) {
       console.warn('[DesktopWidget] 非法图片路径（拒绝）:', image)
@@ -516,8 +515,8 @@ export async function pushToNative(): Promise<void> {
       }
       if (cached) payloads.push(cached)
     }
-    const { invoke } = await import('@tauri-apps/api/core')
-    await invoke('android_widget_update', { json: JSON.stringify(payloads) })
+    const { nativeInvoke } = await import('./platform-bridge')
+    await nativeInvoke('android_widget_update', { json: JSON.stringify(payloads) })
     console.log(`[DesktopWidget] 已推送原生: ${payloads.length} 张启用卡片`, payloads.map((p) => p.key).join(', '))
   } catch (e) {
     console.warn('[DesktopWidget] 推送原生失败:', e)
@@ -551,8 +550,8 @@ function placeholderPayload(def: DesktopWidgetDef): DesktopWidgetPayload {
 export async function consumeWidgetTapPath(): Promise<string> {
   if (detectPlatform() !== 'android') return ''
   try {
-    const { invoke } = await import('@tauri-apps/api/core')
-    return (await invoke<string>('android_widget_consume_tap')) || ''
+    const { nativeInvoke } = await import('./platform-bridge')
+    return (await nativeInvoke<string>('android_widget_consume_tap')) || ''
   } catch {
     return ''
   }

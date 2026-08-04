@@ -48,7 +48,7 @@ function skillMdPath(slug: string): string {
 
 async function readSkillMd(slug: string): Promise<string | null> {
   try {
-    const { readTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { readTextFile, BaseDirectory } = await import('../config/native-fs')
     return await readTextFile(skillMdPath(slug), {
       baseDir: BaseDirectory.AppData,
     })
@@ -59,7 +59,7 @@ async function readSkillMd(slug: string): Promise<string | null> {
 
 async function writeSkillMd(slug: string, content: string): Promise<void> {
   const { writeTextFile, mkdir, BaseDirectory } = await import(
-    '@tauri-apps/plugin-fs'
+    '../config/native-fs'
   )
   await mkdir(skillDir(slug), {
     baseDir: BaseDirectory.AppData,
@@ -72,7 +72,7 @@ async function writeSkillMd(slug: string, content: string): Promise<void> {
 
 async function removeSkillDir(slug: string): Promise<void> {
   try {
-    const { remove, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { remove, BaseDirectory } = await import('../config/native-fs')
     await remove(skillDir(slug), {
       baseDir: BaseDirectory.AppData,
       recursive: true,
@@ -82,7 +82,7 @@ async function removeSkillDir(slug: string): Promise<void> {
 
 async function skillDirExists(slug: string): Promise<boolean> {
   try {
-    const { exists, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { exists, BaseDirectory } = await import('../config/native-fs')
     return await exists(skillDir(slug), { baseDir: BaseDirectory.AppData })
   } catch {
     return false
@@ -92,7 +92,7 @@ async function skillDirExists(slug: string): Promise<boolean> {
 // ---- 归档辅助 ----
 
 async function moveToArchive(slug: string): Promise<string> {
-  const { rename, mkdir, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+  const { rename, mkdir, BaseDirectory } = await import('../config/native-fs')
   await mkdir(ARCHIVE_ROOT, {
     baseDir: BaseDirectory.AppData,
     recursive: true,
@@ -115,7 +115,7 @@ async function moveToArchive(slug: string): Promise<string> {
 
 async function skillDirInArchive(slug: string): Promise<boolean> {
   try {
-    const { exists, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { exists, BaseDirectory } = await import('../config/native-fs')
     return await exists(`${ARCHIVE_ROOT}/${slug}`, {
       baseDir: BaseDirectory.AppData,
     })
@@ -560,7 +560,7 @@ toolRegistry.register({
     }
 
     const { writeTextFile, mkdir, BaseDirectory } = await import(
-      '@tauri-apps/plugin-fs'
+      '../config/native-fs'
     )
     const fullPath = `${SKILLS_ROOT}/${slug}/${filePath}`
 

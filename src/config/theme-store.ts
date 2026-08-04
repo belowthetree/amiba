@@ -37,7 +37,7 @@ export const themeState = reactive<ThemeState>({
 
 export async function initThemeStore(): Promise<void> {
   try {
-    const { readTextFile, readDir, mkdir, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { readTextFile, readDir, mkdir, BaseDirectory } = await import('./native-fs')
 
     await mkdir(THEME_ROOT, { baseDir: BaseDirectory.AppData, recursive: true }).catch(() => {})
     await mkdir(SLOTS_DIR, { baseDir: BaseDirectory.AppData, recursive: true }).catch(() => {})
@@ -63,7 +63,7 @@ export async function initThemeStore(): Promise<void> {
 
 async function scanThemes() {
   try {
-    const { readDir, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { readDir, BaseDirectory } = await import('./native-fs')
     const entries = await readDir(THEME_ROOT, { baseDir: BaseDirectory.AppData })
     themeState.themes = []
     for (const entry of entries as any[]) {
@@ -79,7 +79,7 @@ async function loadActiveTheme() {
   const active = settings.active_theme || 'default'
   themeState.activeTheme = active
 
-  const { readTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+  const { readTextFile, BaseDirectory } = await import('./native-fs')
 
   try {
     const raw = await readTextFile(`amiba/theme/${active}/variables.json`, { baseDir: BaseDirectory.AppData })
@@ -93,7 +93,7 @@ async function loadActiveTheme() {
 
 async function loadSlots() {
   try {
-    const { readTextFile, readDir, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { readTextFile, readDir, BaseDirectory } = await import('./native-fs')
     const entries = await readDir(SLOTS_DIR, { baseDir: BaseDirectory.AppData })
     themeState.slots = {}
     for (const entry of entries as any[]) {
@@ -111,7 +111,7 @@ async function loadSlots() {
 export async function installPrebuiltThemes(): Promise<number> {
   let installed = 0
   try {
-    const { exists, mkdir, writeTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { exists, mkdir, writeTextFile, BaseDirectory } = await import('./native-fs')
     for (const name of BUILTIN_THEMES) {
       const themeDir = `amiba/theme/${name}`
       const alreadyExists = await exists(themeDir, { baseDir: BaseDirectory.AppData }).catch(() => false)
@@ -184,7 +184,7 @@ function ensureWritableTheme(): string | null {
 export async function saveThemeVariables(vars: Record<string, string>): Promise<{ autoCreated?: string } | null> {
   const autoCreated = ensureWritableTheme()
   try {
-    const { writeTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { writeTextFile, BaseDirectory } = await import('./native-fs')
     await writeTextFile(`amiba/theme/${themeState.activeTheme}/variables.json`, JSON.stringify(vars, null, 2), { baseDir: BaseDirectory.AppData })
     themeState.variables = { ...vars }
     console.log('[ThemeStore] 变量已保存:', Object.keys(vars).length, '个 →', themeState.activeTheme)
@@ -198,7 +198,7 @@ export async function saveThemeVariables(vars: Record<string, string>): Promise<
 export async function saveCustomCSS(css: string): Promise<{ autoCreated?: string } | null> {
   const autoCreated = ensureWritableTheme()
   try {
-    const { writeTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { writeTextFile, BaseDirectory } = await import('./native-fs')
     await writeTextFile(`amiba/theme/${themeState.activeTheme}/custom.css`, css, { baseDir: BaseDirectory.AppData })
     themeState.customCSS = css
     console.log('[ThemeStore] CSS已保存:', css.length, '字节 →', themeState.activeTheme)
@@ -211,7 +211,7 @@ export async function saveCustomCSS(css: string): Promise<{ autoCreated?: string
 
 export async function resetTheme(): Promise<void> {
   try {
-    const { writeTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { writeTextFile, BaseDirectory } = await import('./native-fs')
     await writeTextFile(`amiba/theme/${themeState.activeTheme}/variables.json`, '{}', { baseDir: BaseDirectory.AppData })
     await writeTextFile(`amiba/theme/${themeState.activeTheme}/custom.css`, '', { baseDir: BaseDirectory.AppData })
     themeState.variables = {}
@@ -234,7 +234,7 @@ export async function createTheme(name: string, fromActive = true): Promise<void
   if (themeState.themes.includes(name)) throw new Error(`主题 "${name}" 已存在`)
 
   try {
-    const { mkdir, writeTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { mkdir, writeTextFile, BaseDirectory } = await import('./native-fs')
     await mkdir(`amiba/theme/${name}`, { baseDir: BaseDirectory.AppData, recursive: true }).catch(() => {})
 
     if (fromActive) {
@@ -260,7 +260,7 @@ export async function deleteTheme(name: string): Promise<void> {
   if (!themeState.themes.includes(name)) throw new Error(`主题 "${name}" 不存在`)
 
   try {
-    const { remove, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { remove, BaseDirectory } = await import('./native-fs')
     await remove(`amiba/theme/${name}`, { baseDir: BaseDirectory.AppData, recursive: true }).catch(() => {})
     themeState.themes = themeState.themes.filter((t) => t !== name)
     console.log('[ThemeStore] 主题已删除:', name)
@@ -284,7 +284,7 @@ export async function switchTheme(name: string): Promise<void> {
 
 export async function saveSlot(slotName: string, html: string): Promise<void> {
   try {
-    const { writeTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { writeTextFile, BaseDirectory } = await import('./native-fs')
     await writeTextFile(`amiba/theme/slots/${slotName}.html`, html, { baseDir: BaseDirectory.AppData })
     themeState.slots[slotName] = html
     console.log('[ThemeStore] 插槽已保存:', slotName, html.length, '字节')
@@ -296,7 +296,7 @@ export async function saveSlot(slotName: string, html: string): Promise<void> {
 
 export async function removeSlot(slotName: string): Promise<void> {
   try {
-    const { remove, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { remove, BaseDirectory } = await import('./native-fs')
     await remove(`amiba/theme/slots/${slotName}.html`, { baseDir: BaseDirectory.AppData }).catch(() => {})
     delete themeState.slots[slotName]
     console.log('[ThemeStore] 插槽已删除:', slotName)

@@ -114,14 +114,14 @@ function makeLogPath(name: string): string {
 
 async function ensureLogsDir() {
   try {
-    const { mkdir, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { mkdir, BaseDirectory } = await import('./native-fs')
     await mkdir(LOGS_DIR, { baseDir: BaseDirectory.AppData, recursive: true }).catch(() => {})
   } catch { /* non-Tauri env */ }
 }
 
 async function appendToFile(name: string, content: string): Promise<void> {
   try {
-    const { readTextFile, writeTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { readTextFile, writeTextFile, BaseDirectory } = await import('./native-fs')
     const fullPath = makeLogPath(name)
     let existing = ''
     try {
@@ -133,7 +133,7 @@ async function appendToFile(name: string, content: string): Promise<void> {
 
 async function getFileSize(name: string): Promise<number> {
   try {
-    const { stat, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { stat, BaseDirectory } = await import('./native-fs')
     const info = await stat(makeLogPath(name), { baseDir: BaseDirectory.AppData })
     return info.size
   } catch { return 0 }
@@ -141,7 +141,7 @@ async function getFileSize(name: string): Promise<number> {
 
 async function listLogDir(prefix: string): Promise<string[]> {
   try {
-    const { readDir, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { readDir, BaseDirectory } = await import('./native-fs')
     const entries = await readDir(LOGS_DIR, { baseDir: BaseDirectory.AppData })
     return (entries as any[])
       .filter((e: any) => !e.isDirectory && e.name && e.name.startsWith(prefix))
@@ -207,7 +207,7 @@ async function rotateIfNeeded(): Promise<void> {
 async function pruneOldFiles(): Promise<void> {
   const maxFiles = _settings?.log_max_files ?? 5
   try {
-    const { readDir, remove, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { readDir, remove, BaseDirectory } = await import('./native-fs')
     const entries = await readDir(LOGS_DIR, { baseDir: BaseDirectory.AppData })
     const files = (entries as any[])
       .filter((e: any) => !e.isDirectory && e.name && e.name.startsWith('amiba-') && e.name.endsWith('.log'))
@@ -351,7 +351,7 @@ export function updateLogConfig(settings: AppSettings): void {
 
 export async function getLogFiles(): Promise<LogFileInfo[]> {
   try {
-    const { readDir, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { readDir, BaseDirectory } = await import('./native-fs')
     const entries = await readDir(LOGS_DIR, { baseDir: BaseDirectory.AppData })
     const files: LogFileInfo[] = []
     for (const e of entries as any[]) {
@@ -370,7 +370,7 @@ export async function getLogFiles(): Promise<LogFileInfo[]> {
 
 export async function readLogFile(name: string): Promise<LogEntry[]> {
   try {
-    const { readTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { readTextFile, BaseDirectory } = await import('./native-fs')
     const raw = await readTextFile(makeLogPath(name), { baseDir: BaseDirectory.AppData })
     const entries: LogEntry[] = []
     for (const line of raw.split('\n')) {
@@ -386,7 +386,7 @@ export async function readLogFile(name: string): Promise<LogEntry[]> {
 
 export async function deleteLogFile(name: string): Promise<void> {
   try {
-    const { remove, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { remove, BaseDirectory } = await import('./native-fs')
     await remove(makeLogPath(name), { baseDir: BaseDirectory.AppData })
     if (name === currentFileName) {
       currentFileName = ''
@@ -398,7 +398,7 @@ export async function deleteLogFile(name: string): Promise<void> {
 export async function clearAllLogs(): Promise<void> {
   try {
     const files = await getLogFiles()
-    const { remove, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { remove, BaseDirectory } = await import('./native-fs')
     for (const f of files) {
       await remove(makeLogPath(f.name), { baseDir: BaseDirectory.AppData }).catch(() => {})
     }
@@ -409,7 +409,7 @@ export async function clearAllLogs(): Promise<void> {
 
 export async function exportLogFile(name: string): Promise<Blob> {
   try {
-    const { readTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { readTextFile, BaseDirectory } = await import('./native-fs')
     const raw = await readTextFile(makeLogPath(name), { baseDir: BaseDirectory.AppData })
     return new Blob([raw], { type: 'text/plain' })
   } catch {

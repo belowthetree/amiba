@@ -120,10 +120,7 @@ async function _scanDir(basePath: string, pattern: string, results: FileInfo[]):
   } catch { /* 回退到桌面 tauri-plugin-fs */ }
 
   // 桌面: 使用 tauri-plugin-fs
-  const [{ readDir }, { join }] = await Promise.all([
-    import('@tauri-apps/plugin-fs'),
-    import('@tauri-apps/api/path'),
-  ])
+  const { readDir, join } = await import('../config/native-fs')
 
   const recursive = pattern.includes('**')
   const w = async (dirPath: string, relDir: string): Promise<void> => {
@@ -194,10 +191,7 @@ export async function readTextFile(serviceId: string, token: string, relativePat
   } catch { /* fall through */ }
 
   // 桌面/fallback
-  const [{ readTextFile: fsReadTextFile }, { join }] = await Promise.all([
-    import('@tauri-apps/plugin-fs'),
-    import('@tauri-apps/api/path'),
-  ])
+  const { readTextFile: fsReadTextFile, join } = await import('../config/native-fs')
   return await fsReadTextFile(await join(grant.path, relativePath))
 }
 
@@ -215,10 +209,7 @@ export async function readBinaryFile(serviceId: string, token: string, relativeP
   } catch { /* fall through */ }
 
   // 桌面/fallback
-  const [{ readFile: fsReadFile }, { join }] = await Promise.all([
-    import('@tauri-apps/plugin-fs'),
-    import('@tauri-apps/api/path'),
-  ])
+  const { readFile: fsReadFile, join } = await import('../config/native-fs')
   const bytes = await fsReadFile(await join(grant.path, relativePath))
   return _arrayToBase64(bytes)
 }

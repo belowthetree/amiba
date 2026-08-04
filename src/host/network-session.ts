@@ -48,8 +48,8 @@ export class NetworkSession {
   /** 发送原始消息 */
   async send(message: string): Promise<void> {
     if (this._state === 'disconnected') throw new Error('会话已断开')
-    const { invoke } = await import('@tauri-apps/api/core')
-    await invoke('network_send', { sessionId: this.id, message })
+    const { nativeInvoke } = await import('../config/platform-bridge')
+    await nativeInvoke('network_send', { sessionId: this.id, message })
   }
 
   /** 监听事件 */
@@ -62,8 +62,8 @@ export class NetworkSession {
   /** 关闭会话 */
   async close(): Promise<void> {
     if (this._state === 'disconnected') return
-    const { invoke } = await import('@tauri-apps/api/core')
-    await invoke('network_disconnect', { sessionId: this.id }).catch(() => {})
+    const { nativeInvoke } = await import('../config/platform-bridge')
+    await nativeInvoke('network_disconnect', { sessionId: this.id }).catch(() => {})
     this._state = 'disconnected'
     this.destroy()
   }
@@ -85,8 +85,8 @@ export class NetworkSession {
 
 /** 创建出站 session（调用 Rust network_connect，含服务匹配握手） */
 export async function createOutboundSession(peerId: string, serviceKey?: string): Promise<NetworkSession> {
-  const { invoke } = await import('@tauri-apps/api/core')
-  const info = await invoke<{ sessionId: string; peerId: string; peerName: string }>(
+  const { nativeInvoke } = await import('../config/platform-bridge')
+  const info = await nativeInvoke<{ sessionId: string; peerId: string; peerName: string }>(
     'network_connect',
     { peerId, serviceKey }
   )

@@ -9,6 +9,7 @@
 // ============================================================
 
 import type { Message } from '../ai/session'
+import { isTauriRuntime } from './platform-bridge'
 
 // ---- Rust 端返回类型 ----
 
@@ -55,12 +56,7 @@ let _tauriAvailable: boolean | null = null
 
 async function isTauri(): Promise<boolean> {
   if (_tauriAvailable !== null) return _tauriAvailable
-  try {
-    const mod = await import('@tauri-apps/api/core')
-    _tauriAvailable = typeof mod.invoke === 'function'
-  } catch {
-    _tauriAvailable = false
-  }
+  _tauriAvailable = isTauriRuntime()
   return _tauriAvailable
 }
 
@@ -72,8 +68,8 @@ export async function searchSessions(
 ): Promise<SearchResult[]> {
   if (!(await isTauri())) return []
   try {
-    const { invoke } = await import('@tauri-apps/api/core')
-    const raw = await invoke<string>('search_sessions', { query, limit })
+    const { nativeInvoke } = await import('./platform-bridge')
+    const raw = await nativeInvoke<string>('search_sessions', { query, limit })
     return JSON.parse(raw)
   } catch (e) {
     console.error('[SessionDB] search failed:', e)
@@ -90,8 +86,8 @@ export async function indexMessage(
 ): Promise<void> {
   if (!(await isTauri())) return
   try {
-    const { invoke } = await import('@tauri-apps/api/core')
-    await invoke('index_message', {
+    const { nativeInvoke } = await import('./platform-bridge')
+    await nativeInvoke('index_message', {
       sessionId,
       role,
       content,
@@ -109,14 +105,14 @@ export async function indexMessageBatch(
 ): Promise<void> {
   if (!(await isTauri())) return
   try {
-    const { invoke } = await import('@tauri-apps/api/core')
+    const { nativeInvoke } = await import('./platform-bridge')
     const msgs = messages.map((m) => ({
       role: m.role,
       content: m.content || '',
       tool_calls: (m as any).tool_calls ? JSON.stringify((m as any).tool_calls) : null,
       tool_name: m.toolName || ((m as any).tool_call_id ? `tool:${(m as any).tool_call_id}` : null),
     }))
-    await invoke('index_message_batch', { sessionId, messages: msgs })
+    await nativeInvoke('index_message_batch', { sessionId, messages: msgs })
   } catch (e) {
     console.error('[SessionDB] indexMessageBatch failed:', e)
   }
@@ -125,8 +121,8 @@ export async function indexMessageBatch(
 export async function getSession(sessionId: string): Promise<SessionMeta | null> {
   if (!(await isTauri())) return null
   try {
-    const { invoke } = await import('@tauri-apps/api/core')
-    const raw = await invoke<string>('get_session', { sessionId })
+    const { nativeInvoke } = await import('./platform-bridge')
+    const raw = await nativeInvoke<string>('get_session', { sessionId })
     return JSON.parse(raw)
   } catch {
     return null
@@ -139,8 +135,8 @@ export async function listSessions(
 ): Promise<SessionMeta[]> {
   if (!(await isTauri())) return []
   try {
-    const { invoke } = await import('@tauri-apps/api/core')
-    const raw = await invoke<string>('list_sessions_cmd', {
+    const { nativeInvoke } = await import('./platform-bridge')
+    const raw = await nativeInvoke<string>('list_sessions_cmd', {
       limit,
       excludeId: excludeId || null,
     })
@@ -153,8 +149,8 @@ export async function listSessions(
 export async function deleteSession(sessionId: string): Promise<void> {
   if (!(await isTauri())) return
   try {
-    const { invoke } = await import('@tauri-apps/api/core')
-    await invoke('delete_session_cmd', { sessionId })
+    const { nativeInvoke } = await import('./platform-bridge')
+    await nativeInvoke('delete_session_cmd', { sessionId })
   } catch (e) {
     console.error('[SessionDB] deleteSession failed:', e)
   }
@@ -167,8 +163,8 @@ export async function scrollSession(
 ): Promise<MessageRow[]> {
   if (!(await isTauri())) return []
   try {
-    const { invoke } = await import('@tauri-apps/api/core')
-    const raw = await invoke<string>('scroll_session', {
+    const { nativeInvoke } = await import('./platform-bridge')
+    const raw = await nativeInvoke<string>('scroll_session', {
       sessionId,
       aroundMessageId,
       window,
@@ -186,8 +182,8 @@ export async function readSession(
 ): Promise<SessionRead | null> {
   if (!(await isTauri())) return null
   try {
-    const { invoke } = await import('@tauri-apps/api/core')
-    const raw = await invoke<string>('read_session_cmd', { sessionId, head, tail })
+    const { nativeInvoke } = await import('./platform-bridge')
+    const raw = await nativeInvoke<string>('read_session_cmd', { sessionId, head, tail })
     return JSON.parse(raw)
   } catch {
     return null

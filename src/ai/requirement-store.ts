@@ -37,7 +37,7 @@ export interface RequirementDoc {
 
 async function readFile(path: string): Promise<string | null> {
   try {
-    const { readTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { readTextFile, BaseDirectory } = await import('../config/native-fs')
     return await readTextFile(path, { baseDir: BaseDirectory.AppData })
   } catch {
     return null
@@ -45,7 +45,7 @@ async function readFile(path: string): Promise<string | null> {
 }
 
 async function writeFile(path: string, content: string): Promise<void> {
-  const { writeTextFile, mkdir, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+  const { writeTextFile, mkdir, BaseDirectory } = await import('../config/native-fs')
   // 确保父目录存在
   const lastSlash = path.lastIndexOf('/')
   if (lastSlash > 0) {
@@ -259,7 +259,7 @@ export async function syncGlobalRequirements(): Promise<void> {
   // 列出所有服务目录
   let serviceDirs: string[] = []
   try {
-    const { readDir, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { readDir, BaseDirectory } = await import('../config/native-fs')
     const entries = await readDir('services', { baseDir: BaseDirectory.AppData })
     serviceDirs = (entries as any[])
       .filter((e: any) => e.isDirectory && !e.name.startsWith('.'))

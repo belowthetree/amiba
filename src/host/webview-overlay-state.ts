@@ -6,7 +6,7 @@
 // ============================================================
 
 import { reactive } from 'vue'
-import { listen } from '@tauri-apps/api/event'
+import { nativeListen } from '../config/platform-bridge'
 
 export interface WebviewOverlayState {
   isBrowsing: boolean
@@ -35,7 +35,7 @@ let _unlisten: (() => void) | null = null
 export async function initScreenshotListener() {
   if (_unlisten) return
   try {
-    _unlisten = await listen<string>('webview-screenshot', (event) => {
+    _unlisten = await nativeListen<string>('webview-screenshot', (event) => {
       if (webviewOverlay.isBrowsing && event.payload && !event.payload.startsWith('ERROR:')) {
         webviewOverlay.screenshot = event.payload
         console.log('[WebviewOverlay] screenshot updated,', event.payload.length, 'chars')

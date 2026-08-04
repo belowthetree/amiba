@@ -5,6 +5,8 @@
 // 被 web-browser.tool.ts 和其他模块使用。
 // ============================================================
 
+import { isTauriRuntime, nativeInvoke } from './platform-bridge'
+
 // ---- Types ----
 
 export interface FetchResult {
@@ -25,18 +27,12 @@ let _tauriAvailable: boolean | null = null
 
 export async function isTauri(): Promise<boolean> {
   if (_tauriAvailable !== null) return _tauriAvailable
-  try {
-    const mod = await import('@tauri-apps/api/core')
-    _tauriAvailable = typeof mod.invoke === 'function'
-  } catch {
-    _tauriAvailable = false
-  }
+  _tauriAvailable = isTauriRuntime()
   return _tauriAvailable
 }
 
 async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  const { invoke: tauriInvoke } = await import('@tauri-apps/api/core')
-  return tauriInvoke<T>(cmd, args)
+  return nativeInvoke<T>(cmd, args)
 }
 
 // ---- 页面抓取 ----

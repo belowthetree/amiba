@@ -6,6 +6,8 @@
 // 浏览器: prompt 手动输入
 // ============================================================
 
+import { isTauriRuntime } from './platform-bridge'
+
 export async function pickFolder(title: string = '选择文件夹'): Promise<string | null> {
   // 1) Android: 直接尝试 tauri-plugin-android-fs（不依赖 isAndroid()）
   try {
@@ -24,8 +26,7 @@ export async function pickFolder(title: string = '选择文件夹'): Promise<str
   }
 
   // 2) 桌面 Tauri: plugin-dialog
-  let isTauri = false
-  try { await import('@tauri-apps/api/core'); isTauri = true } catch { /* web */ }
+  const isTauri = isTauriRuntime()
   if (isTauri) {
     try {
       const { open } = await import('@tauri-apps/plugin-dialog')

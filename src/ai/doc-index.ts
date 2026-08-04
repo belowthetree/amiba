@@ -109,7 +109,7 @@ async function scanUserDocs(): Promise<DocEntry[]> {
 
   try {
     const { readDir, readTextFile, BaseDirectory } = await import(
-      '@tauri-apps/plugin-fs'
+      '../config/native-fs'
     )
     const docsRoot = 'amiba/docs'
 
@@ -190,7 +190,7 @@ export async function getDocContent(path: string): Promise<string | null> {
   // 尝试用户文档
   try {
     const { readTextFile, BaseDirectory } = await import(
-      '@tauri-apps/plugin-fs'
+      '../config/native-fs'
     )
     const raw = await readTextFile(`amiba/docs/${path}`, {
       baseDir: BaseDirectory.AppData,

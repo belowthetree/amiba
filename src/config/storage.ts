@@ -13,13 +13,13 @@ function logPath(key: string): string {
 // --- Tauri FS backend ---
 async function tauriGet(key: string): Promise<string | null> {
   try {
-    const { readTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { readTextFile, BaseDirectory } = await import('./native-fs')
     return await readTextFile(APP_ROOT + '/' + key, { baseDir: BaseDirectory.AppData })
   } catch { return null }
 }
 
 async function tauriSet(key: string, value: string): Promise<void> {
-  const { writeTextFile, BaseDirectory, mkdir } = await import('@tauri-apps/plugin-fs')
+  const { writeTextFile, BaseDirectory, mkdir } = await import('./native-fs')
   // 确保父目录存在
   const fullKey = APP_ROOT + '/' + key
   const lastSlash = fullKey.lastIndexOf('/')
@@ -32,14 +32,14 @@ async function tauriSet(key: string, value: string): Promise<void> {
 
 async function tauriRemove(key: string): Promise<void> {
   try {
-    const { remove, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { remove, BaseDirectory } = await import('./native-fs')
     await remove(APP_ROOT + '/' + key, { baseDir: BaseDirectory.AppData })
   } catch {}
 }
 
 async function tauriKeys(): Promise<string[]> {
   try {
-    const { readDir, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { readDir, BaseDirectory } = await import('./native-fs')
     const entries = await readDir(APP_ROOT, { baseDir: BaseDirectory.AppData })
     return entries.map((e: any) => e.name)
   } catch { return [] }
@@ -55,8 +55,7 @@ async function tauriClear(): Promise<void> {
 // --- Init ---
 export async function initStorage() {
   try {
-    const { exists, mkdir, BaseDirectory } = await import('@tauri-apps/plugin-fs')
-    const { appDataDir } = await import('@tauri-apps/api/path')
+    const { exists, mkdir, BaseDirectory, appDataDir } = await import('./native-fs')
     const dataDir = await appDataDir()
     _dataDir = dataDir
     console.log('[Storage] AppData 目录:', dataDir)
@@ -152,13 +151,13 @@ function svcRelPath(serviceId: string, filePath?: string): string {
 // --- Raw Tauri ops on service paths ---
 async function svcFileGet(serviceId: string, filePath: string): Promise<string | null> {
   try {
-    const { readTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { readTextFile, BaseDirectory } = await import('./native-fs')
     return await readTextFile(svcRelPath(serviceId, filePath), { baseDir: BaseDirectory.AppData })
   } catch { return null }
 }
 
 async function svcFileSet(serviceId: string, filePath: string, content: string): Promise<void> {
-  const { writeTextFile, BaseDirectory, mkdir } = await import('@tauri-apps/plugin-fs')
+  const { writeTextFile, BaseDirectory, mkdir } = await import('./native-fs')
   // Always ensure the service directory (and subdirs) exist
   await mkdir(svcRelPath(serviceId), { baseDir: BaseDirectory.AppData, recursive: true }).catch(() => {})
   const dir = filePath.includes('/') ? filePath.substring(0, filePath.lastIndexOf('/')) : ''
@@ -170,14 +169,14 @@ async function svcFileSet(serviceId: string, filePath: string, content: string):
 
 async function svcFileRemove(serviceId: string, filePath: string): Promise<void> {
   try {
-    const { remove, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { remove, BaseDirectory } = await import('./native-fs')
     await remove(svcRelPath(serviceId, filePath), { baseDir: BaseDirectory.AppData })
   } catch {}
 }
 
 async function svcFileList(serviceId: string, subPath?: string): Promise<string[]> {
   try {
-    const { readDir, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { readDir, BaseDirectory } = await import('./native-fs')
     const dirPath = subPath ? svcRelPath(serviceId, safePath(subPath)) : svcRelPath(serviceId)
     const result: string[] = []
     await collectFiles(dirPath, '', result)
@@ -192,7 +191,7 @@ async function collectFiles(
   result: string[]
 ): Promise<void> {
   try {
-    const { readDir, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { readDir, BaseDirectory } = await import('./native-fs')
     const entries = await readDir(basePath, { baseDir: BaseDirectory.AppData })
     for (const entry of entries as any[]) {
       const relPath = prefix ? `${prefix}/${entry.name}` : entry.name
@@ -209,7 +208,7 @@ async function collectFiles(
 
 async function svcDirRemove(serviceId: string): Promise<void> {
   try {
-    const { remove, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { remove, BaseDirectory } = await import('./native-fs')
     await remove(svcRelPath(serviceId), { baseDir: BaseDirectory.AppData, recursive: true })
     console.log('[Storage] 已删除服务目录:', logPath(svcRelPath(serviceId)))
   } catch (e) {
@@ -245,7 +244,7 @@ export async function removeServiceDir(serviceId: string) {
 /** List all service directories under services/ */
 export async function listServiceDirs(): Promise<string[]> {
   try {
-    const { readDir, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { readDir, BaseDirectory } = await import('./native-fs')
     const entries = await readDir(SVC_ROOT, { baseDir: BaseDirectory.AppData })
     return entries.filter((e: any) => e.isDirectory).map((e: any) => e.name)
   } catch { return [] }
@@ -278,7 +277,7 @@ function skillRelPath(skillName: string): string {
 
 export async function readSkillFile(skillName: string): Promise<string | null> {
   try {
-    const { readTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { readTextFile, BaseDirectory } = await import('./native-fs')
     const val = await readTextFile(skillRelPath(skillName), { baseDir: BaseDirectory.AppData })
     console.log('[Storage] READ SKILL', logPath(skillRelPath(skillName)), `(${(val.length / 1024).toFixed(1)}KB)`)
     return val
@@ -286,14 +285,14 @@ export async function readSkillFile(skillName: string): Promise<string | null> {
 }
 
 export async function writeSkillFile(skillName: string, content: string): Promise<void> {
-  const { writeTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+  const { writeTextFile, BaseDirectory } = await import('./native-fs')
   console.log('[Storage] WRITE SKILL', logPath(skillRelPath(skillName)), `(${(content.length / 1024).toFixed(1)}KB)`)
   await writeTextFile(skillRelPath(skillName), content, { baseDir: BaseDirectory.AppData })
 }
 
 export async function removeSkillFile(skillName: string): Promise<void> {
   try {
-    const { remove, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { remove, BaseDirectory } = await import('./native-fs')
     await remove(skillRelPath(skillName), { baseDir: BaseDirectory.AppData })
     console.log('[Storage] DEL SKILL', logPath(skillRelPath(skillName)))
   } catch {}
@@ -301,7 +300,7 @@ export async function removeSkillFile(skillName: string): Promise<void> {
 
 export async function listSkillFiles(): Promise<string[]> {
   try {
-    const { readDir, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { readDir, BaseDirectory } = await import('./native-fs')
     const entries = await readDir(SKILLS_ROOT, { baseDir: BaseDirectory.AppData })
     const names: string[] = []
     for (const e of entries as any[]) {
@@ -310,7 +309,7 @@ export async function listSkillFiles(): Promise<string[]> {
       } else if (e.isDirectory) {
         // Check if directory contains skill.json
         try {
-          const { exists } = await import('@tauri-apps/plugin-fs')
+          const { exists } = await import('./native-fs')
           const hasManifest = await exists(`${SKILLS_ROOT}/${e.name}/skill.json`, { baseDir: BaseDirectory.AppData })
           if (hasManifest) names.push(e.name)
         } catch { /* skip */ }
@@ -327,7 +326,7 @@ export async function readSkillJson(skillName: string): Promise<string | null> {
   if (raw) return raw
   // Try directory/skill.json
   try {
-    const { readTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { readTextFile, BaseDirectory } = await import('./native-fs')
     raw = await readTextFile(`${SKILLS_ROOT}/${safePath(skillName)}/skill.json`, { baseDir: BaseDirectory.AppData })
     return raw
   } catch { return null }
@@ -335,7 +334,7 @@ export async function readSkillJson(skillName: string): Promise<string | null> {
 
 // Recursively copy a source folder into skills/{skillName}/
 export async function copySkillFolder(sourceDir: string, skillName: string): Promise<void> {
-  const { readDir, readFile, writeFile, mkdir, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+  const { readDir, readFile, writeFile, mkdir, BaseDirectory } = await import('./native-fs')
 
   async function copyRecursive(src: string, destRel: string) {
     const entries = await readDir(src)
@@ -361,7 +360,7 @@ export async function copySkillFolder(sourceDir: string, skillName: string): Pro
 // Remove a skill directory (for folder-based skills)
 export async function removeSkillDir(skillName: string): Promise<void> {
   try {
-    const { remove, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { remove, BaseDirectory } = await import('./native-fs')
     await remove(`${SKILLS_ROOT}/${safePath(skillName)}`, { baseDir: BaseDirectory.AppData, recursive: true })
     console.log('[Storage] DEL SKILL DIR', logPath(`${SKILLS_ROOT}/${skillName}`))
   } catch {}
@@ -381,7 +380,7 @@ export interface DirFile {
  * 保留子目录结构，返回带相对路径的文件列表。
  */
 export async function readDirRecursive(dirPath: string): Promise<DirFile[]> {
-  const { readDir, readTextFile } = await import('@tauri-apps/plugin-fs')
+  const { readDir, readTextFile } = await import('./native-fs')
   const files: DirFile[] = []
 
   async function walk(currentDir: string, prefix: string) {

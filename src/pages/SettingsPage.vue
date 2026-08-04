@@ -721,8 +721,8 @@ async function loadTombstone() {
   tombstoneError.value = ''
   tombstoneLoading.value = true
   try {
-    const { invoke } = await import('@tauri-apps/api/core')
-    const text = await invoke<string>('read_tombstone')
+    const { nativeInvoke } = await import('../config/platform-bridge')
+    const text = await nativeInvoke<string>('read_tombstone')
     tombstoneText.value = text || ''
   } catch (e: any) {
     tombstoneText.value = ''
@@ -1197,8 +1197,8 @@ async function doCancelDownload() {
   downloadAbort?.abort()
   // 通知 Rust 端取消流式下载
   try {
-    const { invoke } = await import('@tauri-apps/api/core')
-    await invoke('cancel_download')
+    const { nativeInvoke } = await import('../config/platform-bridge')
+    await nativeInvoke('cancel_download')
   } catch { /* ignore */ }
 }
 

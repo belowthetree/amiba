@@ -94,7 +94,7 @@ toolRegistry.register({
     // 写入文件
     try {
       const { writeTextFile, mkdir, BaseDirectory } = await import(
-        '@tauri-apps/plugin-fs'
+        '../config/native-fs'
       )
       const SOUL_DIR = 'souls'
       await mkdir(SOUL_DIR, {

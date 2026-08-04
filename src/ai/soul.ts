@@ -53,7 +53,7 @@ export class SoulManager {
 
   async init(): Promise<void> {
     try {
-      const { BaseDirectory } = await import('@tauri-apps/plugin-fs')
+      const { BaseDirectory } = await import('../config/native-fs')
       const activeName =
         (await this.readActiveName()) || 'default'
       await this.loadSoul(activeName)
@@ -75,7 +75,7 @@ export class SoulManager {
     let raw: string
     let loaded = false
     try {
-      const { readTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+      const { readTextFile, BaseDirectory } = await import('../config/native-fs')
       raw = await readTextFile(`${SOUL_DIR}${name}.md`, {
         baseDir: BaseDirectory.AppData,
       })
@@ -114,14 +114,14 @@ export class SoulManager {
 
   async listSouls(): Promise<Pick<Soul, 'name' | 'label' | 'frontmatter'>[]> {
     try {
-      const { readDir, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+      const { readDir, BaseDirectory } = await import('../config/native-fs')
       const entries = await readDir(SOUL_DIR, { baseDir: BaseDirectory.AppData })
       const souls: Pick<Soul, 'name' | 'label' | 'frontmatter'>[] = []
       for (const e of entries as any[]) {
         if (!e.name?.endsWith('.md')) continue
         const name = e.name.replace(/\.md$/, '')
         try {
-          const { readTextFile } = await import('@tauri-apps/plugin-fs')
+          const { readTextFile } = await import('../config/native-fs')
           const raw = await readTextFile(`${SOUL_DIR}${e.name}`, {
             baseDir: BaseDirectory.AppData,
           })
@@ -139,7 +139,7 @@ export class SoulManager {
 
   async saveSoul(name: string, content: string): Promise<void> {
     try {
-      const { writeTextFile, mkdir, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+      const { writeTextFile, mkdir, BaseDirectory } = await import('../config/native-fs')
       await mkdir(SOUL_DIR, { baseDir: BaseDirectory.AppData, recursive: true }).catch(() => {})
       await writeTextFile(`${SOUL_DIR}${name}.md`, content, { baseDir: BaseDirectory.AppData })
     } catch {
@@ -154,7 +154,7 @@ export class SoulManager {
 
   async ensureDefaultSoul(): Promise<void> {
     try {
-      const { exists, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+      const { exists, BaseDirectory } = await import('../config/native-fs')
       const ok = await exists(`${SOUL_DIR}default.md`, { baseDir: BaseDirectory.AppData })
       if (!ok) {
         await this.saveSoul('default', DEFAULT_SOUL_CONTENT)
@@ -166,7 +166,7 @@ export class SoulManager {
   /** 首次启动引导：检查是否需要创建人格 */
   async isFirstLaunch(): Promise<boolean> {
     try {
-      const { exists, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+      const { exists, BaseDirectory } = await import('../config/native-fs')
       const ok = await exists(`${SOUL_DIR}default.md`, { baseDir: BaseDirectory.AppData })
       return !ok
     } catch {
@@ -198,14 +198,14 @@ export class SoulManager {
 
   private async readActiveName(): Promise<string | null> {
     try {
-      const { readTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+      const { readTextFile, BaseDirectory } = await import('../config/native-fs')
       return await readTextFile(ACTIVE_SOUL_KEY, { baseDir: BaseDirectory.AppData })
     } catch { return null }
   }
 
   private async saveActiveName(name: string): Promise<void> {
     try {
-      const { writeTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+      const { writeTextFile, BaseDirectory } = await import('../config/native-fs')
       await writeTextFile(ACTIVE_SOUL_KEY, name, { baseDir: BaseDirectory.AppData })
     } catch { /* 浏览器模式 */ }
   }

@@ -19,7 +19,7 @@ import {
 
 async function getServiceName(serviceId: string): Promise<string | undefined> {
   try {
-    const { readTextFile, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+    const { readTextFile, BaseDirectory } = await import('../config/native-fs')
     const raw = await readTextFile(`services/${serviceId}/REQUIREMENT.md`, {
       baseDir: BaseDirectory.AppData,
     })

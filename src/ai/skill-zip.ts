@@ -28,7 +28,7 @@ export async function importSkillFromZip(
     zip = await JSZip.loadAsync(data)
   } else if (typeof data === 'string') {
     // 文件路径（Tauri 环境），读取二进制
-    const { readFile } = await import('@tauri-apps/plugin-fs')
+    const { readFile } = await import('../config/native-fs')
     const bytes = await readFile(data)
     zip = await JSZip.loadAsync(bytes)
   } else {
@@ -181,7 +181,7 @@ export async function exportAndSaveZip(slug: string): Promise<void> {
 
   if (isTauri) {
     const { save } = await import('@tauri-apps/plugin-dialog')
-    const { writeFile } = await import('@tauri-apps/plugin-fs')
+    const { writeFile } = await import('../config/native-fs')
     const savePath = await save({
       defaultPath: filename,
       filters: [{ name: 'ZIP', extensions: ['zip'] }],

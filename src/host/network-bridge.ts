@@ -7,6 +7,7 @@
 
 import { reactive } from 'vue'
 import type { DiscoveredPeer, TransportVisibility } from '../types/service'
+import { isTauriRuntime } from '../config/platform-bridge'
 
 // ---- 状态 ----
 
@@ -34,11 +35,8 @@ export function onEvent(event: string, handler: EventHandler): () => void {
 // ---- 初始化 ----
 
 export async function initNetworkBridge(): Promise<void> {
-  try {
-    await import('@tauri-apps/api/core')
-    isTauri = true
-  } catch {
-    isTauri = false
+  isTauri = isTauriRuntime()
+  if (!isTauri) {
     console.log('[NetworkBridge] 非 Tauri 环境')
     return
   }
@@ -50,8 +48,8 @@ export async function initNetworkBridge(): Promise<void> {
     console.log('[NetworkBridge] 恢复可见性:', currentVisibility)
     // 同步到 Rust（Rust 启动默认 lan:true，需覆盖）
     if (!settings.network_lan_visible) {
-      const { invoke } = await import('@tauri-apps/api/core')
-      await invoke('network_set_visibility', { visibility: currentVisibility })
+      const { nativeInvoke } = await import('../config/platform-bridge')
+      await nativeInvoke('network_set_visibility', { visibility: currentVisibility })
     }
   } catch (e) {
     console.warn('[NetworkBridge] 恢复可见性失败:', e)
@@ -61,8 +59,8 @@ export async function initNetworkBridge(): Promise<void> {
   try {
     const { settings } = await import('../config/config')
     if (!settings.device_id && isTauri) {
-      const { invoke } = await import('@tauri-apps/api/core')
-      const id: string = await invoke('network_get_device_id')
+      const { nativeInvoke } = await import('../config/platform-bridge')
+      const id: string = await nativeInvoke('network_get_device_id')
       settings.device_id = id
       console.log('[NetworkBridge] device_id 已同步:', id.slice(0, 8))
     }
@@ -72,10 +70,10 @@ export async function initNetworkBridge(): Promise<void> {
 
   // 监听 Tauri 事件
   try {
-    const { listen } = await import('@tauri-apps/api/event')
+    const { nativeListen } = await import('../config/platform-bridge')
 
     // --- 设备发现 ---
-    await listen<{ id: string; name: string; transport: string; address?: string }>(
+    await nativeListen<{ id: string; name: string; transport: string; address?: string }>(
       'network:peer-discovered',
       (event) => {
         const existing = peerList.findIndex((p) => p.id === event.payload.id)
@@ -98,7 +96,7 @@ export async function initNetworkBridge(): Promise<void> {
       }
     )
 
-    await listen<{ id: string }>(
+    await nativeListen<{ id: string }>(
       'network:peer-lost',
       (event) => {
         const idx = peerList.findIndex((p) => p.id === event.payload.id)
@@ -108,22 +106,22 @@ export async function initNetworkBridge(): Promise<void> {
     )
 
     // --- Session 事件（Rust → 前端，Phase 4 完善） ---
-    await listen<{ sessionId: string; peerId: string; peerName: string; direction: string; service?: string }>(
+    await nativeListen<{ sessionId: string; peerId: string; peerName: string; direction: string; service?: string }>(
       'network:session-created',
       (event) => {
         console.log('[NetBridge] session-created dir=', event.payload.direction, 'sid=', event.payload.sessionId?.slice(0,8), 'peer=', event.payload.peerName, 'service=', event.payload.service)
         emit('session-created', event.payload)
       }
     )
-    await listen<{ sessionId: string; message: string }>(
+    await nativeListen<{ sessionId: string; message: string }>(
       'network:session-message',
       (event) => emit('session-message', event.payload)
     )
-    await listen<{ sessionId: string; reason?: string }>(
+    await nativeListen<{ sessionId: string; reason?: string }>(
       'network:session-closed',
       (event) => emit('session-closed', event.payload)
     )
-    await listen<{ sessionId: string; error: string }>(
+    await nativeListen<{ sessionId: string; error: string }>(
       'network:session-error',
       (event) => emit('session-error', event.payload)
     )
@@ -149,16 +147,16 @@ export async function setVisibility(vis: TransportVisibility): Promise<void> {
   const { settings } = await import('../config/config')
   settings.network_lan_visible = vis.lan
   if (isTauri) {
-    const { invoke } = await import('@tauri-apps/api/core')
-    await invoke('network_set_visibility', { visibility: vis })
+    const { nativeInvoke } = await import('../config/platform-bridge')
+    await nativeInvoke('network_set_visibility', { visibility: vis })
   }
 }
 
 export async function getVisibility(): Promise<TransportVisibility> {
   if (isTauri) {
     try {
-      const { invoke } = await import('@tauri-apps/api/core')
-      currentVisibility = await invoke<TransportVisibility>('network_get_visibility')
+      const { nativeInvoke } = await import('../config/platform-bridge')
+      currentVisibility = await nativeInvoke<TransportVisibility>('network_get_visibility')
     } catch { /* cached */ }
   }
   return { ...currentVisibility }
@@ -169,15 +167,15 @@ export async function getVisibility(): Promise<TransportVisibility> {
 export async function startDiscovery(transport: string): Promise<void> {
   if (!isTauri) throw new Error('网络功能仅在桌面端可用')
   await requireNetworkEnabled()
-  const { invoke } = await import('@tauri-apps/api/core')
-  await invoke('network_start_discovery', { transport })
+  const { nativeInvoke } = await import('../config/platform-bridge')
+  await nativeInvoke('network_start_discovery', { transport })
 }
 
 export async function stopDiscovery(transport: string): Promise<void> {
   if (!isTauri) return
   try {
-    const { invoke } = await import('@tauri-apps/api/core')
-    await invoke('network_stop_discovery', { transport })
+    const { nativeInvoke } = await import('../config/platform-bridge')
+    await nativeInvoke('network_stop_discovery', { transport })
   } catch { /* ignore */ }
 }
 
@@ -218,14 +216,14 @@ export async function startListening(serviceKey: string): Promise<void> {
   if (!isTauri) throw new Error('网络功能仅在桌面端可用')
   await requireNetworkEnabled()
   console.log('[NetBridge] startListening:', serviceKey)
-  const { invoke } = await import('@tauri-apps/api/core')
-  await invoke('network_start_listener', { serviceKey })
+  const { nativeInvoke } = await import('../config/platform-bridge')
+  await nativeInvoke('network_start_listener', { serviceKey })
 }
 
 /** 服务请求停止 TCP 监听（引用计数归零时实际停止） */
 export async function stopListening(serviceKey: string): Promise<void> {
   if (!isTauri) throw new Error('网络功能仅在桌面端可用')
   console.log('[NetBridge] stopListening:', serviceKey)
-  const { invoke } = await import('@tauri-apps/api/core')
-  await invoke('network_stop_listener', { serviceKey })
+  const { nativeInvoke } = await import('../config/platform-bridge')
+  await nativeInvoke('network_stop_listener', { serviceKey })
 }

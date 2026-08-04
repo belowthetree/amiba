@@ -5,6 +5,8 @@
 // 全平台统一：桌面 / Android / Web 同一套逻辑
 // ============================================================
 
+import { getAppVersion } from './platform-bridge'
+
 const GITHUB_API = 'https://api.github.com/repos/belowthetree/amiba/releases/latest'
 const TIMEOUT_MS = 15_000
 
@@ -41,8 +43,7 @@ export async function getCurrentVersion(): Promise<string> {
   if (cachedVersion) return cachedVersion
 
   try {
-    const { getVersion } = await import('@tauri-apps/api/app')
-    cachedVersion = await getVersion()
+    cachedVersion = await getAppVersion()
     return cachedVersion!
   } catch {
     cachedVersion = (
@@ -186,8 +187,7 @@ export async function downloadUpdate(
 ): Promise<DownloadResult> {
   const fileName = url.split('/').pop()?.split('?')[0] || 'update.bin'
 
-  const { join } = await import('@tauri-apps/api/path')
-  const { appCacheDir } = await import('@tauri-apps/api/path')
+  const { join, appCacheDir } = await import('./native-fs')
 
   // 使用 cache 目录（已配置 FileProvider cache-path；不再清理旧文件，下载后持久保留）
   const baseDir = await appCacheDir()
@@ -214,11 +214,11 @@ async function doDownloadWithPaths(
   onProgress: (received: number, total: number) => void,
   signal?: AbortSignal,
 ): Promise<DownloadResult> {
-  const { join, dirname } = await import('@tauri-apps/api/path')
+  const { join, dirname } = await import('./native-fs')
   const dirPath = await dirname(filePath)
 
   // 确保目录存在（不删除已有文件，支持断点续装）
-  const { mkdir, remove } = await import('@tauri-apps/plugin-fs')
+  const { mkdir, remove } = await import('./native-fs')
   try {
     await mkdir(dirPath, { recursive: true })
   } catch {
@@ -226,15 +226,14 @@ async function doDownloadWithPaths(
   }
 
   // 监听 Rust 下载进度事件
-  const { listen } = await import('@tauri-apps/api/event')
-  const { invoke } = await import('@tauri-apps/api/core')
+  const { nativeListen, nativeInvoke } = await import('./platform-bridge')
 
   let cancelled = false
   if (signal) {
     signal.addEventListener('abort', () => { cancelled = true })
   }
 
-  const unlisten = await listen<{ received: number; total: number }>(
+  const unlisten = await nativeListen<{ received: number; total: number }>(
     'download-progress',
     (event) => {
       onProgress(event.payload.received, event.payload.total)
@@ -242,7 +241,7 @@ async function doDownloadWithPaths(
   )
 
   try {
-    const resultPath = await invoke<string>('download_file', {
+    const resultPath = await nativeInvoke<string>('download_file', {
       url,
       dest: filePath,
     })
@@ -303,9 +302,7 @@ const META_FILE = 'download_info.json'
 /** 保存下载元数据，下次检查更新时用于判断是否需要重新下载 */
 async function saveDownloadMeta(meta: DownloadMeta): Promise<void> {
   try {
-    const { join } = await import('@tauri-apps/api/path')
-    const { appCacheDir } = await import('@tauri-apps/api/path')
-    const { writeTextFile, mkdir } = await import('@tauri-apps/plugin-fs')
+    const { join, appCacheDir, writeTextFile, mkdir } = await import('./native-fs')
     const baseDir = await appCacheDir()
     const dirPath = await join(baseDir, 'amiba-update')
     await mkdir(dirPath, { recursive: true })
@@ -320,9 +317,7 @@ async function saveDownloadMeta(meta: DownloadMeta): Promise<void> {
 /** 读取下载元数据 */
 async function readDownloadMeta(): Promise<DownloadMeta | null> {
   try {
-    const { join } = await import('@tauri-apps/api/path')
-    const { appCacheDir } = await import('@tauri-apps/api/path')
-    const { readTextFile, exists } = await import('@tauri-apps/plugin-fs')
+    const { join, appCacheDir, readTextFile, exists } = await import('./native-fs')
     const baseDir = await appCacheDir()
     const metaPath = await join(baseDir, 'amiba-update', META_FILE)
     if (!(await exists(metaPath))) return null
@@ -356,7 +351,7 @@ export async function getCachedUpdate(
 
     // 缓存的版本与最新版一致 → 可用
     if (meta.version === latestVersion) {
-      const { exists } = await import('@tauri-apps/plugin-fs')
+      const { exists } = await import('./native-fs')
       if (await exists(meta.filePath)) {
         console.log('[Updater] 发现已缓存的最新版本:', meta.version, meta.filePath)
         return meta
@@ -371,13 +366,12 @@ async function deleteCachedUpdate(): Promise<void> {
   try {
     const meta = await readDownloadMeta()
     if (meta) {
-      const { remove, exists } = await import('@tauri-apps/plugin-fs')
+      const { remove, exists } = await import('./native-fs')
       if (await exists(meta.filePath)) {
         await remove(meta.filePath)
       }
       // 删除元数据文件
-      const { join } = await import('@tauri-apps/api/path')
-      const { appCacheDir } = await import('@tauri-apps/api/path')
+      const { join, appCacheDir } = await import('./native-fs')
       const metaPath = await join(await appCacheDir(), 'amiba-update', META_FILE)
       if (await exists(metaPath)) {
         await remove(metaPath)

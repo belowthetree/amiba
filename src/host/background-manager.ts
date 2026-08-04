@@ -434,8 +434,8 @@ async function handleGlobalFetch(
   try {
     switch (method) {
       case 'request': {
-        const result = await import('@tauri-apps/api/core').then(m =>
-          m.invoke('service_http_request', {
+        const result = await import('../config/platform-bridge').then(m =>
+          m.nativeInvoke('service_http_request', {
             url: params.url,
             method: params.method || 'GET',
             headers: params.headers || {},
@@ -671,8 +671,8 @@ async function handleBgAPI(req: { module: string; method: string; params: Record
       try {
         switch (method) {
           case 'request': {
-            const result = await import('@tauri-apps/api/core').then(m =>
-              m.invoke('service_http_request', {
+            const result = await import('../config/platform-bridge').then(m =>
+              m.nativeInvoke('service_http_request', {
                 url: params.url,
                 method: params.method || 'GET',
                 headers: params.headers || {},

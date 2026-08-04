@@ -55,7 +55,7 @@ export async function scanSkills(): Promise<Map<string, SkillInfo>> {
     // Tauri 环境下扫描用户技能
     try {
       const { readDir, exists, BaseDirectory } = await import(
-        '@tauri-apps/plugin-fs'
+        '../config/native-fs'
       )
       const skillsRoot = 'skills'
 
@@ -135,7 +135,7 @@ async function loadSkillFromTauriDir(
   dirName: string
 ): Promise<SkillInfo | null> {
   const { readTextFile, BaseDirectory } = await import(
-    '@tauri-apps/plugin-fs'
+    '../config/native-fs'
   )
   const path = `skills/${dirName}/SKILL.md`
 
@@ -188,7 +188,7 @@ export async function getSkillContent(slug: string): Promise<string | null> {
   // 尝试 Tauri 路径
   try {
     const { readTextFile, BaseDirectory } = await import(
-      '@tauri-apps/plugin-fs'
+      '../config/native-fs'
     )
     return await readTextFile(`${info.skillDir}/SKILL.md`, {
       baseDir: BaseDirectory.AppData,

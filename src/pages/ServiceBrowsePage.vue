@@ -203,7 +203,7 @@ async function importFromFolder() {
     const dir = await pickFolder(t('services.dialogTitle'))
     if (!dir) return
 
-    const { readTextFile } = await import('@tauri-apps/plugin-fs')
+    const { readTextFile } = await import('../config/native-fs')
 
     // Read manifest.json
     const manifestRaw = await readTextFile(dir + '/manifest.json').catch(() => null)

@@ -11,7 +11,7 @@ import { scanSkills, invalidateSkillCache } from './skill-commands'
 import { getUsageEntry } from './skill-usage'
 
 export async function buildSkillPackage(slug: string): Promise<SkillPackage> {
-  const { readTextFile, readDir, BaseDirectory } = await import('@tauri-apps/plugin-fs')
+  const { readTextFile, readDir, BaseDirectory } = await import('../config/native-fs')
 
   const raw = await readTextFile(`skills/${slug}/SKILL.md`, { baseDir: BaseDirectory.AppData })
   const parsed = parseSkillMd(raw)
@@ -46,8 +46,8 @@ export async function buildSkillPackage(slug: string): Promise<SkillPackage> {
   const exportedFrom = typeof window !== 'undefined' && '__TAURI__' in window
     ? await (async () => {
         try {
-          const { invoke } = await import('@tauri-apps/api/core')
-          const id: string = await invoke('network_get_device_id')
+          const { nativeInvoke } = await import('../config/platform-bridge')
+          const id: string = await nativeInvoke('network_get_device_id')
           return id
         } catch { return undefined }
       })()
@@ -65,7 +65,7 @@ export async function buildSkillPackage(slug: string): Promise<SkillPackage> {
 }
 
 export async function installSkillPackage(pkg: SkillPackage, onConflict?: 'overwrite'): Promise<string> {
-  const { writeTextFile, mkdir, remove, BaseDirectory, exists } = await import('@tauri-apps/plugin-fs')
+  const { writeTextFile, mkdir, remove, BaseDirectory, exists } = await import('../config/native-fs')
 
   const slug = pkg.slug
 

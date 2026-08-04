@@ -56,14 +56,14 @@ async function getSelfDeviceId(): Promise<string> {
     const { settings } = await import('../config/config')
     if (settings.device_id) return settings.device_id
   } catch { /* ignore */ }
-  const { invoke } = await import('@tauri-apps/api/core')
-  return await invoke<string>('network_get_device_id')
+  const { nativeInvoke } = await import('../config/platform-bridge')
+  return await nativeInvoke<string>('network_get_device_id')
 }
 
 async function getSelfDeviceName(): Promise<string> {
   try {
-    const { invoke } = await import('@tauri-apps/api/core')
-    const name = await invoke<string>('network_get_device_name')
+    const { nativeInvoke } = await import('../config/platform-bridge')
+    const name = await nativeInvoke<string>('network_get_device_name')
     if (name) return name
   } catch { /* ignore */ }
   return 'unknown'
