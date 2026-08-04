@@ -1,0 +1,10 @@
+{
+  "app": {
+    "bundleName": "com.amiba.app",
+    "vendor": "amiba",
+    "versionCode": 1,
+    "versionName": "0.9.6",
+    "icon": "$media:app_icon",
+    "label": "$string:app_name"
+  }
+}

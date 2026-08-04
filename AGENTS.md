@@ -31,6 +31,7 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 | **Updater** | `src/config/updater.ts` | 纯前端更新检查：调 GitHub Releases API，semver 比较，Rust reqwest 下载（绕过浏览器 CORS），全平台统一 |
 | **Pages** | `src/pages/` | 7 routes: Chat（`/`）、ServiceBrowse（`/services`）、Quick（`/quick`）、RemoteServices 仓库（`/registry`）、Settings、Memory + service 容器页（`/service/:id`）; ShareDialog (局域网服务分享弹窗), SkillShareDialog (局域网技能分享弹窗) |
 | **Config** | `src/config/` | Reactive settings persisted via Tauri FS plugin (`config.ts`), storage abstraction (`storage.ts`: auto-mkdir + pretty-print JSON), theme store (`theme-store.ts`: multi-theme management + prebuilt theme install), session-db wrapper (`session-db.ts`: Tauri invoke → Rust SQLite FTS5), folder-picker (`folder-picker.ts`: 统一文件夹选取 → Android tauri-plugin-android-fs SAF Picker / 桌面 plugin-dialog / 浏览器 prompt), 安卓桌面卡片存储 (`desktop-widget-store.ts`: 扫描服务 `desktop-widgets/` 卡片定义 → registry.json 启用状态 → cache 载荷 → 仅 Android 推送原生) |
+| **平台桥** | `src/config/platform-bridge.ts` + `native-fs.ts` + `src/types/native-bridge.ts` | 鸿蒙迁移适配层：统一宿主探测（`detectHost()` → tauri/harmony/browser，`__TAURI_INTERNALS__` 探测）+ `nativeInvoke`/`nativeListen` 原生通道分发 + plugin-fs/path 兼容 shim（签名不变，业务代码禁止直连 `@tauri-apps/api/*` 与 `@tauri-apps/plugin-fs`）；命令协议注册表在 types/native-bridge.ts（鸿蒙壳 ArkTS Dispatcher 按此实现） |
 | **Theme** | `src/config/theme-store.ts` + `public/themes/` | 多主题系统：3 套内置主题（default/dark/ocean）从 public/themes/ 安装到 AppData；用户可创建/删除/切换主题；CSS 变量体系（30 个 :root 变量）驱动全局外观；所有页面已迁移到 var() 体系；内置主题只读，修改时自动创建用户主题副本 |
 | **i18n** | `src/i18n/` | vue-i18n based internationalization: `locales/zh-CN.ts` + `locales/en.ts`, type-safe via `LocalesSchema`, synced with `settings.language` via `watch()` |
 | **Router** | `src/router/` | `createWebHistory` with lazy-loaded page components；导出 `PAGE_ORDER` 主导航页面序列（从左到右：仓库/服务/聊天/快捷/设置/记忆）；`router.onError` 检测 chunk 加载失败自动刷新自愈 |
@@ -158,6 +159,7 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 
 - **Vue 预置库:** 服务可加载 `/libs/vue.global.prod.js`（Vue 3 全局构建），实现响应式 UI；支持多文件组件目录结构（`components/*.js`、`styles/*.css`），所有引用文件由 packager 自动内联
 - **玉石玻璃风样式库:** 服务通过 `<link href="/libs/jade.css">` 引入 `public/libs/jade.css`（设计令牌 + 玻璃辉光背景 + 组件类），风格规范见 `public/docs/service-style.md`
+- **鸿蒙迁移（harmony-migration 分支进行中）:** 方案见 `docs/harmonyos-migration.md`；鸿蒙壳工程在 `harmony/`（ArkTS 薄壳 + ArkWeb 容器，DevEco Studio 打开，已含桥协议 + fs 命令族 PoC）；`npm run harmony:sync` 把 `dist/` 同步到 `harmony/entry/src/main/resources/rawfile/dist/`（不入库）；前端经 `platform-bridge.ts`/`native-fs.ts` 适配层分发宿主能力，业务代码不得直连 `@tauri-apps/api/*`、`@tauri-apps/plugin-fs`
 - **Storage layout:** `{AppData}/amiba/` →
   - `amiba_settings` — 统一配置（api_key, network_lan_visible, active_agent_id, device_id 等已合并至此）
   - `state.db` — SQLite (WAL mode) with sessions/messages tables + messages_fts FTS5 virtual table

@@ -1,0 +1,9 @@
+{
+  "name": "entry",
+  "version": "0.9.6",
+  "description": "变形虫鸿蒙壳 entry 模块",
+  "main": "",
+  "author": "",
+  "license": "MIT",
+  "dependencies": {}
+}

@@ -1,0 +1,18 @@
+# DevEco / hvigor 构建产物
+.idea/
+.hvigor/
+.cxx/
+build/
+oh_modules/
+**/build/
+**/oh_modules/
+**/package-lock.json
+
+# 前端产物同步目标（由 npm run harmony:sync 生成）
+entry/src/main/resources/rawfile/dist/
+
+# 签名材料（勿入库）
+*.p12
+*.csr
+*.cer
+*.p7b

@@ -1,0 +1,2 @@
+# rawfile/dist 由 `npm run harmony:sync` 从主仓 dist/ 同步生成，不入库。
+# ArkWeb 加载入口：resource://rawfile/dist/index.html

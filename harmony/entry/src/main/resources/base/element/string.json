@@ -1,0 +1,16 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "变形虫 — AI 即时应用平台"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "变形虫"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "变形虫"
+    }
+  ]
+}
