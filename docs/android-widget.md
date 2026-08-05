@@ -82,7 +82,7 @@ desktop-widgets/
 └── cache/{serviceId}__{cardId}.json   # 最近渲染载荷（含图片绝对路径）
 ```
 
-全局卡片由 `android_widget_create` 工具创建，key 格式 `global/{cardId}`，logic.js 规范与 publish 数据格式和服务卡片完全一致。
+全局卡片由 `desktop_widget_create` 工具创建，key 格式 `global/{cardId}`，logic.js 规范与 publish 数据格式和服务卡片完全一致。
 
 ## 数据流
 
@@ -90,7 +90,7 @@ desktop-widgets/
 服务 desktop-widgets/ 定义
   → desktop-widget-store.ts 扫描注册（bootstrap 时）→ registry.json
   → desktop-widget-runner.ts 隐藏 iframe 执行 logic.js
-      （启动时 + updateIntervalMin 周期 + android_widget_refresh 手动）
+      （启动时 + updateIntervalMin 周期 + desktop_widget_refresh 手动）
   → publish(data) → 合并 widget.json + 图片绝对路径 → cache/*.json
   → invoke('android_widget_update') → Rust widget.rs → JNI
   → Kotlin WidgetHelper.updateCards() → SharedPreferences + 刷新三个 Provider 全部实例
@@ -103,11 +103,11 @@ desktop-widgets/
 
 | 工具 | 类别 | 说明 |
 |------|------|------|
-| `android_widget_create` | manage | 创建全局卡片（不依附服务），含 widget.json 字段 + logicJs 内容 |
-| `android_widget_list` | view | 列出全部卡片（key/label/启用状态/最近推送时间） |
-| `android_widget_enable` | manage | 启用/停用卡片（key 格式 `serviceId/cardId` 或 `global/{cardId}`） |
-| `android_widget_refresh` | manage | 立即重跑 logic.js 并推送原生（不传 key 刷全部启用卡片） |
-| `android_widget_delete` | manage | 删除卡片（文件 + 启用状态 + 缓存 + 推送原生）；桌面已放置实例显示占位文本，需用户手动移除 |
+| `desktop_widget_create` | manage | 创建全局卡片（不依附服务），含 widget.json 字段 + logicJs 内容 |
+| `desktop_widget_list` | view | 列出全部卡片（key/label/启用状态/最近推送时间） |
+| `desktop_widget_enable` | manage | 启用/停用卡片（key 格式 `serviceId/cardId` 或 `global/{cardId}`） |
+| `desktop_widget_refresh` | manage | 立即重跑 logic.js 并推送原生（不传 key 刷全部启用卡片） |
+| `desktop_widget_delete` | manage | 删除卡片（文件 + 启用状态 + 缓存 + 推送原生）；桌面已放置实例显示占位文本，需用户手动移除 |
 
 ## 边界与限制
 

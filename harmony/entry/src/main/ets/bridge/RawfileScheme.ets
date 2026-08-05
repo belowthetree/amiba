@@ -80,31 +80,49 @@ export function createRawfileSchemeHandler(): webview.WebSchemeHandler {
       if (path === null || appContext === null) {
         return false
       }
-      let content: Uint8Array
-      try {
-        content = appContext.resourceManager.getRawFileContentSync(path)
-      } catch (e) {
-        console.warn(`${TAG} ✗ getRawFileContentSync 失败: ${path}`)
-        resourceHandler.didFail(WebNetErrorList.ERR_FAILED)
-        return true
-      }
-      try {
-        const response = new webview.WebSchemeHandlerResponse()
-        response.setMimeType(mimeOf(path))
-        response.setEncoding('utf-8')
-        response.setStatus(200)
-        response.setStatusText('OK')
-        resourceHandler.didReceiveResponse(response)
-        // 零字节 rawfile（如 default 主题空 custom.css）：跳过 body 直发 Finish，
-        // didReceiveResponseBody 对空 buffer 会抛异常
-        if (content.length > 0) {
-          resourceHandler.didReceiveResponseBody(content.buffer)
+      const ctx = appContext
+      // 异步回包：在 onRequestStart 内同步 didReceiveResponse/Body/Finish 时，
+      // 并发 fetch（2 个及以上）会让 ArkWeb 网络栈死锁、请求永不完成（真机实测）。
+      // 改为立即返回 true，由事件循环下一拍完成回包。
+      setTimeout(() => {
+        let content: Uint8Array
+        try {
+          content = ctx.resourceManager.getRawFileContentSync(path)
+        } catch (e) {
+          console.warn(`${TAG} ✗ 未找到 rawfile(404): ${path}`)
+          // didFail 在本平台版本不会终结 fetch 请求（前端挂起，真机实测）；
+          // 改用 HTTP 404 响应，前端 resp.ok 判定语义不变
+          try {
+            const notFound = new webview.WebSchemeHandlerResponse()
+            notFound.setMimeType('text/plain')
+            notFound.setEncoding('utf-8')
+            notFound.setStatus(404)
+            notFound.setStatusText('Not Found')
+            resourceHandler.didReceiveResponse(notFound)
+            resourceHandler.didFinish()
+          } catch (e2) {
+            resourceHandler.didFail(WebNetErrorList.ERR_FAILED)
+          }
+          return
         }
-        resourceHandler.didFinish()
-      } catch (e) {
-        console.warn(`${TAG} ✗ rawfile 回包失败: ${path}`)
-        resourceHandler.didFail(WebNetErrorList.ERR_FAILED)
-      }
+        try {
+          const response = new webview.WebSchemeHandlerResponse()
+          response.setMimeType(mimeOf(path))
+          response.setEncoding('utf-8')
+          response.setStatus(200)
+          response.setStatusText('OK')
+          resourceHandler.didReceiveResponse(response)
+          // 零字节 rawfile（如 default 主题空 custom.css）：跳过 body 直发 Finish，
+          // didReceiveResponseBody 对空 buffer 会抛异常
+          if (content.length > 0) {
+            resourceHandler.didReceiveResponseBody(content.buffer)
+          }
+          resourceHandler.didFinish()
+        } catch (e) {
+          console.warn(`${TAG} ✗ rawfile 回包失败: ${path}`)
+          resourceHandler.didFail(WebNetErrorList.ERR_FAILED)
+        }
+      }, 0)
       return true
     }
   )

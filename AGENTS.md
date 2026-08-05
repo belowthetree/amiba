@@ -111,11 +111,11 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 | `ui_slot_get` | ui | 读取插槽 HTML 内容 |
 | `ui_slot_set` | ui | 设置插槽 HTML 内容（可含 `<style>`/`<script>`） |
 | `ui_slot_remove` | ui | 清除指定插槽内容 |
-| `android_widget_list` | ui | 列出全部安卓系统桌面卡片（服务 `desktop-widgets/` 目录 + 全局卡片，含启用状态） |
-| `android_widget_enable` | ui | 启用/停用桌面卡片（改 registry.json 并推送原生） |
-| `android_widget_refresh` | ui | 立即重跑卡片 logic.js 并推送原生刷新显示 |
-| `android_widget_create` | ui | 创建全局桌面卡片（不依附服务，写入 `desktop-widgets/cards/{cardId}/`，可选 size 尺寸档位 small/medium/large） |
-| `android_widget_delete` | ui | 删除桌面卡片（文件 + 启用状态 + 缓存 + 推送原生） |
+| `desktop_widget_list` | ui | 列出全部安卓系统桌面卡片（服务 `desktop-widgets/` 目录 + 全局卡片，含启用状态） |
+| `desktop_widget_enable` | ui | 启用/停用桌面卡片（改 registry.json 并推送原生） |
+| `desktop_widget_refresh` | ui | 立即重跑卡片 logic.js 并推送原生刷新显示 |
+| `desktop_widget_create` | ui | 创建全局桌面卡片（不依附服务，写入 `desktop-widgets/cards/{cardId}/`，可选 size 尺寸档位 small/medium/large） |
+| `desktop_widget_delete` | ui | 删除桌面卡片（文件 + 启用状态 + 缓存 + 推送原生） |
 
 ## Theme System
 
@@ -133,6 +133,7 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 
 - **无顶栏设计：** 页面切换靠左右滑动手势（App.vue iPhone 风格跟手手势，`transitionend` 驱动路由切换避免回弹）+ 两侧 `EdgeNavHint` 玻璃竖条（点击也可切换，tooltip 显示目标页名）；页面序列 `PAGE_ORDER` 定义在 `src/router/index.ts`，从左到右：服务仓库 / 服务列表 / 聊天 / 快捷 / 设置 / 记忆。快捷页内容运行在 iframe 沙箱中，触摸事件不冒泡到宿主文档，由 `QuickPage.vue` 垫片脚本把触摸坐标 postMessage 转发给 App.vue 驱动同一套手势（`amiba-quick-touch` 消息）
 - **页面过渡:** 手势切换用空过渡（JS 已驱动位移）；箭头/编程导航用同步横滑（新页滑入 + 旧页滑出，过渡期间两页 absolute 叠放，`left/right: 0` 保持 max-width 页面居中）；复位由 `@after-enter` 触发避免旧页闪回
+- **聊天页常驻:** ChatPage 经 `<keep-alive include="ChatPage">` 缓存（App.vue），滑回不重挂载；页面级清理/刷新放 `onDeactivated`/`onActivated`（监听器仍在 onMounted/onUnmounted 管理）；休眠期 DOM 脱离文档会丢 scrollTop，激活时恢复置底（`onActivated` → `scrollToBottom`）；冷启动首挂载用 `pre-scroll` 隐藏至置底完成，重挂载（滑页预览实例）store 已有消息则首帧同步置底不隐藏
 - **全局背景:** `src/components/GlassBackground.vue` — 玉色辉光 + 流光动画，fixed 铺满全局，随 `data-theme` 自适应，`prefers-reduced-motion` 时关闭动画
 - **服务页返回:** `service-container.vue` 左上角浮动玻璃返回按钮（无顶栏后的唯一返回入口）
 - **API 启动门:** `App.vue` onMounted 检查 `settings.api_key`，缺失时直接弹出全屏 `ApiSetupOverlay.vue`；已配置则经 `src/ai/api-check.ts` 发最小化 chat 请求验证连通性，失败同样弹出。遮罩不可关闭，用户填写供应商/BaseURL/Key/模型并「验证并继续」通过后才进入应用
@@ -159,7 +160,7 @@ npx tauri android dev   # Tauri Android dev build (emulator/device)
 
 - **Vue 预置库:** 服务可加载 `/libs/vue.global.prod.js`（Vue 3 全局构建），实现响应式 UI；支持多文件组件目录结构（`components/*.js`、`styles/*.css`），所有引用文件由 packager 自动内联
 - **玉石玻璃风样式库:** 服务通过 `<link href="/libs/jade.css">` 引入 `public/libs/jade.css`（设计令牌 + 玻璃辉光背景 + 组件类），风格规范见 `public/docs/service-style.md`
-- **鸿蒙迁移（harmony-migration 分支进行中）:** 方案见 `docs/harmonyos-migration.md`；鸿蒙壳工程在 `harmony/`（ArkTS 薄壳 + ArkWeb 容器，DevEco Studio 打开，已含桥协议 + fs 命令族 + 会话库 8 命令 + HTTP 3 命令 + web 引擎 6 命令 + picker/fileAccess 4 命令（`PickerCommands.ets`，DocumentViewPicker + picker URI 直读，persistPermission 受限降级为生命周期有效）+ LAN 网络 13 命令（`NetworkCommands.ets` + `NetworkWsServer.ets` + `NetworkWsCodec.ets`：UDP 发现 28880 协议逐字段对齐 Rust、TCPSocketServer 手写 RFC6455 WS 服务端（API 12 无官方 WS 服务端）、官方 webSocket 客户端出站 hello/ack，`network:*` 6 事件经 emitToWeb 推送）+ FormKit 系统桌面卡片（`FormCommands.ets` + `FormStore.ets` + `entryformability/EntryFormAbility.ets` + `pages/form/` 三卡面模板 + `resources/base/profile/form_config.json`：`form_widget_update`/`form_widget_consume_tap` 两命令线协议与 android_widget_* 逐字段对齐（另扩展 assign 重绑参数），formId↔cardKey 映射落 `filesDir/amiba-form/forms.json`，加卡自动按 layout+尺寸绑定启用卡，图片经 formImages fd + `memory://` 引用，点击 postCardAction router → EntryAbility 双通道（热 emitToWeb `amiba-widget-navigate` / 冷 pending_tap 待消费）））；`npm run harmony:sync` 把 `dist/` 同步到 `harmony/entry/src/main/resources/rawfile/` 根（产物不入库）；前端经 `platform-bridge.ts`/`native-fs.ts` 适配层分发宿主能力，业务代码不得直连 `@tauri-apps/api/*`、`@tauri-apps/plugin-fs`
+- **鸿蒙迁移（harmony-migration 分支进行中）:** 方案见 `docs/harmonyos-migration.md`；鸿蒙壳工程在 `harmony/`（ArkTS 薄壳 + ArkWeb 容器，DevEco Studio 打开，已含桥协议 + rawfile 自定义协议（`RawfileScheme.ets`：`amiba://local/*` 离线包，onRequestStart 异步回包；didFail 在本平台不终结 fetch（请求挂起）→ 缺失文件一律回 HTTP 404，前端 resp.ok 兜底链赖此，不可改回 didFail）+ fs 命令族 + 会话库 8 命令 + HTTP 3 命令 + web 引擎 6 命令 + picker/fileAccess 4 命令（`PickerCommands.ets`，DocumentViewPicker + picker URI 直读，persistPermission 受限降级为生命周期有效；服务文件夹导入在鸿蒙走此命令族（ServiceBrowsePage.importFromPickerUri））+ LAN 网络 13 命令（`NetworkCommands.ets` + `NetworkWsServer.ets` + `NetworkWsCodec.ets`：UDP 发现 28880 协议逐字段对齐 Rust、TCPSocketServer 手写 RFC6455 WS 服务端（API 12 无官方 WS 服务端）、官方 webSocket 客户端出站 hello/ack，`network:*` 6 事件经 emitToWeb 推送）+ FormKit 系统桌面卡片（`FormCommands.ets` + `FormStore.ets` + `entryformability/EntryFormAbility.ets` + `pages/form/` 三卡面模板 + `resources/base/profile/form_config.json`：`form_widget_update`/`form_widget_consume_tap` 两命令线协议与 android_widget_* 逐字段对齐（另扩展 assign 重绑参数），formId↔cardKey 映射落 `filesDir/amiba-form/forms.json`，加卡自动按 layout+尺寸绑定启用卡，图片经 formImages fd + `memory://` 引用，点击 postCardAction router → EntryAbility 双通道（热 emitToWeb `amiba-widget-navigate` / 冷 pending_tap 待消费）））；`npm run harmony:sync` 把 `dist/` 同步到 `harmony/entry/src/main/resources/rawfile/` 根（产物不入库）；前端经 `platform-bridge.ts`/`native-fs.ts` 适配层分发宿主能力，业务代码不得直连 `@tauri-apps/api/*`、`@tauri-apps/plugin-fs`
 - **Storage layout:** `{AppData}/amiba/` →
   - `amiba_settings` — 统一配置（api_key, network_lan_visible, active_agent_id, device_id 等已合并至此）
   - `state.db` — SQLite (WAL mode) with sessions/messages tables + messages_fts FTS5 virtual table

@@ -304,11 +304,11 @@ var b64  = await __amiba__.fileAccess.readBinary(grant.token, 'song.mp3')
 `public/catalog/skills/desktop-widget-dev/SKILL.md` 是 **AI 生成安卓系统桌面卡片的权威规范**，包含：
 
 - 与悬浮块（widget-dev）的区别对比（系统桌面 vs 应用内，勿混淆）
-- **默认全局卡片**（`android_widget_create`，无权限要求）；服务卡片仅当用户明确要求、需共享服务数据、或随服务分发时（`services/{id}/desktop-widgets/{cardId}/`）
+- **默认全局卡片**（`desktop_widget_create`，无权限要求）；服务卡片仅当用户明确要求、需共享服务数据、或随服务分发时（`services/{id}/desktop-widgets/{cardId}/`）
 - widget.json 字段（layout: lines / bigText / image、size 尺寸档位 small/medium/large、样式字段 accentColor/backgroundColor/textColor/hideTitleBar、tapPath、updateIntervalMin）
 - logic.js 沙箱约束（仅 `desktopWidget.publish` / `desktopWidget.renderHtml` + `storage`，10s 超时，恰好 publish 一次）
 - publish 数据格式（title / icon / lines ≤6×60 字 / image / imageData（renderHtml 自定义卡面）/ footer / 样式覆盖）
-- AI 管理工具（`android_widget_create` / `list` / `enable` / `refresh` / `delete`）
+- AI 管理工具（`desktop_widget_create` / `list` / `enable` / `refresh` / `delete`）
 - 完整示例（记账本最近支出卡片）+ 常见错误清单 + 检查清单
 
 当用户要求把内容「放到手机/系统桌面」时，**必须先查阅此规范**。服务卡片权限为 `desktopWidgets`（勿写成 `widgets`；全局卡片无需权限）。宿主侧实现参考 `docs/android-widget.md`。

@@ -40,7 +40,7 @@ keywords:
 
 ### 选全局卡片还是服务卡片？
 
-**默认创建全局卡片**（`android_widget_create`，见 2.5 节）——用户说"在桌面放个 xx 卡片"一律走这条路：无需服务、无权限配置、一步到位。
+**默认创建全局卡片**（`desktop_widget_create`，见 2.5 节）——用户说"在桌面放个 xx 卡片"一律走这条路：无需服务、无权限配置、一步到位。
 
 仅以下情况才做服务卡片：
 
@@ -67,7 +67,7 @@ services/{serviceId}/desktop-widgets/{cardId}/
 
 ### 2.5 全局卡片（不依附服务，**默认路径**）
 
-**默认选择**：用户要桌面卡片时优先用 `android_widget_create` 工具创建**全局卡片**，无需服务、无权限要求：
+**默认选择**：用户要桌面卡片时优先用 `desktop_widget_create` 工具创建**全局卡片**，无需服务、无权限要求：
 
 ```
 {AppData}/amiba/desktop-widgets/cards/{cardId}/
@@ -82,7 +82,7 @@ services/{serviceId}/desktop-widgets/{cardId}/
 | key | `serviceId/cardId` | `global/{cardId}` |
 | 权限 | 需 `desktopWidgets` | 无需（无 manifest） |
 | storage 落点 | 服务自身 `data/`（与服务页面共享） | `desktop-widgets/data/{cardId}/`（卡片专属） |
-| 创建方式 | `service_file_write` | `android_widget_create` |
+| 创建方式 | `service_file_write` | `desktop_widget_create` |
 
 widget.json / logic.js 规范与 publish 数据格式两者完全一致，下文不再区分。
 
@@ -187,7 +187,7 @@ __amiba__.desktopWidget.publish({ title: '打卡', imageData, footer: '更新于
 
 - App 启动（全量刷新一次）
 - `updateIntervalMin > 0` 的周期定时
-- AI 调用 `android_widget_refresh` 工具
+- AI 调用 `desktop_widget_refresh` 工具
 
 App 被杀期间桌面卡片显示最后一次推送的内容（原生缓存），属正常行为。
 
@@ -197,13 +197,13 @@ App 被杀期间桌面卡片显示最后一次推送的内容（原生缓存）�
 
 | 工具 | 说明 |
 |------|------|
-| `android_widget_create` | 创建全局卡片（不依附服务），参数含 widget.json 字段 + logicJs 内容 |
-| `android_widget_list` | 列出全部卡片（key/启用状态/最近推送时间） |
-| `android_widget_enable` | 启用/停用卡片，key 格式 `serviceId/cardId` 或 `global/{cardId}` |
-| `android_widget_refresh` | 立即重跑 logic.js 并推送桌面（不传 key 刷全部） |
-| `android_widget_delete` | 删除卡片（文件 + 启用状态 + 缓存）；桌面已放置的实例需用户手动移除 |
+| `desktop_widget_create` | 创建全局卡片（不依附服务），参数含 widget.json 字段 + logicJs 内容 |
+| `desktop_widget_list` | 列出全部卡片（key/启用状态/最近推送时间） |
+| `desktop_widget_enable` | 启用/停用卡片，key 格式 `serviceId/cardId` 或 `global/{cardId}` |
+| `desktop_widget_refresh` | 立即重跑 logic.js 并推送桌面（不传 key 刷全部） |
+| `desktop_widget_delete` | 删除卡片（文件 + 启用状态 + 缓存）；桌面已放置的实例需用户手动移除 |
 
-服务数据变更后应调用 `android_widget_refresh` 让桌面同步。
+服务数据变更后应调用 `desktop_widget_refresh` 让桌面同步。
 
 ---
 
@@ -250,14 +250,14 @@ App 被杀期间桌面卡片显示最后一次推送的内容（原生缓存）�
 })()
 ```
 
-创建后调用 `android_widget_enable` 确认启用，再 `android_widget_refresh` 推送一次。用户在系统桌面长按添加"变形虫"小组件即可选到。
+创建后调用 `desktop_widget_enable` 确认启用，再 `desktop_widget_refresh` 推送一次。用户在系统桌面长按添加"变形虫"小组件即可选到。
 
 ---
 
 ## 7. 常见错误清单
 
 - ❌ 与悬浮块混淆：悬浮块是 `widget.json` + `widgets/*.html`（应用内），桌面卡片是 `desktop-widgets/` 目录（系统桌面）
-- ❌ 为桌面卡片需求顺手建完整服务 → **默认用 `android_widget_create` 建全局卡片**；服务卡片仅当用户明确要求、或需共享服务数据、或随服务分发时
+- ❌ 为桌面卡片需求顺手建完整服务 → **默认用 `desktop_widget_create` 建全局卡片**；服务卡片仅当用户明确要求、或需共享服务数据、或随服务分发时
 - ❌ `manifest.permissions` 遗漏 `"desktopWidgets"` → 卡片不注册
 - ❌ 在 logic.js 里直接操作 DOM 当界面 → 桌面卡片是原生渲染，DOM 无人看；自定义卡面用 `renderHtml(html)` 渲染成图片再 publish `imageData`
 - ❌ 忘记调用 `publish()` → 10s 超时，卡片无数据
@@ -268,18 +268,18 @@ App 被杀期间桌面卡片显示最后一次推送的内容（原生缓存）�
 - ❌ `tapPath` 不以 `/` 开头 → 点击跳转被忽略
 - ❌ 期望 App 被杀后卡片还自动更新 → 逻辑只在 App 存活时执行，被杀显示最后缓存（正常行为）
 - ❌ 认为卡片必须等 logic.js 跑成功才出现在选卡页 → 启用后即推送占位（显示 label + "加载中…"），首次 publish 后替换为真实数据
-- ❌ 选卡页显示"暂无可用卡片"就怀疑原生侧 → 排查顺序：① `android_widget_list` 确认卡片已注册且 enabled ② 设置页日志搜 `[DesktopWidget]` 确认"已推送原生: N 张" ③ logcat 搜 `[amiba-widget]` 确认 `updateCards ✓`
+- ❌ 选卡页显示"暂无可用卡片"就怀疑原生侧 → 排查顺序：① `desktop_widget_list` 确认卡片已注册且 enabled ② 设置页日志搜 `[DesktopWidget]` 确认"已推送原生: N 张" ③ logcat 搜 `[amiba-widget]` 确认 `updateCards ✓`
 
 ---
 
 ## 8. 检查清单
 
-- [ ] 已确认走服务卡路径（用户明确要求 / 共享服务数据 / 随服务分发）——否则改用全局卡片（`android_widget_create`，以下权限/目录项不适用）
+- [ ] 已确认走服务卡路径（用户明确要求 / 共享服务数据 / 随服务分发）——否则改用全局卡片（`desktop_widget_create`，以下权限/目录项不适用）
 - [ ] `manifest.permissions` 包含 `"desktopWidgets"`
 - [ ] 卡片目录为 `desktop-widgets/{cardId}/`，含 `widget.json` + `logic.js`
 - [ ] `widget.json` 有 `label`，`tapPath` 以 `/` 开头
 - [ ] logic.js 恰好调用一次 `publish()`，数据字段合法
 - [ ] `lines` ≤6 条且每条 ≤60 字
 - [ ] `layout: "image"` 时 publish 带 `image`（相对路径，文件真实存在于 `assets/`）或 `imageData`（renderHtml 产物，渲染宽度 ≤720）
-- [ ] 创建后 `android_widget_enable` 启用 + `android_widget_refresh` 推送验证
+- [ ] 创建后 `desktop_widget_enable` 启用 + `desktop_widget_refresh` 推送验证
 - [ ] 已告知用户：需在系统桌面长按添加"变形虫"小组件并选择该卡片

@@ -146,10 +146,11 @@ export async function nativeInvoke<T>(cmd: string, args?: unknown): Promise<T> {
 
 ### 4.2 dist 加载方式
 
-推荐 **`resource://rawfile/index.html`**（dist 内容同步到 rawfile **根**，随 HAP 打包）：
+**已实现：`amiba://local/*` 自定义协议（WebSchemeHandler）**，dist 内容同步到 rawfile **根**，随 HAP 打包：
 
-- 只读但够用——服务 HTML 走 `iframe srcdoc`（`service-container.vue:20`），不依赖 rawfile 可写。
+- 选型变更：`resource://rawfile` + `onInterceptRequest` 已从新版 SDK 移除，改为 API 12+ 的 `WebSchemeHandler`（`harmony/entry/src/main/ets/bridge/RawfileScheme.ets`）；页面与子资源全部走 `amiba://local/*`，handler 从 rawfile 读数据经 `didReceiveResponse/Body/Finish` 返回。Web `src` 必须指到 `amiba://local/` 根（带 `/index.html` 会加载失败）。
 - 必须放 rawfile 根：Vite 产物（`/assets/*`）与服务沙箱内引用（`/libs/jade.css`、`/docs/*`）均为绝对路径，根布局与 Tauri 自定义协议一致，全部直接生效（PoC 实测：`rawfile/dist/` 子目录布局会导致 `/assets/*` 404 白屏）。
+- **真机踩坑（已解决，勿回退）**：① `onRequestStart` 内同步回包在并发 fetch 下会让 ArkWeb 网络栈死锁，必须立即 `return true` 异步回包；② `didFail(ERR_FAILED)` 在本平台不会终结 fetch 请求（前端永远挂起，skill_view 卡死事故根因），缺失 rawfile 一律回 **HTTP 404** 响应，前端 `resp.ok` 兜底链（内置→Tauri 双路径）语义不变。
 - 合规：鸿蒙审核对「动态下发可执行代码」敏感，rawfile 内置前端、版本随应用更新，无热更新风险。
 
 备选：首启解压到 filesDir 用 `file://` 加载——为将来的「前端资源随服务仓库更新」留口子，首期不做。
@@ -249,7 +250,7 @@ Vue 层的适配点全部是**管线而非视觉**：
 | 能力 | 鸿蒙对应 | 备注 |
 |---|---|---|
 | `setupWindowInsets`（systemBars/IME padding） | `windowStage.getMainWindow()` + `getWindowAvoidArea`，ArkUI 官方模式 | 语义对等，Android 的 targetSdk 35 痛点在鸿蒙不存在 |
-| SAF 文件夹选取 + 持久授权（fileAccess） | `DocumentViewPicker` + `fileshare` 持久化授权 | **无 MANAGE_EXTERNAL_STORAGE 对等物**：「按路径直扫共享目录」降级为「picker 授权目录」模型，fileAccess 模块功能收窄。**已实现**：壳层 `PickerCommands.ets`（file_access_pick_folder/list/read_text/read_binary 4 命令），前端 folder-picker/file-access-grants 加鸿蒙分支；picker URI（`file://docs/...`）经 `fs.openSync` 直读（d.ts 明确支持 URI），stat 走 fd（`fs.stat(uri)` 需 API 22）；`persistPermission` 需 ACL 受限权限 `ohos.permission.FILE_ACCESS_PERSIST`，best-effort 失败后降级为「仅本次生命周期有效」（与前端不落盘设计一致） |
+| SAF 文件夹选取 + 持久授权（fileAccess） | `DocumentViewPicker` + `fileshare` 持久化授权 | **无 MANAGE_EXTERNAL_STORAGE 对等物**：「按路径直扫共享目录」降级为「picker 授权目录」模型，fileAccess 模块功能收窄。**已实现**：壳层 `PickerCommands.ets`（file_access_pick_folder/list/read_text/read_binary 4 命令），前端 folder-picker/file-access-grants 加鸿蒙分支；picker URI（`file://docs/...`）经 `fs.openSync` 直读（d.ts 明确支持 URI），stat 走 fd（`fs.stat(uri)` 需 API 22）；`persistPermission` 需 ACL 受限权限 `ohos.permission.FILE_ACCESS_PERSIST`，best-effort 失败后降级为「仅本次生命周期有效」（与前端不落盘设计一致）。**服务文件夹导入**同样走此族（`ServiceBrowsePage.importFromPickerUri`：递归 list + 逐文件 read_text），picker URI 不可落 native-fs 沙箱通道 |
 | `read_tombstone` 崩溃诊断 | 砍掉或改用自研 logger 记录（`faultLog` 对普通应用受限） | 低优先 |
 | `tauri-plugin-android-installer` + `download_file` 更新链 | **整体下线** | AppGallery 分发，禁止应用内安装包自更新；更新检查改为「检测新版本 → 提示去应用市场」 |
 | `plugin-opener` | 不需要 | 随更新链下线 |
@@ -321,7 +322,7 @@ Android 上隐藏 WebView 依附进程存活；鸿蒙应用退后台后 ArkWeb J
 ## 9. 代码组织与维护策略
 
 - **前端单一代码库**：`platform-bridge.ts` / `native-fs.ts` 进主仓，桌面/Android/鸿蒙共用；新增平台仅 `detectHost()` 加一个分支。
-- **鸿蒙工程**：主仓新建 `harmony/`（DevEco 工程，arkts 壳 + 原生服务层），`dist/` 作为构建输入拷入 rawfile；与 `src-tauri/` 平级，互不干扰。
+- **鸿蒙工程**：主仓新建 `harmony/`（DevEco 工程，arkts 壳 + 原生服务层），`dist/` 作为构建输入拷入 rawfile；与 `src-tauri/` 平级，互不干扰。`harmony/scripts/`：`sync-dist.mjs`（dist→rawfile 同步，`npm run harmony:sync`）、`cdp-eval.mjs`（真机 ArkWeb CDP 求值调试，用法见文件头注释）。
 - **协议单一事实源**：31 条命令的 TS 类型定义抽到 `src/types/native-bridge.ts`，ArkTS 侧按此实现；新增命令双端同步。
 - **src-tauri 保留**：桌面 + Android 继续由 Tauri 服务，不受影响；Android 专属链（JNI/Kotlin/widget.rs）不进鸿蒙工程。
 - **文档同步**：本文件随实施进度更新；各阶段落地后按项目惯例补 `docs/harmonyos.md` 架构文档并更新 AGENTS.md。

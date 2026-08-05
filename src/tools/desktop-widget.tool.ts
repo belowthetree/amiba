@@ -1,10 +1,10 @@
 // ============================================================
-// 变形虫 (Amiba) — 安卓系统桌面卡片工具（android_widget_*）
+// 变形虫 (Amiba) — 系统桌面卡片工具（desktop_widget_*）
 //
 // 卡片定义由服务自身目录维护：services/{id}/desktop-widgets/{cardId}/
 // （widget.json + logic.js + assets/，用 service_file_* 工具创建/修改）。
-// 本组工具负责：查看卡片、启用/停用、立即刷新。
-// 仅 Android 生效；用户需在系统桌面长按添加"变形虫"小组件并选择卡片。
+// 本组工具负责：查看卡片、启用/停用、立即刷新、创建/删除全局卡片。
+// Android（AppWidget）与鸿蒙（FormKit）生效；用户需在系统桌面添加"变形虫"小组件并选择卡片。
 // ============================================================
 import { toolRegistry } from './tool-registry'
 import {
@@ -17,23 +17,29 @@ import {
   deleteWidgetCard,
 } from '../config/desktop-widget-store'
 import { refreshWidgetCard, refreshAllWidgetCards } from '../host/desktop-widget-runner'
+import { detectPlatform } from '../config/updater'
+import { isHarmonyRuntime } from '../config/platform-bridge'
+
+// 系统桌面卡片仅 Android / 鸿蒙（FormKit）可用，桌面与浏览器不暴露本组工具
+const widgetSupported = () => detectPlatform() === 'android' || isHarmonyRuntime()
 
 // ================================================================
-// android_widget_create — 创建全局桌面卡片（不依附服务）
+// desktop_widget_create — 创建全局桌面卡片（不依附服务）
 // ================================================================
 
 toolRegistry.register({
-  name: 'android_widget_create',
+  name: 'desktop_widget_create',
   toolset: 'ui',
+  checkFn: widgetSupported,
   category: 'manage',
   emoji: '✨',
   description:
-    '创建全局安卓桌面卡片（不依附任何服务，写入 {AppData}/amiba/desktop-widgets/cards/{cardId}/）。默认路径：用户要桌面卡片一律先用此工具。仅当用户明确要求"服务卡片"、卡片需读写某服务自身数据（共享 storage）、或需随服务分发时，才改用 service_file_write 写 services/{id}/desktop-widgets/（规范见 desktop-widget-dev 技能）。',
+    '创建全局系统桌面卡片（不依附任何服务，写入 {AppData}/amiba/desktop-widgets/cards/{cardId}/；Android AppWidget 与鸿蒙 FormKit 通用）。默认路径：用户要桌面卡片一律先用此工具。仅当用户明确要求"服务卡片"、卡片需读写某服务自身数据（共享 storage）、或需随服务分发时，才改用 service_file_write 写 services/{id}/desktop-widgets/（规范见 desktop-widget-dev 技能）。',
   maxResultSizeChars: 2000,
   schema: {
     type: 'function',
     function: {
-      name: 'android_widget_create',
+      name: 'desktop_widget_create',
       description:
         '创建全局桌面卡片：widget.json（界面配置）+ logic.js（数据逻辑，恰好调用一次 __amiba__.desktopWidget.publish()，仅可用 desktopWidget + storage 模块）。创建后自动启用并刷新。规范详见 desktop-widget-dev 技能。',
       parameters: {
@@ -95,7 +101,7 @@ toolRegistry.register({
     }
     const key = `global/${cardId}`
     if (desktopWidgetDefs.value.some((d) => d.key === key)) {
-      return `错误：全局卡片已存在: ${key}。用 service_file 思路修改文件后 android_widget_refresh，或换 cardId。`
+      return `错误：全局卡片已存在: ${key}。用 service_file 思路修改文件后 desktop_widget_refresh，或换 cardId。`
     }
     const logicJs = String(args.logicJs || '')
     if (!logicJs.includes('desktopWidget.publish')) {
@@ -135,23 +141,24 @@ toolRegistry.register({
 })
 
 // ================================================================
-// android_widget_list — 列出全部桌面卡片
+// desktop_widget_list — 列出全部桌面卡片
 // ================================================================
 
 toolRegistry.register({
-  name: 'android_widget_list',
+  name: 'desktop_widget_list',
   toolset: 'ui',
+  checkFn: widgetSupported,
   category: 'view',
   emoji: '📱',
   description:
-    '列出所有服务定义的安卓系统桌面卡片（服务 desktop-widgets/ 目录），含启用状态与最近推送时间。创建卡片用 service_file_write 在服务目录下写 desktop-widgets/{cardId}/widget.json + logic.js。',
+    '列出所有服务定义的系统桌面卡片（服务 desktop-widgets/ 目录），含启用状态与最近推送时间。创建卡片用 service_file_write 在服务目录下写 desktop-widgets/{cardId}/widget.json + logic.js。',
   maxResultSizeChars: 4000,
   schema: {
     type: 'function',
     function: {
-      name: 'android_widget_list',
+      name: 'desktop_widget_list',
       description:
-        '列出全部安卓系统桌面卡片。卡片定义来自各服务的 desktop-widgets/{cardId}/ 目录。仅 Android 生效；用户需在系统桌面添加"变形虫"小组件并选择卡片。',
+        '列出全部系统桌面卡片（Android AppWidget / 鸿蒙 FormKit，同一套卡片定义）。卡片定义来自各服务的 desktop-widgets/{cardId}/ 目录或全局卡片目录。用户需在系统桌面添加"变形虫"小组件并选择卡片。',
       parameters: { type: 'object', properties: {} },
     },
   },
@@ -178,21 +185,22 @@ toolRegistry.register({
 })
 
 // ================================================================
-// android_widget_enable — 启用/停用卡片
+// desktop_widget_enable — 启用/停用卡片
 // ================================================================
 
 toolRegistry.register({
-  name: 'android_widget_enable',
+  name: 'desktop_widget_enable',
   toolset: 'ui',
+  checkFn: widgetSupported,
   category: 'manage',
   emoji: '🔛',
   description:
-    '启用或停用一张安卓系统桌面卡片（改全局 registry.json 并推送原生）。key 格式 "serviceId/cardId"，用 android_widget_list 查看。',
+    '启用或停用一张系统桌面卡片（改全局 registry.json 并推送原生）。key 格式 "serviceId/cardId"，用 desktop_widget_list 查看。',
   maxResultSizeChars: 2000,
   schema: {
     type: 'function',
     function: {
-      name: 'android_widget_enable',
+      name: 'desktop_widget_enable',
       description: '启用/停用指定桌面卡片。启用后用户在系统桌面添加小组件时可选到该卡片。',
       parameters: {
         type: 'object',
@@ -218,19 +226,20 @@ toolRegistry.register({
       await rescanDesktopWidgets()
       def = desktopWidgetDefs.value.find((d) => d.key === key)
     }
-    if (!def) return `错误：卡片不存在: ${key}。用 android_widget_list 查看可用卡片。`
+    if (!def) return `错误：卡片不存在: ${key}。用 desktop_widget_list 查看可用卡片。`
     await setCardEnabled(key, !!args.enabled)
     return `✓ 已${args.enabled ? '启用' : '停用'}桌面卡片: ${def.label} (${key})`
   },
 })
 
 // ================================================================
-// android_widget_refresh — 立即刷新卡片数据
+// desktop_widget_refresh — 立即刷新卡片数据
 // ================================================================
 
 toolRegistry.register({
-  name: 'android_widget_refresh',
+  name: 'desktop_widget_refresh',
   toolset: 'ui',
+  checkFn: widgetSupported,
   category: 'manage',
   emoji: '🔄',
   description:
@@ -239,8 +248,8 @@ toolRegistry.register({
   schema: {
     type: 'function',
     function: {
-      name: 'android_widget_refresh',
-      description: '重跑桌面卡片逻辑并推送到安卓系统桌面。不传 key 时刷新全部启用卡片。',
+      name: 'desktop_widget_refresh',
+      description: '重跑桌面卡片逻辑并推送到系统桌面。不传 key 时刷新全部启用卡片。',
       parameters: {
         type: 'object',
         properties: {
@@ -259,7 +268,7 @@ toolRegistry.register({
       return ok ? `✓ 卡片已刷新: ${key}` : `✗ 卡片刷新失败: ${key}（不存在/超时/逻辑报错，见日志）`
     }
     if (enabledWidgetKeys.value.length === 0) {
-      return '没有启用的桌面卡片。先用 android_widget_enable 启用。'
+      return '没有启用的桌面卡片。先用 desktop_widget_enable 启用。'
     }
     await refreshAllWidgetCards()
     return `✓ 已刷新全部 ${enabledWidgetKeys.value.length} 张启用卡片`
@@ -267,22 +276,23 @@ toolRegistry.register({
 })
 
 // ================================================================
-// android_widget_delete — 删除卡片
+// desktop_widget_delete — 删除卡片
 // ================================================================
 
 toolRegistry.register({
-  name: 'android_widget_delete',
+  name: 'desktop_widget_delete',
   toolset: 'ui',
+  checkFn: widgetSupported,
   category: 'manage',
   emoji: '🗑️',
   description:
-    '删除一张安卓桌面卡片：删定义文件（全局卡片整个目录 / 服务卡片 desktop-widgets/{cardId}/ 目录）+ 清启用状态与缓存 + 推送原生。不可恢复，删除前先与用户确认。已放置在桌面的 widget 实例无法远程移除（会显示占位文本），需提示用户手动移除。',
+    '删除一张系统桌面卡片：删定义文件（全局卡片整个目录 / 服务卡片 desktop-widgets/{cardId}/ 目录）+ 清启用状态与缓存 + 推送原生。不可恢复，删除前先与用户确认。已放置在桌面的 widget 实例无法远程移除（会显示占位文本），需提示用户手动移除。',
   maxResultSizeChars: 2000,
   schema: {
     type: 'function',
     function: {
-      name: 'android_widget_delete',
-      description: '删除指定桌面卡片（key 格式 "serviceId/cardId" 或 "global/{cardId}"，用 android_widget_list 查看）。删除后选卡页不再列出；桌面已放置的实例需用户手动移除。',
+      name: 'desktop_widget_delete',
+      description: '删除指定桌面卡片（key 格式 "serviceId/cardId" 或 "global/{cardId}"，用 desktop_widget_list 查看）。删除后选卡页不再列出；桌面已放置的实例需用户手动移除。',
       parameters: {
         type: 'object',
         properties: {
@@ -301,7 +311,7 @@ toolRegistry.register({
       await deleteWidgetCard(key)
       return `✓ 桌面卡片已删除: ${key}。若用户已在桌面放置该卡片，请提示其长按移除残留实例。`
     } catch (e: any) {
-      return `✗ 删除失败: ${e.message}。用 android_widget_list 查看可用卡片。`
+      return `✗ 删除失败: ${e.message}。用 desktop_widget_list 查看可用卡片。`
     }
   },
 })

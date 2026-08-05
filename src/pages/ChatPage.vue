@@ -7,7 +7,7 @@
     <!-- 插槽: chat.above-messages -->
     <SlotRenderer name="chat.above-messages" :html="slotHtml('chat.above-messages')" />
 
-    <TransitionGroup name="msg" tag="div" class="chat-messages" ref="messagesEl">
+    <TransitionGroup name="msg" tag="div" class="chat-messages" :class="{ 'pre-scroll': !initialScrolled }" ref="messagesEl">
       <div
         v-for="(msg, idx) in visibleMessages"
         :key="idx"
@@ -172,7 +172,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, onMounted, onUnmounted, watch, computed } from 'vue'
+// keep-alive 按组件名缓存：聊天页常驻，滑回时保留 DOM 与滚动位置，零重载
+defineOptions({ name: 'ChatPage' })
+
+import { ref, nextTick, onMounted, onUnmounted, onActivated, onDeactivated, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getApiKey, settings } from '../config/config'
 import {
@@ -219,6 +222,9 @@ const { messages, turnCount, sending, streaming, streamingContent, errorMessage:
 
 const input = ref('')
 const messagesEl = ref<any>(null) // TransitionGroup 组件实例，取 DOM 用 .$el
+// 首帧置底完成前隐藏消息列表（仅冷启动首次挂载：store 为空需等异步加载）。
+// 滑页预览等重挂载场景 store 已有消息，首帧同步渲染+置底，不隐藏避免闪烁
+const initialScrolled = ref(messages.value.length > 0)
 const showStats = ref(false)
 const showSessions = ref(false)
 const panelOpen = ref(false)
@@ -447,7 +453,21 @@ onMounted(async () => {
   window.visualViewport?.addEventListener('scroll', syncKeyboardInset)
   syncKeyboardInset()
 
-  await loadHistory()
+  // store 已有缓存消息（重挂载）：DOM 已同步渲染，首帧绘制前直接置底
+  if (initialScrolled.value) {
+    const el = messagesEl.value?.$el ?? messagesEl.value
+    if (el) el.scrollTop = el.scrollHeight
+  }
+
+  // 冷启动首挂载：历史加载期间列表保持隐藏（pre-scroll），加载完同步置底后再显示
+  try {
+    await loadHistory()
+    await nextTick()
+    const el = messagesEl.value?.$el ?? messagesEl.value
+    if (el) el.scrollTop = el.scrollHeight
+  } finally {
+    initialScrolled.value = true
+  }
   await refreshSessionList()
 
   // 清理历史记录中残留的"未配置 API Key"提示消息（旧版本可能保存为可见消息）
@@ -490,6 +510,23 @@ onUnmounted(() => {
   window.visualViewport?.removeEventListener('scroll', syncKeyboardInset)
   document.removeEventListener('visibilitychange', onVisibilityChange)
   document.removeEventListener('click', closeSessionDropdown)
+})
+
+// keep-alive 激活：首次激活紧随 onMounted（已刷新过），之后每次滑回聊天页刷新会话列表统计
+let activatedOnce = false
+onActivated(() => {
+  if (!activatedOnce) {
+    activatedOnce = true
+    return
+  }
+  refreshSessionList()
+  // 休眠期间 DOM 脱离文档，滚动容器的 scrollTop 会丢失归零：激活后恢复置底
+  scrollToBottom()
+})
+
+// keep-alive 休眠：页面切走但组件不销毁，等效原 onUnmounted 的页面级清理
+onDeactivated(() => {
+  errorMsg.value = ''
 })
 
 watch(
@@ -551,6 +588,11 @@ watch(lastReviewResult, (result) => {
 /* 空态：隐藏消息区，输入区垂直居中 */
 .chat-page.empty .chat-messages {
   display: none;
+}
+
+/* 首帧置底完成前隐藏消息列表（visibility 保持布局占位，背景照常显示） */
+.chat-messages.pre-scroll {
+  visibility: hidden;
 }
 
 .chat-page.empty .chat-input-zone {

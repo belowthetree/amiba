@@ -80,6 +80,10 @@ import {
 } from '../host/registry'
 import type { ServiceEntry, ServicePackage } from '../types/service'
 import { readDirRecursive } from '../config/storage'
+import type { DirFile } from '../config/storage'
+import type { FileInfo } from '../types/service'
+import { isHarmonyRuntime, nativeInvoke } from '../config/platform-bridge'
+import { PICKER_COMMANDS } from '../types/native-bridge'
 import { widgetStates, setServiceWidgetsVisible, hasWidgetConfig } from '../host/floating-widget-manager'
 import { isRunning, startService, stopService } from '../host/background-manager'
 import { settings } from '../config/config'
@@ -203,6 +207,13 @@ async function importFromFolder() {
     const dir = await pickFolder(t('services.dialogTitle'))
     if (!dir) return
 
+    // 鸿蒙 picker URI（file://docs/... 沙箱外目录）：native-fs 的 resolveSafe 会拒绝，
+    // 改走壳层 fileAccess 命令族直读
+    if (isHarmonyRuntime() && dir.startsWith('file://docs/')) {
+      await importFromPickerUri(dir)
+      return
+    }
+
     const { readTextFile } = await import('../config/native-fs')
 
     // Read manifest.json
@@ -234,6 +245,45 @@ async function importFromFolder() {
     console.error('[Import] 导入失败:', e)
     alert(t('services.importFailed') + ': ' + (e.message || e))
   }
+}
+
+// 鸿蒙 picker URI 导入：壳层 fileAccess 命令族直读（URI 子项按段编码拼接，
+// 与 file-access-grants.ts 的 _harmonyChildUri 同款规则）
+async function importFromPickerUri(dir: string) {
+  const childUri = (rel: string) =>
+    `${dir}/${rel.split('/').filter(Boolean).map(encodeURIComponent).join('/')}`
+  const readText = async (rel: string) => {
+    const r = await nativeInvoke<{ data: string }>(PICKER_COMMANDS.fileAccessReadText, { uri: childUri(rel) })
+    return r.data
+  }
+
+  const manifestRaw = await readText('manifest.json').catch(() => null)
+  if (!manifestRaw) {
+    alert(t('services.noManifestJson'))
+    return
+  }
+  const manifest = JSON.parse(manifestRaw)
+  if (!manifest.id || !manifest.name) {
+    alert(t('services.invalidManifest'))
+    return
+  }
+
+  // 递归枚举（pattern 含 '**' 即递归；manifest.json 跳过，对齐 readDirRecursive 语义）
+  const entries = await nativeInvoke<FileInfo[]>(PICKER_COMMANDS.fileAccessList, { uri: dir, pattern: '**' })
+  const files: DirFile[] = []
+  for (const e of entries) {
+    if (e.isDir || e.path === 'manifest.json') continue
+    files.push({ path: e.path, content: await readText(e.path) })
+  }
+  if (!files.some((f) => f.path === 'index.html')) {
+    alert(t('services.missingIndexHtml'))
+    return
+  }
+
+  const pkg: ServicePackage = { manifest, files }
+  await registerService(manifest, 'downloaded')
+  await storeServicePackage(manifest.id, pkg)
+  alert(t('services.imported', { name: manifest.name }))
 }
 </script>
 

@@ -33,7 +33,10 @@
       >
         <router-view v-slot="{ Component, route: r }">
           <transition :name="transitionName" @after-enter="onPageEntered">
-            <component :is="Component" :key="r.fullPath" />
+            <!-- 聊天页常驻缓存：滑回时复用 DOM 与滚动位置，避免重挂载闪烁 -->
+            <keep-alive include="ChatPage">
+              <component :is="Component" :key="r.fullPath" />
+            </keep-alive>
           </transition>
         </router-view>
       </div>

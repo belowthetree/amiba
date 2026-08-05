@@ -392,7 +392,7 @@ adb install -r app-release-signed.apk
 | **Web** | `web_fetch` `web_browse` | Web page fetching & browser interaction |
 | **UI Theme** | `ui_theme_view/list/set_variable/set_css/reset/create/delete/switch` | Theme management & styling |
 | **UI Slot** | `ui_slot_list/get/set/remove` | Slot / inline component management |
-| **Home-Screen Cards** | `android_widget_create/list/enable/refresh/delete` | Android home-screen card management (Android only) |
+| **Home-Screen Cards** | `desktop_widget_create/list/enable/refresh/delete` | Home-screen card management (Android / HarmonyOS) |
 
 ## Memory & Requirement Nudge
 

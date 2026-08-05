@@ -395,7 +395,7 @@ adb install -r app-release-signed.apk
 | **网页** | `web_fetch` `web_browse` | 网页抓取与浏览器交互 |
 | **界面** | `ui_theme_view/list/set_variable/set_css/reset/create/delete/switch` | 主题管理与外观定制 |
 | **界面** | `ui_slot_list/get/set/remove` | 插槽/内嵌组件管理 |
-| **桌面卡片** | `android_widget_create/list/enable/refresh/delete` | 安卓系统桌面卡片管理（仅 Android） |
+| **桌面卡片** | `desktop_widget_create/list/enable/refresh/delete` | 系统桌面卡片管理（Android / 鸿蒙） |
 
 ## 记忆与需求机制
 

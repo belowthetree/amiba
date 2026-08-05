@@ -14,7 +14,7 @@ category: guide
 ## 权限声明
 
 服务卡片：`manifest.permissions` 必须包含 `"desktopWidgets"`。
-全局卡片（`{AppData}/amiba/desktop-widgets/cards/{cardId}/`，key 为 `global/{cardId}`）：无权限要求，用 `android_widget_create` 工具创建，storage 落到 `desktop-widgets/data/{cardId}/`。
+全局卡片（`{AppData}/amiba/desktop-widgets/cards/{cardId}/`，key 为 `global/{cardId}`）：无权限要求，用 `desktop_widget_create` 工具创建，storage 落到 `desktop-widgets/data/{cardId}/`。
 
 ## 卡片目录
 
@@ -65,7 +65,7 @@ publish 还可带样式覆盖字段 `accentColor` / `backgroundColor` / `textCol
 
 ## 执行与刷新
 
-- 时机：App 启动全量刷新 + `updateIntervalMin` 周期 + `android_widget_refresh` 手动
+- 时机：App 启动全量刷新 + `updateIntervalMin` 周期 + `desktop_widget_refresh` 手动
 - **占位显示**：卡片启用后即使 logic.js 尚未成功运行，也会以占位载荷（label + "加载中…"）出现在选卡页，首次 publish 后替换为真实数据
 - App 被杀期间桌面显示最后一次推送的缓存（原生 SharedPreferences）
 - 点击卡片：打开 App 并跳转 `tapPath`
@@ -74,7 +74,7 @@ publish 还可带样式覆盖字段 `accentColor` / `backgroundColor` / `textCol
 
 选卡页显示"暂无可用卡片"时按序排查：
 
-1. `android_widget_list` 确认卡片已注册且 `enabled: true`
+1. `desktop_widget_list` 确认卡片已注册且 `enabled: true`
 2. 设置页 → 日志搜 `[DesktopWidget]`：应有"已推送原生: N 张启用卡片"；有"推送原生失败"则为桥接问题
 3. logcat 搜 `[amiba-widget]`：应有 `updateCards ✓`；报错则为 JNI/原生侧问题
 
@@ -82,11 +82,11 @@ publish 还可带样式覆盖字段 `accentColor` / `backgroundColor` / `textCol
 
 | 工具 | 说明 |
 |------|------|
-| `android_widget_create` | 创建全局卡片（不依附服务），含 widget.json 字段 + logicJs |
-| `android_widget_list` | 列出全部卡片（key 格式 `serviceId/cardId` 或 `global/{cardId}`） |
-| `android_widget_enable` | 启用/停用卡片 |
-| `android_widget_refresh` | 立即重跑 logic 并推送桌面 |
-| `android_widget_delete` | 删除卡片（文件 + 启用状态 + 缓存），桌面实例需用户手动移除 |
+| `desktop_widget_create` | 创建全局卡片（不依附服务），含 widget.json 字段 + logicJs |
+| `desktop_widget_list` | 列出全部卡片（key 格式 `serviceId/cardId` 或 `global/{cardId}`） |
+| `desktop_widget_enable` | 启用/停用卡片 |
+| `desktop_widget_refresh` | 立即重跑 logic 并推送桌面 |
+| `desktop_widget_delete` | 删除卡片（文件 + 启用状态 + 缓存），桌面实例需用户手动移除 |
 
 ## 用户使用
 
