@@ -5,7 +5,7 @@ import { common } from '@kit.AbilityKit'
 const TAG = '[AmibaFs]'
 
 // BaseDirectory 数值镜像（与 @tauri-apps/api/path v2 / src/config/native-fs.ts 一致），当前前端仅用 AppData
-const BASE_APP_DATA: number = 14
+export const BASE_APP_DATA: number = 14
 const BASE_APP_CACHE: number = 16
 
 // ---- fs_* 线协议结果类型（与 src/types/native-bridge.ts 对应）----
@@ -48,6 +48,11 @@ export function initFsDirs(context: common.UIAbilityContext): void {
   console.log(`${TAG} cacheDir=${appCacheDirPath}`)
 }
 
+// 导出供 PickerCommands（上传暂存 amiba/uploads/）与 WebDownloadDelegate（下载落盘 amiba/downloads/）拼接沙箱子目录
+export function getFilesDir(): string {
+  return appFilesDir
+}
+
 // ---- 参数提取 ----
 function reqStr(v: Object | undefined, name: string): string {
   if (typeof v !== 'string' || (v as string).length === 0) {
@@ -69,7 +74,8 @@ function optBaseDir(v: Object | undefined): number {
 }
 
 // ---- 路径解析与防穿越（前端 storage.ts 另有 safePath，此为第二道防线）----
-function resolveSafe(path: string, baseDir: number): string {
+// 导出供 HttpCommands（download_file 目标路径校验）复用
+export function resolveSafe(path: string, baseDir: number): string {
   const root = baseDir === BASE_APP_CACHE ? appCacheDirPath : appFilesDir
   let full: string
   if (path.startsWith('/')) {
@@ -146,7 +152,8 @@ function mkdirRecursive(path: string): void {
   }
 }
 
-function ensureParentDir(path: string): void {
+// 导出供 HttpCommands（download_file 建目录）复用
+export function ensureParentDir(path: string): void {
   const idx = path.lastIndexOf('/')
   if (idx > 0) {
     mkdirRecursive(path.substring(0, idx))

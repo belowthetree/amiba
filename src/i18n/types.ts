@@ -147,6 +147,7 @@ export interface LocalesSchema {
       noPlatformAsset: string
       downloadFailed: string
       installFailed: string
+      goToMarket: string
       backgroundServices: string
       backgroundDesc: string
       backgroundMax: string

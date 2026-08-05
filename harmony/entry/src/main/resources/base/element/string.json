@@ -11,6 +11,38 @@
     {
       "name": "EntryAbility_label",
       "value": "变形虫"
+    },
+    {
+      "name": "EntryFormAbility_desc",
+      "value": "变形虫系统桌面卡片"
+    },
+    {
+      "name": "EntryFormAbility_label",
+      "value": "变形虫卡片"
+    },
+    {
+      "name": "form_lines_display_name",
+      "value": "变形虫卡片·列表"
+    },
+    {
+      "name": "form_lines_desc",
+      "value": "显示文本行列表的桌面卡片"
+    },
+    {
+      "name": "form_image_display_name",
+      "value": "变形虫卡片·图片"
+    },
+    {
+      "name": "form_image_desc",
+      "value": "显示图片的桌面卡片"
+    },
+    {
+      "name": "form_bigtext_display_name",
+      "value": "变形虫卡片·大字"
+    },
+    {
+      "name": "form_bigtext_desc",
+      "value": "显示大字内容的桌面卡片"
     }
   ]
 }

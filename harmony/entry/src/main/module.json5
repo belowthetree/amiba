@@ -34,9 +34,31 @@
         ]
       }
     ],
+    "extensionAbilities": [
+      {
+        // FormKit 系统桌面卡片（对应 Android 三个 AppWidget Provider；单 ability
+        // 经 form_config.json supportDimensions 覆盖 2*2/2*4/4*4 三档尺寸）
+        "name": "EntryFormAbility",
+        "srcEntry": "./ets/entryformability/EntryFormAbility.ets",
+        "label": "$string:EntryFormAbility_label",
+        "description": "$string:EntryFormAbility_desc",
+        "type": "form",
+        "metadata": [
+          {
+            "name": "ohos.extension.form",
+            "resource": "$profile:form_config"
+          }
+        ]
+      }
+    ],
     "requestPermissions": [
       {
         "name": "ohos.permission.INTERNET"
+      },
+      {
+        // ACL 受限权限：用于 fileShare.persistPermission 持久化 picker URI 授权（PickerCommands.ets）。
+        // 默认签名不授予时运行时抛 201，壳层捕获后降级为「授权仅本次生命周期有效」，不影响主流程。
+        "name": "ohos.permission.FILE_ACCESS_PERSIST"
       }
     ]
   }

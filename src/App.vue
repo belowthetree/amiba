@@ -76,6 +76,7 @@ import { testApiConnection } from './ai/api-check'
 import { themeState } from './config/theme-store'
 import { settings } from './config/config'
 import { checkForUpdate } from './config/updater'
+import { isHarmonyRuntime, nativeListen, type UnlistenFn } from './config/platform-bridge'
 import { PAGE_ORDER } from './router'
 
 const route = useRoute()
@@ -439,6 +440,19 @@ function onWidgetNavigate(e: Event) {
   }
 }
 
+// 鸿蒙热通道：ArkTS 壳经 emitToWeb 推送同名事件（FormCommands.handleHotTap），
+// 走 nativeListen 而非 DOM 事件
+let unlistenWidgetNavigate: UnlistenFn | null = null
+async function setupHarmonyWidgetNavigate() {
+  if (!isHarmonyRuntime()) return
+  unlistenWidgetNavigate = await nativeListen<string>('amiba-widget-navigate', (e) => {
+    if (typeof e.payload === 'string' && e.payload.startsWith('/')) {
+      console.log('[App] 桌面卡片跳转(鸿蒙):', e.payload)
+      router.push(e.payload).catch(() => {})
+    }
+  })
+}
+
 // 冷启动兜底：bootstrap 后消费一次原生侧暂存的跳转路径
 async function consumePendingWidgetTap() {
   try {
@@ -456,6 +470,7 @@ onMounted(() => {
   watch(() => ({ ...themeState.variables, css: themeState.customCSS }), injectThemeStyles, { deep: true })
   window.addEventListener('message', onIframeTouchMessage)
   window.addEventListener('amiba-widget-navigate', onWidgetNavigate)
+  setupHarmonyWidgetNavigate()
   consumePendingWidgetTap()
   // 启动后延时检查更新（避免阻塞首屏）
   setTimeout(() => checkUpdateBanner(), 2000)
@@ -488,6 +503,7 @@ async function checkApiAvailability() {
 onUnmounted(() => {
   window.removeEventListener('message', onIframeTouchMessage)
   window.removeEventListener('amiba-widget-navigate', onWidgetNavigate)
+  unlistenWidgetNavigate?.()
 })
 </script>
 

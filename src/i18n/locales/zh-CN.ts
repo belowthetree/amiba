@@ -134,6 +134,7 @@ const zhCN: LocalesSchema = {
       noPlatformAsset: '当前平台没有匹配的安装包',
       downloadFailed: '下载失败',
       installFailed: '安装启动失败',
+      goToMarket: '鸿蒙版请前往应用市场更新',
       backgroundServices: '后台服务',
       backgroundDesc: '允许服务在后台持续运行（如定时提醒、设备监听等）',
       backgroundMax: '最大并发数',

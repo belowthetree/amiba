@@ -6,13 +6,14 @@
 // 全局配置集中在 {AppData}/amiba/desktop-widgets/：
 //   registry.json（启用状态）+ cache/*.json（最近渲染载荷）
 //
-// 渲染载荷推送到 Android 原生侧（RemoteViews），仅 Android 生效，
+// 渲染载荷推送到原生侧（Android RemoteViews / 鸿蒙 FormKit），
 // 其他平台 pushToNative 静默跳过。
 // ============================================================
 import { ref } from 'vue'
 import { storageGet, storageSet, storageRemove, storageGetJSON, storageSetJSON, readServiceFile, listServiceFiles } from './storage'
 import { getUserServices } from '../host/registry'
 import { detectPlatform } from './updater'
+import { isHarmonyRuntime } from './platform-bridge'
 
 const REGISTRY_KEY = 'desktop-widgets/registry.json'
 const CACHE_PREFIX = 'desktop-widgets/cache/'
@@ -498,11 +499,12 @@ export async function loadCardPayload(key: string): Promise<DesktopWidgetPayload
 }
 
 // ================================================================
-// 推送原生侧（仅 Android）
+// 推送原生侧（Android → android_widget_update；鸿蒙 → form_widget_update，载荷原样）
 // ================================================================
 
 export async function pushToNative(): Promise<void> {
-  if (detectPlatform() !== 'android') return
+  const harmony = isHarmonyRuntime()
+  if (detectPlatform() !== 'android' && !harmony) return
   try {
     const payloads: DesktopWidgetPayload[] = []
     for (const key of _registry.enabled) {
@@ -516,7 +518,7 @@ export async function pushToNative(): Promise<void> {
       if (cached) payloads.push(cached)
     }
     const { nativeInvoke } = await import('./platform-bridge')
-    await nativeInvoke('android_widget_update', { json: JSON.stringify(payloads) })
+    await nativeInvoke(harmony ? 'form_widget_update' : 'android_widget_update', { json: JSON.stringify(payloads) })
     console.log(`[DesktopWidget] 已推送原生: ${payloads.length} 张启用卡片`, payloads.map((p) => p.key).join(', '))
   } catch (e) {
     console.warn('[DesktopWidget] 推送原生失败:', e)
@@ -548,10 +550,11 @@ function placeholderPayload(def: DesktopWidgetDef): DesktopWidgetPayload {
 
 /** 消费桌面卡片点击的跳转路径（冷启动兜底，App.vue 挂载后调用一次） */
 export async function consumeWidgetTapPath(): Promise<string> {
-  if (detectPlatform() !== 'android') return ''
+  const harmony = isHarmonyRuntime()
+  if (detectPlatform() !== 'android' && !harmony) return ''
   try {
     const { nativeInvoke } = await import('./platform-bridge')
-    return (await nativeInvoke<string>('android_widget_consume_tap')) || ''
+    return (await nativeInvoke<string>(harmony ? 'form_widget_consume_tap' : 'android_widget_consume_tap')) || ''
   } catch {
     return ''
   }

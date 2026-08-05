@@ -2,12 +2,16 @@
 // 变形虫 (Amiba) — FileAccessGrants
 // ============================================================
 // 管理服务的文件访问授权。Android 端通过 tauri-plugin-android-fs
-// 的 SAF API 操作；桌面端使用 tauri-plugin-fs；浏览器不可用。
+// 的 SAF API 操作；鸿蒙端经壳层 PickerCommands 直读 picker URI
+// （file://docs/...，沙箱外目录，native-fs 的 resolveSafe 会拒绝）；
+// 桌面端使用 tauri-plugin-fs；浏览器不可用。
 // 授权仅本次应用生命周期有效，不落盘。
 // ============================================================
 
 import type { FileAccessRequest, FileAccessGrant, FileInfo } from '../types/service'
 import { pickFolder } from '../config/folder-picker'
+import { isHarmonyRuntime, nativeInvoke } from '../config/platform-bridge'
+import { PICKER_COMMANDS } from '../types/native-bridge'
 import type { AndroidFsUri } from 'tauri-plugin-android-fs-api'
 
 interface GrantEntry {
@@ -88,6 +92,20 @@ async function releaseAndroidPermission(grant: FileAccessGrant): Promise<void> {
   } catch { /* 非 Android 或权限非持久化 */ }
 }
 
+// ---- 鸿蒙 picker URI 工具 ----
+// picker URI 形态 file://docs/storage/Users/currentUser/...（分层结构）；grant.path 以此开头才走鸿蒙桥，
+// 沙箱内普通路径继续落 native-fs（fs_* shim 可处理）
+
+function _isHarmonyPickerUri(path: string): boolean {
+  return path.startsWith('file://docs/')
+}
+
+// 子项 URI 按段编码拼接（风格对齐 Android 分支的 URI 拼接；与壳层 PickerCommands.joinUri 拼法保持一致）
+function _harmonyChildUri(rootUri: string, relativePath: string): string {
+  const segs = relativePath.split('/').filter(s => s.length > 0).map(encodeURIComponent)
+  return segs.length > 0 ? `${rootUri}/${segs.join('/')}` : rootUri
+}
+
 // ---- 目录扫描 ----
 
 async function _scanDir(basePath: string, pattern: string, results: FileInfo[]): Promise<void> {
@@ -117,7 +135,19 @@ async function _scanDir(basePath: string, pattern: string, results: FileInfo[]):
     }
     await walk(androidUri, '')
     return
-  } catch { /* 回退到桌面 tauri-plugin-fs */ }
+  } catch { /* 回退到鸿蒙桥 / 桌面 tauri-plugin-fs */ }
+
+  // 鸿蒙: 壳层递归枚举 picker URI 目录（pattern 仅决定递归），glob 过滤在前端 _matchesPattern
+  if (isHarmonyRuntime() && _isHarmonyPickerUri(basePath)) {
+    const entries = await nativeInvoke<FileInfo[]>(PICKER_COMMANDS.fileAccessList, { uri: basePath, pattern })
+    for (const e of entries) {
+      if (e.isDir) continue
+      if (_matchesPattern(e.path, pattern) || _matchesPattern(e.name, pattern)) {
+        results.push({ name: e.name, path: e.path, size: e.size ?? 0, isDir: false })
+      }
+    }
+    return
+  }
 
   // 桌面: 使用 tauri-plugin-fs
   const { readDir, join } = await import('../config/native-fs')
@@ -162,6 +192,7 @@ export async function requestAccess(serviceId: string, req: FileAccessRequest): 
     const AndroidFs = await _getAndroidFs()
     await AndroidFs.persistPickerUriPermission({ uri: folderPath, documentTopTreeUri: null })
   } catch { /* 非 Android 或非 picker URI */ }
+  // 鸿蒙: persistPermission 已在壳层 file_access_pick_folder 内 best-effort 完成，此处无需重复
 
   const token = _generateToken()
   const grant: FileAccessGrant = { token, path: folderPath, pattern, createdAt: new Date().toISOString() }
@@ -190,6 +221,13 @@ export async function readTextFile(serviceId: string, token: string, relativePat
     return await AndroidFs.readTextFile(childUri)
   } catch { /* fall through */ }
 
+  // 鸿蒙: picker URI 经壳层直读（native-fs 的 resolveSafe 会拒绝沙箱外目录）
+  if (isHarmonyRuntime() && _isHarmonyPickerUri(grant.path)) {
+    const r = await nativeInvoke<{ data: string }>(PICKER_COMMANDS.fileAccessReadText,
+      { uri: _harmonyChildUri(grant.path, relativePath) })
+    return r.data
+  }
+
   // 桌面/fallback
   const { readTextFile: fsReadTextFile, join } = await import('../config/native-fs')
   return await fsReadTextFile(await join(grant.path, relativePath))
@@ -207,6 +245,13 @@ export async function readBinaryFile(serviceId: string, token: string, relativeP
     const bytes = await AndroidFs.readFile(childUri)
     return _arrayToBase64(bytes)
   } catch { /* fall through */ }
+
+  // 鸿蒙: picker URI 经壳层直读（壳层返回 base64，与 Android 分支 _arrayToBase64 出口一致）
+  if (isHarmonyRuntime() && _isHarmonyPickerUri(grant.path)) {
+    const r = await nativeInvoke<{ data: string }>(PICKER_COMMANDS.fileAccessReadBinary,
+      { uri: _harmonyChildUri(grant.path, relativePath) })
+    return r.data
+  }
 
   // 桌面/fallback
   const { readFile: fsReadFile, join } = await import('../config/native-fs')

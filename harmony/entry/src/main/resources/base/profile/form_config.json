@@ -1,0 +1,70 @@
+{
+  "forms": [
+    {
+      "name": "amiba_lines",
+      "displayName": "$string:form_lines_display_name",
+      "description": "$string:form_lines_desc",
+      "src": "./ets/pages/form/WidgetCardLines.ets",
+      "uiSyntax": "arkts",
+      "window": {
+        "designWidth": 720,
+        "autoDesignWidth": true
+      },
+      "colorMode": "auto",
+      "isDefault": true,
+      "updateEnabled": false,
+      "scheduledUpdateTime": "00:00",
+      "updateDuration": 0,
+      "defaultDimension": "2*4",
+      "supportDimensions": [
+        "2*2",
+        "2*4",
+        "4*4"
+      ]
+    },
+    {
+      "name": "amiba_image",
+      "displayName": "$string:form_image_display_name",
+      "description": "$string:form_image_desc",
+      "src": "./ets/pages/form/WidgetCardImage.ets",
+      "uiSyntax": "arkts",
+      "window": {
+        "designWidth": 720,
+        "autoDesignWidth": true
+      },
+      "colorMode": "auto",
+      "isDefault": false,
+      "updateEnabled": false,
+      "scheduledUpdateTime": "00:00",
+      "updateDuration": 0,
+      "defaultDimension": "2*4",
+      "supportDimensions": [
+        "2*2",
+        "2*4",
+        "4*4"
+      ]
+    },
+    {
+      "name": "amiba_bigtext",
+      "displayName": "$string:form_bigtext_display_name",
+      "description": "$string:form_bigtext_desc",
+      "src": "./ets/pages/form/WidgetCardBigText.ets",
+      "uiSyntax": "arkts",
+      "window": {
+        "designWidth": 720,
+        "autoDesignWidth": true
+      },
+      "colorMode": "auto",
+      "isDefault": false,
+      "updateEnabled": false,
+      "scheduledUpdateTime": "00:00",
+      "updateDuration": 0,
+      "defaultDimension": "2*4",
+      "supportDimensions": [
+        "2*2",
+        "2*4",
+        "4*4"
+      ]
+    }
+  ]
+}

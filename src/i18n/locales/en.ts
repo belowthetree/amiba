@@ -134,6 +134,7 @@ const en: LocalesSchema = {
       noPlatformAsset: 'No matching package for current platform',
       downloadFailed: 'Download failed',
       installFailed: 'Install failed',
+      goToMarket: 'Please update via AppGallery on HarmonyOS',
       backgroundServices: 'Background Services',
       backgroundDesc: 'Allow services to run in background (e.g. timers, device monitoring)',
       backgroundMax: 'Maximum concurrent',

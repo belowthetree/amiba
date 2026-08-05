@@ -5,7 +5,7 @@
 // 被 web-browser.tool.ts 和其他模块使用。
 // ============================================================
 
-import { isTauriRuntime, nativeInvoke } from './platform-bridge'
+import { isHarmonyRuntime, isTauriRuntime, nativeInvoke } from './platform-bridge'
 
 // ---- Types ----
 
@@ -21,13 +21,13 @@ export interface EvalResult {
   result: string
 }
 
-// ---- 检测 Tauri 环境 ----
+// ---- 检测原生桥环境（Tauri / 鸿蒙壳均有 web 引擎实现；浏览器降级）----
 
 let _tauriAvailable: boolean | null = null
 
 export async function isTauri(): Promise<boolean> {
   if (_tauriAvailable !== null) return _tauriAvailable
-  _tauriAvailable = isTauriRuntime()
+  _tauriAvailable = isTauriRuntime() || isHarmonyRuntime()
   return _tauriAvailable
 }
 

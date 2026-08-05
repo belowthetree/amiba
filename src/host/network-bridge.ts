@@ -7,7 +7,7 @@
 
 import { reactive } from 'vue'
 import type { DiscoveredPeer, TransportVisibility } from '../types/service'
-import { isTauriRuntime } from '../config/platform-bridge'
+import { isTauriRuntime, isHarmonyRuntime } from '../config/platform-bridge'
 
 // ---- 状态 ----
 
@@ -35,7 +35,8 @@ export function onEvent(event: string, handler: EventHandler): () => void {
 // ---- 初始化 ----
 
 export async function initNetworkBridge(): Promise<void> {
-  isTauri = isTauriRuntime()
+  // 鸿蒙壳同样提供 network_* 命令族（ArkTS NetworkCommands.ets，协议与 Rust 一致）
+  isTauri = isTauriRuntime() || isHarmonyRuntime()
   if (!isTauri) {
     console.log('[NetworkBridge] 非 Tauri 环境')
     return

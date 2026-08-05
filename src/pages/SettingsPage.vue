@@ -228,7 +228,9 @@
           <div v-else-if="updateStatus.stage === 'available'" class="update-available">
             <p class="update-msg available">🆕 {{ $t('settings.general.newVersion') }} <strong>v{{ updateStatus.info.latestVersion }}</strong>（当前 v{{ updateStatus.info.currentVersion }}）</p>
             <p v-if="updateStatus.info.body" class="update-notes">{{ updateStatus.info.body }}</p>
-            <button class="primary-btn" @click="doDownload(updateStatus.info)">📥 {{ $t('settings.general.directDownload') }}</button>
+            <!-- 鸿蒙版应用内更新链下线（§5.7）：只提示去应用市场 -->
+            <p v-if="isHarmony" class="update-msg warn">🏪 {{ $t('settings.general.goToMarket') }}</p>
+            <button v-else class="primary-btn" @click="doDownload(updateStatus.info)">📥 {{ $t('settings.general.directDownload') }}</button>
           </div>
           <div v-else-if="updateStatus.stage === 'downloading'" class="download-progress">
             <p class="update-msg">📥 {{ $t('settings.general.downloading') }} ({{ formatSize(updateStatus.received) }} / {{ formatSize(updateStatus.total) }})</p>
@@ -582,6 +584,7 @@ import { providers, addProvider, updateProvider, deleteProvider, initProviderSto
 import { customAgents, addCustomAgent, updateCustomAgent, deleteCustomAgent, setActiveAgent, initCustomAgentStore } from '../ai/custom-agent-store'
 import type { AiProvider, CustomAgent } from '../types/service'
 import { getCurrentVersion, checkForUpdate, downloadUpdate, installUpdate, getCachedUpdate, type UpdateStatus, type UpdateInfo } from '../config/updater'
+import { isHarmonyRuntime } from '../config/platform-bridge'
 import { listSessions, deleteSession } from '../ai/session'
 import { getLogFiles, readLogFile, deleteLogFile, clearAllLogs, exportLogFile as exportLog, formatSize, type LogFileInfo, type LogEntry } from '../config/logger'
 import SkillShareDialog from './SkillShareDialog.vue'
@@ -614,6 +617,8 @@ async function handleThemeSwitch() {
 }
 
 const appVersion = ref('...')
+// 鸿蒙版更新链下线：设置页隐藏下载按钮改提示去应用市场（docs/harmonyos-migration.md §5.7）
+const isHarmony = isHarmonyRuntime()
 const activeTab = ref('general')
 const tabs = computed(() => [
   { key: 'general', label: t('settings.tabs.general') },

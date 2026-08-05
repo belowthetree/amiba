@@ -14,6 +14,11 @@ export class HarmonyBridge {
     this.controller = controller
   }
 
+  /** Web 是否已挂载（热通道事件投递能力判断；未挂载时调用方走冷通道兜底） */
+  isAttached(): boolean {
+    return this.controller !== null
+  }
+
   // H5 → 原生命令入口（javaScriptProxy methodList 声明）。
   // 抛出异常时 H5 侧 Promise 被 reject——各平台桥调用方均有 try/catch 降级。
   async invoke(cmd: string, argsJson: string): Promise<string> {

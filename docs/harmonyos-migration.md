@@ -5,8 +5,18 @@
 > 实施进度：
 > - ✅ 前端适配层：`src/types/native-bridge.ts`（命令协议注册表）、`src/config/platform-bridge.ts`（宿主探测 + invoke/listen 分发）、`src/config/native-fs.ts`（plugin-fs/path 兼容 shim）；业务代码已全量替换直连 import
 > - ✅ 鸿蒙壳 PoC 骨架：`harmony/`（DevEco 工程；javaScriptProxy 双向桥 + `fs_*` 命令族 + `get_app_info`；`npm run harmony:sync` 同步 dist → rawfile）
-> - ⬜ 阶段 0 真机验证（README 验证清单）→ 阶段 1：会话库（LIKE 退化）/ HTTP 三命令 / `web_fetch`（ArkWeb 池）
+> - ✅ 会话库 8 命令：`harmony/entry/src/main/ets/bridge/DbCommands.ets`（relationalStore + §6.1 方案a LIKE 退化搜索，`devecocli build` 通过）
+> - ✅ web 引擎 6 命令：`harmony/entry/src/main/ets/bridge/WebFetchCommands.ets`（Index.ets 隐藏 ArkWeb，480vp×360vp 对齐 Rust 隐藏窗口尺寸 + opacity(0)；web_fetch JS 渲染抓取 + HTTP 直连降级；get_content/click/input_text 注入 JS 逐字平移 + 哨兵变量轮询等待 Promise；web_close 重置隐藏 WebView；截图按 Rust 原样 html2canvas 注入 + 轮询，`webview-screenshot` 事件推送，`devecocli build` 通过）
+> - ✅ LAN 网络 13 命令：`harmony/entry/src/main/ets/bridge/NetworkCommands.ets` + `NetworkWsServer.ets` + `NetworkWsCodec.ets`（UDP 发现 28880 端口 3s 广播/15s 失联逐字段对齐 Rust，仅 255.255.255.255 降级；WS 入站为 TCPSocketServer 上手写 RFC6455——compatibleSdkVersion API 12 不可用官方 WebSocketServer（API 19+），SHA1/Base64/帧编解码为纯函数并经 Node RFC 向量离线验证 25 项；WS 出站用官方 webSocket 客户端 + hello/ack 握手平移；`network:*` 6 事件经 emitToWeb 推送；前端 network-bridge.ts 门闩扩为 tauri||harmony；`devecocli build` 通过）
+> - ✅ HTTP 三命令：`bridge/HttpCommands.ets`（流式下载 200ms 节流进度 + 取消删半成品；service_http_request 10s 超时限 http/https）
+> - ✅ Picker/fileAccess：`bridge/PickerCommands.ets` 4 命令（DocumentViewPicker + fs URI 直读，persistPermission ACL 受限降级生命周期有效）
+> - ✅ 导入导出桥接：onShowFileSelector（picker 拷贝入 uploads/ 回传 file:// URI）+ WebDownloadDelegate（blob 下载落盘 downloads/，data: 不支持）+ `bridge/WebDownloadDelegate.ets`
+> - ✅ edge-to-edge + 键盘避让：avoidArea → AppStorage → 根 Stack padding；KeyboardAvoidMode.NONE 须在 loadContent 后调（此前 getUIContext 抛 1300002 闪退）
+> - ✅ FormKit 卡片：见 §5.6 状态行
+> - ✅ 真机验证（CDP 端到端 26 项）：会话库 8 命令 / HTTP / web_fetch 双路径 / UDP 发现 / WS 监听起停 / form_widget_update / localStorage（主文档+srcdoc iframe）全过；路由坑已修（Web src 必须 `amiba://local/` 而非 `/index.html`，createWebHistory 按 pathname 匹配）
+> - ⬜ 待手动抽查：软键盘避让、导入导出交互、加卡片、LAN 与桌面互通
 > - ⬜ 阶段 0' 并行探针：社区 Tauri OHOS fork（richerfu/tauri）真机编译验证
+> - ⬜ 阶段 4 上架：签名证书 / 隐私协议 / 审核材料（更新链已下线为「检测+跳应用市场」）
 
 ## 1. 目标与范围
 
@@ -196,7 +206,7 @@ Vue 层的适配点全部是**管线而非视觉**：
 | `web_fetch`（HTTP fallback，`raw` HTML） | `http.createHttp` + HTML 正文提取（ArkTS 解析库或简化剥标签，对应 Rust scraper） | 中 |
 | `web_click` `web_input_text` `web_get_content` | **注入 JS 原样平移**（鼠标事件序列/native setter/React 兼容逻辑全是 JS） | 低 |
 | `web_close` | 池销毁 | 低 |
-| `web_capture_screenshot` | ArkWeb 原生 `snapshotPixelMap`，**比 html2canvas 注入更简单可靠** | 低 |
+| `web_capture_screenshot` | ArkWeb 原生 `webPageSnapshot` 可用（返回 PixelMap 需再打包 base64）；**实现选择按 Rust 原样平移**（html2canvas 注入 + `window._amiba_screenshot` 轮询），载荷 dataURL/`ERROR:` 串与桌面端逐字节一致，且不受隐藏 WebView opacity(0) 影响 | 低 |
 | URL 安全校验 | `is_safe_url`（web.rs:129）逻辑 ArkTS 重写一遍 | 低 |
 
 「隐藏 WebView 同步等待加载」协议（Kotlin 侧 `CountDownLatch`/`JsCallback` 那套）在 ArkTS 用 Promise/async 自然表达，比 Android 实现更简单。
@@ -216,6 +226,8 @@ Vue 层的适配点全部是**管线而非视觉**：
 `download_file`（流式+进度事件+取消）、`cancel_download`、`service_http_request`（10s 超时、限 http/https、透传 headers/body）——`http.createHttp` / `request` 下载 API 全覆盖，**低复杂度**。`service_http_request` 是服务沙箱 `fetch` 权限的实现，必须保留（绕 CORS）。
 
 ### 5.6 系统桌面卡片（widget.rs + Kotlin AppWidget → FormKit 全新实现）
+
+> **状态：已实现**（harmony-migration 分支）。ArkTS 侧：`bridge/FormCommands.ets`（form_widget_update/form_widget_consume_tap 两命令，线协议与 android_widget_* 逐字段对齐，另扩展 assign 重绑参数）+ `bridge/FormStore.ets`（卡片载荷/formId↔cardKey 映射/tap 暂存落 `filesDir/amiba-form/`，binding 数据装配 + formImages fd 传图 + updateForm 推送）+ `entryformability/EntryFormAbility.ets`（onAddForm 自动按 layout+尺寸绑定启用卡 / onUpdateForm 重推 / onRemoveForm 清映射）+ `pages/form/WidgetCard{Lines,Image,BigText}.ets` 三卡面（布局语义平移 widget_card*.xml）+ `resources/base/profile/form_config.json`（三模板各一条 form 记录，supportDimensions 2*2/2*4/4*4，updateDuration 0 事件驱动）。点击双通道：卡面 postCardAction router → EntryAbility（onCreate 冷态记 pending_tap 待 form_widget_consume_tap 消费；onNewWant 热态 emitToWeb `amiba-widget-navigate`，Web 未就绪降级冷通道）。前端仅 `desktop-widget-store.ts` 两处门加鸿蒙分支 + `App.vue` 加 nativeListen 热通道。**与 Android 语义差距：加卡时无法弹配置选卡页**（onAddForm 自动绑定，重绑走应用内 assign）。
 
 好消息：
 
@@ -237,7 +249,7 @@ Vue 层的适配点全部是**管线而非视觉**：
 | 能力 | 鸿蒙对应 | 备注 |
 |---|---|---|
 | `setupWindowInsets`（systemBars/IME padding） | `windowStage.getMainWindow()` + `getWindowAvoidArea`，ArkUI 官方模式 | 语义对等，Android 的 targetSdk 35 痛点在鸿蒙不存在 |
-| SAF 文件夹选取 + 持久授权（fileAccess） | `DocumentViewPicker` + `fileshare` 持久化授权 | **无 MANAGE_EXTERNAL_STORAGE 对等物**：「按路径直扫共享目录」降级为「picker 授权目录」模型，fileAccess 模块功能收窄 |
+| SAF 文件夹选取 + 持久授权（fileAccess） | `DocumentViewPicker` + `fileshare` 持久化授权 | **无 MANAGE_EXTERNAL_STORAGE 对等物**：「按路径直扫共享目录」降级为「picker 授权目录」模型，fileAccess 模块功能收窄。**已实现**：壳层 `PickerCommands.ets`（file_access_pick_folder/list/read_text/read_binary 4 命令），前端 folder-picker/file-access-grants 加鸿蒙分支；picker URI（`file://docs/...`）经 `fs.openSync` 直读（d.ts 明确支持 URI），stat 走 fd（`fs.stat(uri)` 需 API 22）；`persistPermission` 需 ACL 受限权限 `ohos.permission.FILE_ACCESS_PERSIST`，best-effort 失败后降级为「仅本次生命周期有效」（与前端不落盘设计一致） |
 | `read_tombstone` 崩溃诊断 | 砍掉或改用自研 logger 记录（`faultLog` 对普通应用受限） | 低优先 |
 | `tauri-plugin-android-installer` + `download_file` 更新链 | **整体下线** | AppGallery 分发，禁止应用内安装包自更新；更新检查改为「检测新版本 → 提示去应用市场」 |
 | `plugin-opener` | 不需要 | 随更新链下线 |

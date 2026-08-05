@@ -9,7 +9,7 @@
 // ============================================================
 
 import type { Message } from '../ai/session'
-import { isTauriRuntime } from './platform-bridge'
+import { isHarmonyRuntime, isTauriRuntime } from './platform-bridge'
 
 // ---- Rust 端返回类型 ----
 
@@ -50,13 +50,13 @@ export interface SessionRead {
   messages: MessageRow[]
 }
 
-// ---- 检测 Tauri 环境 ----
+// ---- 检测原生桥环境（Tauri / 鸿蒙壳均有会话库实现；浏览器降级为空结果）----
 
 let _tauriAvailable: boolean | null = null
 
 async function isTauri(): Promise<boolean> {
   if (_tauriAvailable !== null) return _tauriAvailable
-  _tauriAvailable = isTauriRuntime()
+  _tauriAvailable = isTauriRuntime() || isHarmonyRuntime()
   return _tauriAvailable
 }
 
