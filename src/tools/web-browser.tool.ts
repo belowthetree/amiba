@@ -98,6 +98,13 @@ toolRegistry.register({
     const p = args as Record<string, unknown>
     const action = String(p.action ?? '')
     console.log('[web_browse] action:', action, JSON.stringify(p))
+    // 参数校验先于平台门控：非 Tauri 环境（如 vitest）也能得到明确的参数错误
+    const needParams: Record<string, string[]> = { navigate: ['url'], click: ['selector'], input_text: ['selector', 'text'] }
+    if (!action) return 'Error: action required'
+    if (!(action in needParams) && action !== 'get_content' && action !== 'close') return `Error: unknown action "${action}"`
+    for (const key of needParams[action] ?? []) {
+      if (!String(p[key] ?? '').trim()) return `Error: ${key} required`
+    }
     if (!(await isTauri())) return '⚠️ web_browse requires Tauri runtime.'
 
     try {
