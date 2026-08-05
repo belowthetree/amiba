@@ -29,6 +29,9 @@ Vue 3 前端（主仓 `dist/` 产物）+ ArkTS 薄壳（ArkWeb 容器 + 原生�
 ## 构建运行
 
 ```bash
+# 0. 首次克隆：复制构建配置模板（签名配置不入库，见下）
+cp build-profile.json5.template build-profile.json5
+
 # 1. 主仓构建前端产物
 npm run build
 
@@ -38,7 +41,11 @@ npm run harmony:sync
 # 3. 用 DevEco Studio 打开本目录（harmony/），自动签名（调试）后运行到真机
 ```
 
-发布签名：在 DevEco 中配置 AppGallery Connect 证书/profile（`build-profile.json5` 的 `signingConfigs` 当前留空）。
+**签名配置不入库**：`build-profile.json5` 含本地密钥密文与证书路径，已加入 `.gitignore`。
+仓库只跟踪 `build-profile.json5.template`（`signingConfigs: []`）。首次克隆后复制模板，
+再用 DevEco「File → Project Structure → Signing Configs → Automatically generate signature」
+自动回填调试签名（自动签名会直接写回 `build-profile.json5`，属本地文件不会入库）。
+发布签名：在 DevEco 中配置 AppGallery Connect 证书/profile 到同一文件。
 
 ## 目录
 

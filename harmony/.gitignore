@@ -17,3 +17,6 @@ entry/src/main/resources/rawfile/*
 *.csr
 *.cer
 *.p7b
+
+# 含本地签名配置（密钥密文/证书路径），以 build-profile.json5.template 入库代替
+build-profile.json5
