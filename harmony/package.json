@@ -1,0 +1,6 @@
+{
+  "name": "amiba-harmony-shell",
+  "private": true,
+  "type": "commonjs",
+  "description": "鸿蒙壳工程目录。type=commonjs 用于让 hvigorw.js（CJS）在根仓 type=module 影响下仍能被 Node 按 CommonJS 加载；不影响 hvigor 构建本身。"
+}

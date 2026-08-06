@@ -1,0 +1,103 @@
+name: Release HarmonyOS
+
+# 鸿蒙 SDK / hvigor 只随 DevEco Studio 分发（下载需华为账号登录），GitHub 托管 runner
+# 无法无头安装，故本工作流跑在自托管 Windows runner 上（即装有 DevEco 的开发机）。
+# 一次性准备：
+#   1. 仓库 Settings → Actions → Runners → New self-hosted runner（Windows x64），
+#      在装有 DevEco Studio 的机器上注册并常驻运行（需匹配下方 runs-on 标签）。
+#   2. 添加 secret HARMONY_BUILD_PROFILE_BASE64：
+#      base64 -w0 harmony/build-profile.json5 的输出（该文件含发布签名配置，不入库）。
+#      其中引用的 .p12/.p7b/.cer 用绝对路径指向本机文件，runner 即本机故可直接读取。
+# 安全注意：自托管 runner 会以本机身份执行代码，本工作流只响应 main 分支 push，
+# 切勿加 pull_request 触发（公开仓库 fork PR 可在你的机器上执行任意代码）。
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'package.json'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release-harmony:
+    runs-on: [self-hosted, windows]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check if version changed
+        id: check
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+            echo "Tag v$VERSION already exists, skipping"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install dependencies
+        if: steps.check.outputs.skip == 'false'
+        run: npm ci
+
+      - name: Build frontend
+        if: steps.check.outputs.skip == 'false'
+        run: npm run build
+
+      - name: Restore harmony signing config
+        if: steps.check.outputs.skip == 'false'
+        shell: bash
+        env:
+          HARMONY_BUILD_PROFILE_BASE64: ${{ secrets.HARMONY_BUILD_PROFILE_BASE64 }}
+        run: |
+          if [ -z "$HARMONY_BUILD_PROFILE_BASE64" ]; then
+            echo "❌ HARMONY_BUILD_PROFILE_BASE64 未配置"
+            echo "请执行 base64 -w0 harmony/build-profile.json5 并将输出粘贴为该 secret"
+            exit 1
+          fi
+          echo "$HARMONY_BUILD_PROFILE_BASE64" | base64 -d > harmony/build-profile.json5
+
+      - name: Setup hvigor junctions
+        if: steps.check.outputs.skip == 'false'
+        shell: cmd
+        run: |
+          if exist harmony\node_modules rmdir /s /q harmony\node_modules
+          mkdir harmony\node_modules\@ohos
+          mklink /J harmony\node_modules\@ohos\hvigor "C:\Program Files\Huawei\DevEco Studio\tools\hvigor\hvigor"
+          mklink /J harmony\node_modules\@ohos\hvigor-ohos-plugin "C:\Program Files\Huawei\DevEco Studio\tools\hvigor\hvigor-ohos-plugin"
+
+      - name: Build APP pack
+        if: steps.check.outputs.skip == 'false'
+        run: npm run harmony:build:app
+
+      - name: Generate MD5
+        if: steps.check.outputs.skip == 'false'
+        shell: bash
+        run: |
+          cd harmony/build/outputs/default
+          md5sum harmony-default-signed.app | tee harmony-default-signed.app.md5
+
+      - name: Create GitHub Release
+        if: steps.check.outputs.skip == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.check.outputs.version }}
+          name: v${{ steps.check.outputs.version }}
+          files: |
+            harmony/build/outputs/default/harmony-default-signed.app
+            harmony/build/outputs/default/harmony-default-signed.app.md5
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

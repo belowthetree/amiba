@@ -90,7 +90,8 @@ desktop-widgets/
 服务 desktop-widgets/ 定义
   → desktop-widget-store.ts 扫描注册（bootstrap 时）→ registry.json
   → desktop-widget-runner.ts 隐藏 iframe 执行 logic.js
-      （启动时 + updateIntervalMin 周期 + desktop_widget_refresh 手动）
+      （启动时 + updateIntervalMin 周期 + desktop_widget_refresh 手动
+        + 服务 storage 数据变更自动——防抖 1s 合并连写，logic.js 自身写入宽限期抑制防回流循环）
   → publish(data) → 合并 widget.json + 图片绝对路径 → cache/*.json
   → invoke('android_widget_update') → Rust widget.rs → JNI
   → Kotlin WidgetHelper.updateCards() → SharedPreferences + 刷新三个 Provider 全部实例
@@ -113,6 +114,7 @@ desktop-widgets/
 
 - **仅 Android**：桌面/浏览器端 runner 照常执行 logic 写 cache，推送原生一步跳过（no-op）
 - **逻辑只在 App 存活时执行**：`updatePeriodMillis=0`，系统不唤醒 App；被杀期间显示最后缓存
+- **数据变更自动刷新**：服务经 `storage.set/remove` 写数据后，其名下启用卡片防抖 1s 自动重跑 logic.js（含后台 worker 写入）；服务应避免秒级高频写 storage，否则卡片会频繁重跑 + 推原生
 - **RemoteViews 位图限制**：图片按 ≤720px 降采样解码（Binder 传输约 1MB 上限的折中）；加载失败隐藏图片区
 - **点击跳转**：热启动经 WebView JS 事件即时跳转；WebView 未就绪时暂存 SharedPreferences，下次冷启动由 App.vue 消费
 
@@ -127,6 +129,7 @@ desktop-widgets/
 - **2026-07-31**: 卡片尺寸是 AI 的需求（widget.json `size` 字段），但 Android 小组件尺寸只能在 manifest 注册的 provider meta XML 中声明，运行期无法给单个 Provider 改尺寸——方案是固定档位多 Provider（small/medium/large 三个 receiver + 三份 meta XML），选卡页按入口反查尺寸过滤卡片。教训：AppWidget 的"每卡片自定义尺寸"没有运行时 API，档位化是唯一落地路径；新增档位要同步改四处（meta XML / 子类 / manifest / WidgetHelper 刷新列表）。
 - **2026-07-31**: 自定义卡面走"HTML/SVG → PNG → ImageView"路线：RemoteViews 无 WebView，但 ImageView 是唯一逃生通道。渲染放在沙箱 iframe 内（SVG `foreignObject` + canvas 导出 dataURL，零依赖），不经桥接；宿主只新增"dataURL → 二进制落盘 cache/img/"一段通道，Kotlin 零改动。教训：foreignObject 方案样式必须内联/内嵌（外链 CSS 与图片会静默渲染空白），文档须明示；老 WebView 画 SVG 可能污染 canvas 导致 toDataURL 抛 SecurityError，renderHtml 要 try/catch 兜底。
 - **2026-07-31**: 卡片样式字段（backgroundColor/textColor/hideTitleBar）落地时的坑：RemoteViews 运行期改背景只有"资源/纯色"两条路（`setInt("setBackgroundColor")` 会丢圆角），自定义色保圆角需程序内画 GradientDrawable → Bitmap → 铺底层 ImageView（fitXY，固定 192x192 控制 Binder 体积）。骨架根容器因此从 LinearLayout 重构为 FrameLayout + 背景位图层，三套 XML 必须同步加 `widget_bg_img`/`widget_titlebar` id——buildViews 共享代码引用的每个 id 都要存在于全部骨架，缺一个即运行时崩溃。
+- **2026-08-06**: 服务运行时更新 storage 后卡片不更新——数据流是 logic.js 单向拉取，无反向通知链路。修复为 `registry.setServiceData/removeServiceData` 写入成功后发内部变更通知（`onServiceDataChanged`），runner 订阅后按 serviceId 找启用卡片、1s 防抖重跑。关键难点是 logic.js 自身也写 storage 会回流触发：靠 `lastRunAt` + 3s 宽限期抑制（`running` 去重挡不住防抖延迟到执行结束后的那波，会形成 ping-pong）。
 
 ## 原生层文件（gen/android，`tauri android init` 重置后需恢复）
 

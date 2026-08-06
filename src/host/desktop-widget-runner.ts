@@ -8,11 +8,12 @@
 //   PNG dataURL，沙箱内离屏渲染，不经桥接）+ storage（读写服务自身数据），
 //   其余模块一律拒绝。10s 未 publish 视为超时跳过。
 //
-// 触发时机：App 启动（init 后）+ updateIntervalMin 周期 + 手动刷新。
+// 触发时机：App 启动（init 后）+ updateIntervalMin 周期 + 手动刷新 +
+//   服务 storage 数据变更（onServiceDataChanged，防抖后自动重跑）。
 // App 退出即全部停止，桌面卡片显示最后一次推送的缓存。
 // ============================================================
 import { createBridge, BRIDGE_SCRIPT } from './bridge'
-import { getService, setServiceData, getServiceData, removeServiceData } from './registry'
+import { getService, setServiceData, getServiceData, removeServiceData, onServiceDataChanged } from './registry'
 import {
   desktopWidgetDefs,
   enabledWidgetKeys,
@@ -76,6 +77,15 @@ const RENDER_HTML_SCRIPT = `
 const intervals = new Map<string, ReturnType<typeof setInterval>>()
 /** 进行中的运行（同卡去重） */
 const running = new Set<string>()
+
+/** 数据变更防抖定时器：serviceId → timeout id */
+const dataChangeTimers = new Map<string, ReturnType<typeof setTimeout>>()
+/** 卡片最近一次 logic.js 开始运行的时间（抑制自身写入回流触发） */
+const lastRunAt = new Map<string, number>()
+/** 服务连写多个 key 的合并窗口 */
+const DATA_CHANGE_DEBOUNCE_MS = 1_000
+/** 卡片刚跑完的宽限期：期间的 storage 写入视为 logic.js 自身回流，不再触发 */
+const SELF_WRITE_SUPPRESS_MS = 3_000
 
 // ================================================================
 // 单卡执行
@@ -163,6 +173,7 @@ export async function refreshWidgetCard(key: string): Promise<boolean> {
     return false
   }
   running.add(key)
+  lastRunAt.set(key, Date.now())
   try {
     const data = await runCardLogic(def)
     await updateCardPayload(def, data)
@@ -181,6 +192,34 @@ export async function refreshAllWidgetCards(): Promise<void> {
     await refreshWidgetCard(key)
   }
 }
+
+// ================================================================
+// 服务数据变更自动刷新
+// ================================================================
+
+/**
+ * 服务 storage 写入 → 该服务名下启用卡片防抖重跑。
+ * 前提：服务确实有启用卡片，否则直接忽略；logic.js 自身写入在宽限期内抑制，
+ * 避免"刷新 → 写 storage → 再触发刷新"的回流循环。
+ */
+function handleServiceDataChanged(serviceId: string) {
+  const keys = desktopWidgetDefs.value
+    .filter((d) => d.scope === 'service' && d.serviceId === serviceId && enabledWidgetKeys.value.includes(d.key))
+    .map((d) => d.key)
+  if (keys.length === 0) return
+  const now = Date.now()
+  const fresh = keys.filter((k) => now - (lastRunAt.get(k) ?? 0) > SELF_WRITE_SUPPRESS_MS)
+  if (fresh.length === 0) return
+  const prev = dataChangeTimers.get(serviceId)
+  if (prev) clearTimeout(prev)
+  dataChangeTimers.set(serviceId, setTimeout(() => {
+    dataChangeTimers.delete(serviceId)
+    console.log('[DesktopWidget] 服务数据变更，刷新卡片:', fresh.join(', '))
+    for (const k of fresh) void refreshWidgetCard(k)
+  }, DATA_CHANGE_DEBOUNCE_MS))
+}
+
+let dataListenerRegistered = false
 
 // ================================================================
 // 周期调度
@@ -216,8 +255,12 @@ export function stopServiceWidgetCards(serviceId: string): void {
   }
 }
 
-/** 启动入口（bootstrap）：全量刷新一次 + 挂周期 */
+/** 启动入口（bootstrap）：注册数据变更监听 + 全量刷新一次 + 挂周期 */
 export async function startDesktopWidgetRunner(): Promise<void> {
+  if (!dataListenerRegistered) {
+    dataListenerRegistered = true
+    onServiceDataChanged(handleServiceDataChanged)
+  }
   if (enabledWidgetKeys.value.length === 0) {
     console.log('[DesktopWidget] 无启用卡片，runner 待命')
     return

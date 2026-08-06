@@ -4,8 +4,10 @@
 .cxx/
 build/
 oh_modules/
+node_modules/
 **/build/
 **/oh_modules/
+**/node_modules/
 **/package-lock.json
 
 # 前端产物同步目标（由 npm run harmony:sync 生成；dist.README.txt 入库保留）

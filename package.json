@@ -1,13 +1,15 @@
 {
   "name": "amiba",
   "private": true,
-  "version": "0.10.0",
+  "version": "0.10.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview",
     "harmony:sync": "node harmony/scripts/sync-dist.mjs",
+    "harmony:build": "npm run harmony:sync && cd harmony && set \"DEVECO_SDK_HOME=C:\\Program Files\\Huawei\\DevEco Studio\\sdk\" && set \"PATH=C:\\Program Files\\Huawei\\DevEco Studio\\jbr\\bin;%PATH%\" && node node_modules/@ohos/hvigor/bin/hvigor.js --mode module -p product=default assembleHap",
+    "harmony:build:app": "npm run harmony:sync && cd harmony && set \"DEVECO_SDK_HOME=C:\\Program Files\\Huawei\\DevEco Studio\\sdk\" && set \"PATH=C:\\Program Files\\Huawei\\DevEco Studio\\jbr\\bin;%PATH%\" && node node_modules/@ohos/hvigor/bin/hvigor.js --mode project -p product=default assembleApp",
     "test": "vitest run",
     "test:watch": "vitest"
   },

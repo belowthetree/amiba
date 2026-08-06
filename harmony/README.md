@@ -35,10 +35,36 @@ cp build-profile.json5.template build-profile.json5
 # 1. 主仓构建前端产物
 npm run build
 
-# 2. 同步 dist 到鸿蒙工程 rawfile
-npm run harmony:sync
+# 2a. 命令行一键构建（sync dist → rawfile + assembleHap，产物见 entry/build/default/outputs/）
+npm run harmony:build
 
-# 3. 用 DevEco Studio 打开本目录（harmony/），自动签名（调试）后运行到真机
+# 2b. 打 App Pack 发布包（assembleApp，产物见 build/outputs/default/*.app，附 MD5 可用 md5sum 生成）
+npm run harmony:build:app
+
+# 2c. 或用 DevEco Studio 打开本目录（harmony/），自动签名（调试）后运行到真机
+```
+
+**CI**：`.github/workflows/release-harmony.yml` 在版本变更时自动构建 `.app`（含 MD5）并上传
+GitHub Release。鸿蒙 SDK 无法无头安装，工作流跑在**自托管 Windows runner**（装有 DevEco 的
+机器）上；一次性准备（注册 runner、配置 `HARMONY_BUILD_PROFILE_BASE64` secret）见工作流文件头注释。
+
+`harmony:build` 脚本内已设置 `DEVECO_SDK_HOME` 并把 DevEco JBR 加入 `PATH`
+（release 签名需要 JBR 的 JDK 版本，系统 java 会报 keystore 版本错误），均为本机 DevEco
+默认安装路径，非默认安装需改脚本。
+
+**hvigor 依赖布局（勿用 hvigorw.js）**：`node_modules/@ohos/hvigor` 与
+`node_modules/@ohos/hvigor-ohos-plugin` 是指向 DevEco 安装目录
+（`tools/hvigor/` 下同名目录）的 **junction**。这样 IDE 构建与命令行构建解析到同一份模块，
+实例唯一；若换成本地实体副本，hvigorfile.ts 加载的插件与 IDE 的 hvigor 核心会成为两个模块实例，
+构建报 `00302013 The root node is not yet available for build`。`harmony/hvigorw.js` 的全局
+workspace 机制在本目录布局下会生成坏 junction，不要使用。DevEco 升级/换装到别的路径后需重建
+这两个 junction：
+
+```bash
+cd harmony/node_modules/@ohos
+rmdir hvigor hvigor-ohos-plugin   # cmd 执行，或用资源管理器删除
+mklink /J hvigor "<DevEco>\tools\hvigor\hvigor"
+mklink /J hvigor-ohos-plugin "<DevEco>\tools\hvigor\hvigor-ohos-plugin"
 ```
 
 **签名配置不入库**：`build-profile.json5` 含本地密钥密文与证书路径，已加入 `.gitignore`。

@@ -65,7 +65,7 @@ publish 还可带样式覆盖字段 `accentColor` / `backgroundColor` / `textCol
 
 ## 执行与刷新
 
-- 时机：App 启动全量刷新 + `updateIntervalMin` 周期 + `desktop_widget_refresh` 手动
+- 时机：App 启动全量刷新 + `updateIntervalMin` 周期 + `desktop_widget_refresh` 手动 + 服务 `storage.set/remove` 写数据后自动（防抖 1s，仅该服务名下启用卡片）；服务避免秒级高频写 storage
 - **占位显示**：卡片启用后即使 logic.js 尚未成功运行，也会以占位载荷（label + "加载中…"）出现在选卡页，首次 publish 后替换为真实数据
 - App 被杀期间桌面显示最后一次推送的缓存（原生 SharedPreferences）
 - 点击卡片：打开 App 并跳转 `tapPath`

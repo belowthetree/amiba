@@ -230,9 +230,27 @@ export async function setServiceWidgetsVisible(serviceId: string, visible: boole
 // Service data storage (sandboxed — services/{id}/data/)
 // ============================================================
 
+// 数据变更监听：所有写入收口于此处通知（服务主页面 / 后台 worker / 卡片 logic.js
+// 都经 setServiceData/removeServiceData），桌面卡片运行器等消费方订阅后自动感知
+export type ServiceDataListener = (serviceId: string, key: string) => void
+const serviceDataListeners = new Set<ServiceDataListener>()
+
+/** 订阅服务数据变更（set/remove 写入成功后触发）；返回取消订阅函数 */
+export function onServiceDataChanged(cb: ServiceDataListener): () => void {
+  serviceDataListeners.add(cb)
+  return () => { serviceDataListeners.delete(cb) }
+}
+
+function notifyServiceDataChanged(serviceId: string, key: string) {
+  for (const cb of serviceDataListeners) {
+    try { cb(serviceId, key) } catch (e) { console.warn('[Registry] 数据变更监听异常:', e) }
+  }
+}
+
 export async function setServiceData(serviceId: string, key: string, data: any) {
   const value = typeof data === 'string' ? data : JSON.stringify(data)
   await serviceDataSet(serviceId, key, value)
+  notifyServiceDataChanged(serviceId, key)
 }
 
 export async function getServiceData(serviceId: string, key: string): Promise<any> {
@@ -243,6 +261,7 @@ export async function getServiceData(serviceId: string, key: string): Promise<an
 
 export async function removeServiceData(serviceId: string, key: string) {
   await serviceDataRemove(serviceId, key)
+  notifyServiceDataChanged(serviceId, key)
 }
 
 // ============================================================
