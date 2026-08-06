@@ -1,6 +1,7 @@
 import { picker } from '@kit.CoreFileKit'
 import { fileIo as fs, fileShare } from '@kit.CoreFileKit'
 import { common } from '@kit.AbilityKit'
+import { UIContext } from '@kit.ArkUI'
 import { util } from '@kit.ArkTS'
 import { ensureParentDir, getFilesDir } from './FsCommands'
 
@@ -39,6 +40,17 @@ interface DataResult {
   data: string
 }
 
+// 手机端降级产物：多选文件清单（uri 为原始 picker URI，不拷贝；name 为解码后文件名）
+interface PickedFile {
+  uri: string
+  name: string
+  size: number
+}
+
+interface PickFilesResult {
+  files: PickedFile[]
+}
+
 // 递归深度保护（防符号链接环；docs 目录树实际场景远浅于此）
 const MAX_WALK_DEPTH = 20
 
@@ -53,6 +65,17 @@ export function initPickerContext(context: common.UIAbilityContext): void {
 // 供 Index.ets onShowFileSelector 复用同一上下文
 export function getPickerContext(): common.UIAbilityContext | null {
   return abilityContext
+}
+
+// picker 必须切到 UI 线程拉起：javaScriptProxy 方法在 ArkWeb JS 桥线程执行（非 UI 线程），
+// 直接调 select() 真机不弹窗也不返回（表现为前端「按钮没反应」；onShowFileSelector 路径
+// 在 UI 线程故正常）。UIContext 由 EntryAbility.onWindowStageCreate 在 loadContent 后注入
+// （win.getUIContext() 在 loadContent 前抛 1300002，与 setKeyboardAvoidMode 同一时机）
+let pickerUiContext: UIContext | null = null
+
+export function initPickerUiContext(context: UIContext): void {
+  pickerUiContext = context
+  console.log(`${TAG} UIContext 已注入`)
 }
 
 // ---- 参数提取（风格同 HttpCommands）----
@@ -110,12 +133,50 @@ function readAllBytesByUri(uri: string): Uint8Array {
 // ============================================================
 // file_access_pick_folder：DocumentViewPicker 文件夹选择模式
 // 返回 {uri}；用户取消（空结果数组）返回 null（前端 pickFolder 据此回 null，不再下落）
+// 设备门控：DocumentSelectMode.FOLDER 依赖独立 syscap FolderSelection（d.ts 标注，
+// 仅 PC/2in1/TV 等具备；手机无此 syscap，FOLDER 模式系统文件管理器显示「功能暂不支持」）。
+// 无 syscap 时自动降级为 FILE 多选（≤500，可选后缀过滤），返回 {files} 而非 {uri}——
+// 前端 file-access-grants 据此构建文件清单授权；folder-picker（导入类）则抛「设备不支持」
 // ============================================================
-async function cmdPickFolder(): Promise<PickFolderResult | null> {
+const SYSCAP_FOLDER_SELECTION = 'SystemCapability.FileManagement.UserFileService.FolderSelection'
+
+async function cmdPickFolder(args: Record<string, Object>): Promise<PickFolderResult | PickFilesResult | null> {
   const ctx = abilityContext
   if (ctx === null) {
     throw new Error('Picker 上下文未初始化')
   }
+  const ui = pickerUiContext
+  if (ui === null) {
+    throw new Error('Picker UIContext 未初始化')
+  }
+  const suffixes = reqStrArray(args['suffixes'])
+  // 经 runScopedTask 切到 UI 线程执行选取（见上方 initPickerUiContext 注释）
+  return new Promise<PickFolderResult | PickFilesResult | null>((resolve, reject) => {
+    ui.runScopedTask(() => {
+      const p = canIUse(SYSCAP_FOLDER_SELECTION)
+        ? selectFolderOnUi(ctx)
+        : selectFilesOnUi(ctx, suffixes)
+      p.then(resolve).catch((e: Error) => reject(e))
+    })
+  })
+}
+
+// 可选字符串数组参数（suffixes 后缀过滤；非法项忽略）
+function reqStrArray(v: Object | undefined): string[] {
+  if (!Array.isArray(v)) {
+    return []
+  }
+  const out: string[] = []
+  const items = v as Object[]
+  for (const item of items) {
+    if (typeof item === 'string' && (item as string).length > 0) {
+      out.push(item as string)
+    }
+  }
+  return out
+}
+
+async function selectFolderOnUi(ctx: common.UIAbilityContext): Promise<PickFolderResult | null> {
   const opts = new picker.DocumentSelectOptions()
   opts.selectMode = picker.DocumentSelectMode.FOLDER
   opts.maxSelectNumber = 1
@@ -128,22 +189,59 @@ async function cmdPickFolder(): Promise<PickFolderResult | null> {
   }
   const uri = uris[0]
   console.log(`${TAG} ✓ 选中文件夹: ${uri}`)
-  await persistUriPermission(uri)
+  await persistUrisPermission([uri])
   const r: PickFolderResult = { uri: uri }
+  return r
+}
+
+// 手机端降级：FILE 多选（≤500，suffixes 非空时带后缀过滤），返回原始 picker URI 清单。
+// 授权语义与文件夹一致（picker URI 直读 + best-effort persistPermission），仅授权粒度从目录变为文件
+async function selectFilesOnUi(ctx: common.UIAbilityContext, suffixes: string[]): Promise<PickFilesResult | null> {
+  const opts = new picker.DocumentSelectOptions()
+  opts.selectMode = picker.DocumentSelectMode.FILE
+  opts.maxSelectNumber = 500
+  if (suffixes.length > 0) {
+    opts.fileSuffixFilters = suffixes
+  }
+  console.log(`${TAG} === 拉起文件多选选取器（无 FolderSelection syscap，文件夹选择降级）===`)
+  const docPicker = new picker.DocumentViewPicker(ctx)
+  const uris = await docPicker.select(opts)
+  if (uris.length === 0) {
+    console.log(`${TAG} 用户取消选择`)
+    return null
+  }
+  const files: PickedFile[] = []
+  for (const uri of uris) {
+    let size = 0
+    try {
+      size = statUri(uri).size
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      console.warn(`${TAG} 文件 stat 失败（size 置 0）: ${uri}: ${msg}`)
+    }
+    files.push({ uri: uri, name: webUploadFileName(uri), size: size })
+  }
+  console.log(`${TAG} ✓ 选中文件 ${files.length} 个（降级模式）`)
+  await persistUrisPermission(uris)
+  const r: PickFilesResult = { files: files }
   return r
 }
 
 // 授权持久化（best-effort）：FILE_ACCESS_PERSIST 为 ACL 受限权限，普通签名不授予，
 // 失败时降级为「仅本次应用生命周期有效」（picker 授权本身在当前进程内持续可读，
 // 与前端 file-access-grants 不落盘设计语义一致，可接受）
-async function persistUriPermission(uri: string): Promise<void> {
+async function persistUrisPermission(uris: string[]): Promise<void> {
   try {
-    const policy: fileShare.PolicyInfo = {
-      uri: uri,
-      operationMode: fileShare.OperationMode.READ_MODE
+    const policies: fileShare.PolicyInfo[] = []
+    for (const uri of uris) {
+      const policy: fileShare.PolicyInfo = {
+        uri: uri,
+        operationMode: fileShare.OperationMode.READ_MODE
+      }
+      policies.push(policy)
     }
-    await fileShare.persistPermission([policy])
-    console.log(`${TAG} ✓ URI 权限已持久化`)
+    await fileShare.persistPermission(policies)
+    console.log(`${TAG} ✓ URI 权限已持久化（${uris.length} 项）`)
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     console.warn(`${TAG} ✗ persistPermission 失败（降级为本次生命周期有效）: ${msg}`)
@@ -226,13 +324,14 @@ function cmdFileAccessReadBinary(args: Record<string, Object>): DataResult {
 }
 
 // ---- 命令入口 ----
-// pick_folder 返回 {uri} 或 null；list 返回 FileAccessEntry[]；read_* 返回 {data}。
+// pick_folder 返回 {uri}（文件夹授权）或 {files}（手机端降级多选文件）或 null（取消）；
+// list 返回 FileAccessEntry[]；read_* 返回 {data}。
 // 均直接返回对象/数组（HarmonyBridge.invoke 统一 JSON.stringify，前端 JSON.parse 一次）
 export async function handlePickerCommand(cmd: string, args: Record<string, Object>): Promise<Object | null> {
   try {
     switch (cmd) {
       case 'file_access_pick_folder':
-        return await cmdPickFolder()
+        return await cmdPickFolder(args)
       case 'file_access_list':
         return await cmdFileAccessList(args)
       case 'file_access_read_text':

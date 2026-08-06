@@ -143,6 +143,8 @@ __amiba__.background.on('tick', async () => {
 | `readText(token, path)` | token, path | `Promise<string>` | 读取文本文件 |
 | `readBinary(token, path)` | token, path | `Promise<string>` (base64) | 读取二进制文件 |
 
+> 鸿蒙手机端说明：手机不支持系统级文件夹选择（syscap 限制），`requestAccess` 会自动降级为「多选文件」授权（按 `pattern` 后缀过滤，上限 500 个），授权后 API 用法不变；`path` 显示为「已选 N 个文件」，`listFiles` 的 `path` 即文件名，同名文件只保留第一个。
+
 ## HTTP 请求 (fetch)
 
 **权限**: `"fetch"`

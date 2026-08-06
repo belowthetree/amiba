@@ -3,7 +3,7 @@ import { window, KeyboardAvoidMode } from '@kit.ArkUI'
 import { webview } from '@kit.ArkWeb'
 import { initFsDirs } from '../bridge/FsCommands'
 import { initDb } from '../bridge/DbCommands'
-import { initPickerContext } from '../bridge/PickerCommands'
+import { initPickerContext, initPickerUiContext } from '../bridge/PickerCommands'
 import { initNetworkContext } from '../bridge/NetworkCommands'
 import { initFormDirs, handleHotTap } from '../bridge/FormCommands'
 import { recordTap } from '../bridge/FormStore'
@@ -90,9 +90,12 @@ export default class EntryAbility extends UIAbility {
       // 键盘高度经 TYPE_KEYBOARD avoidArea 同步为底部 padding（resize 语义）。
       // 注意必须在 loadContent 之后调用：此前 UIContent 未创建，getUIContext 抛 1300002
       try {
-        win.getUIContext().setKeyboardAvoidMode(KeyboardAvoidMode.NONE)
+        const uiContext = win.getUIContext()
+        uiContext.setKeyboardAvoidMode(KeyboardAvoidMode.NONE)
+        // 注入 picker UI 线程上下文（file_access_pick_folder 经 runScopedTask 切 UI 线程拉起）
+        initPickerUiContext(uiContext)
       } catch (e) {
-        console.error(`${TAG} ✗ setKeyboardAvoidMode 失败: ${(e as Error).message}`)
+        console.error(`${TAG} ✗ setKeyboardAvoidMode/UIContext 注入失败: ${(e as Error).message}`)
       }
     })
   }

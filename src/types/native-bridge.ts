@@ -29,7 +29,7 @@ export const APP_COMMANDS = {
 // picker URI 形态 file://docs/storage/Users/currentUser/...（分层结构，子项按段 encodeURIComponent 拼接）。
 // 授权持久化经 fileShare.persistPermission（ACL 受限权限，默认签名拿不到 → 降级为本次生命周期有效）。
 export const PICKER_COMMANDS = {
-  pickFolder: 'file_access_pick_folder', // {} → {uri: string} | null（用户取消）
+  pickFolder: 'file_access_pick_folder', // {suffixes?: string[]} → {uri} | {files: [{uri,name,size}]} | null（取消；无 FolderSelection syscap 的设备壳层自动降级为 FILE 多选返回 files）
   fileAccessList: 'file_access_list', // {uri, pattern} → FileInfo[]（pattern 仅决定递归；glob 过滤在前端 _matchesPattern）
   fileAccessReadText: 'file_access_read_text', // {uri}（前端拼好子路径）→ {data: string}
   fileAccessReadBinary: 'file_access_read_binary', // {uri} → {data: base64}

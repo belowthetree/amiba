@@ -72,6 +72,29 @@ function _matchesPattern(testPath: string, pattern: string): boolean {
   return testPath === pattern
 }
 
+// 把 glob 过滤模式映射为 picker 后缀过滤数组（鸿蒙手机端降级多选时用）：
+// '{*.mp3,*.flac}' / '*.{mp3,flac}' → ['.mp3','.flac']；'*.txt' / '**/*.txt' → ['.txt']；
+// '*' / '**' 等 → []（不过滤）
+function _patternToSuffixes(pattern: string): string[] {
+  let p = pattern.trim()
+  if (p.startsWith('**/')) p = p.slice(3)
+  const out: string[] = []
+  const brace = p.match(/^\*?\.\{(.+)\}$/)   // '*.{mp3,flac}'
+  if (p.startsWith('{') && p.endsWith('}')) {
+    for (const ext of p.slice(1, -1).split(',')) {
+      const e = ext.trim()
+      if (e.startsWith('*.')) out.push(e.slice(1))
+    }
+  } else if (brace) {
+    for (const ext of brace[1].split(',')) {
+      out.push('.' + ext.trim())
+    }
+  } else if (p.startsWith('*.')) {
+    out.push(p.slice(1))
+  }
+  return out.filter(s => /^\.\w{1,10}$/.test(s))
+}
+
 // ---- Android SAF 工具 ----
 
 let _androidFs: any = null
@@ -108,7 +131,19 @@ function _harmonyChildUri(rootUri: string, relativePath: string): string {
 
 // ---- 目录扫描 ----
 
-async function _scanDir(basePath: string, pattern: string, results: FileInfo[]): Promise<void> {
+async function _scanDir(grant: FileAccessGrant, pattern: string, results: FileInfo[]): Promise<void> {
+  // 鸿蒙手机端降级：多选文件清单按 pattern 过滤直接返回（无目录可递归，path 为文件名）
+  if (isHarmonyRuntime() && grant.files) {
+    for (const f of grant.files) {
+      if (_matchesPattern(f.name, pattern)) {
+        results.push({ name: f.name, path: f.name, size: f.size, isDir: false })
+      }
+    }
+    return
+  }
+
+  const basePath = grant.path
+
   // Android: 使用 SAF readDir
   try {
     const AndroidFs = await _getAndroidFs()
@@ -171,14 +206,29 @@ async function _scanDir(basePath: string, pattern: string, results: FileInfo[]):
 // ---- 公共 API ----
 
 export async function requestAccess(serviceId: string, req: FileAccessRequest): Promise<FileAccessGrant> {
+  const pattern = req.pattern || '*'
   let folderPath = req.path
+  let pickedFiles: FileAccessGrant['files']
 
   if (!folderPath) {
-    folderPath = (await pickFolder('选择文件夹')) ?? undefined
-    if (!folderPath) throw new Error('未选择文件夹')
+    if (isHarmonyRuntime()) {
+      // 鸿蒙直走桥命令：{uri} = 文件夹授权；无 FolderSelection syscap 的设备（手机，
+      // FOLDER 模式系统弹「功能暂不支持」）壳层自动降级 FILE 多选返回 {files}
+      const r = await nativeInvoke<{ uri?: string; files?: { uri: string; name: string; size: number }[] } | null>(
+        PICKER_COMMANDS.pickFolder, { suffixes: _patternToSuffixes(pattern) })
+      if (r?.files) {
+        pickedFiles = r.files
+        folderPath = `已选 ${r.files.length} 个文件`
+      } else if (r?.uri) {
+        folderPath = r.uri
+      } else {
+        throw new Error('未选择文件夹')
+      }
+    } else {
+      folderPath = (await pickFolder('选择文件夹')) ?? undefined
+      if (!folderPath) throw new Error('未选择文件夹')
+    }
   }
-
-  const pattern = req.pattern || '*'
 
   if (!req.silent) {
     const confirmed = confirm(
@@ -195,7 +245,10 @@ export async function requestAccess(serviceId: string, req: FileAccessRequest): 
   // 鸿蒙: persistPermission 已在壳层 file_access_pick_folder 内 best-effort 完成，此处无需重复
 
   const token = _generateToken()
-  const grant: FileAccessGrant = { token, path: folderPath, pattern, createdAt: new Date().toISOString() }
+  const grant: FileAccessGrant = {
+    token, path: folderPath, pattern, createdAt: new Date().toISOString(),
+    ...(pickedFiles ? { files: pickedFiles } : {})
+  }
   _grants.set(token, { grant, serviceId })
   console.log('[FileAccess] ✓ 授权:', serviceId, '->', folderPath)
   return grant
@@ -205,7 +258,7 @@ export async function listFiles(serviceId: string, token: string): Promise<FileI
   const grant = validate(serviceId, token)
   if (!grant) throw new Error('文件访问授权无效或已过期')
   const items: FileInfo[] = []
-  await _scanDir(grant.path, grant.pattern, items)
+  await _scanDir(grant, grant.pattern, items)
   return items
 }
 
@@ -220,6 +273,14 @@ export async function readTextFile(serviceId: string, token: string, relativePat
     const childUri = await AndroidFs.getUri(`${androidUri.uri}%2F${encodeURIComponent(relativePath)}`)
     return await AndroidFs.readTextFile(childUri)
   } catch { /* fall through */ }
+
+  // 鸿蒙手机端降级：按文件名在多选清单中定位直读（同名取第一个，已知限制）
+  if (isHarmonyRuntime() && grant.files) {
+    const f = grant.files.find(f => f.name === relativePath)
+    if (!f) throw new Error(`文件不在授权清单内: ${relativePath}`)
+    const r = await nativeInvoke<{ data: string }>(PICKER_COMMANDS.fileAccessReadText, { uri: f.uri })
+    return r.data
+  }
 
   // 鸿蒙: picker URI 经壳层直读（native-fs 的 resolveSafe 会拒绝沙箱外目录）
   if (isHarmonyRuntime() && _isHarmonyPickerUri(grant.path)) {
@@ -245,6 +306,14 @@ export async function readBinaryFile(serviceId: string, token: string, relativeP
     const bytes = await AndroidFs.readFile(childUri)
     return _arrayToBase64(bytes)
   } catch { /* fall through */ }
+
+  // 鸿蒙手机端降级：按文件名在多选清单中定位直读（壳层返回 base64，与 Android 分支出口一致）
+  if (isHarmonyRuntime() && grant.files) {
+    const f = grant.files.find(f => f.name === relativePath)
+    if (!f) throw new Error(`文件不在授权清单内: ${relativePath}`)
+    const r = await nativeInvoke<{ data: string }>(PICKER_COMMANDS.fileAccessReadBinary, { uri: f.uri })
+    return r.data
+  }
 
   // 鸿蒙: picker URI 经壳层直读（壳层返回 base64，与 Android 分支 _arrayToBase64 出口一致）
   if (isHarmonyRuntime() && _isHarmonyPickerUri(grant.path)) {

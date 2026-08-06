@@ -283,9 +283,12 @@ export interface FileAccessRequest {
 
 export interface FileAccessGrant {
   token: string
-  path: string       // 授权的文件夹绝对路径
+  path: string       // 授权的文件夹绝对路径（鸿蒙手机端降级时为「已选 N 个文件」展示串）
   pattern: string    // 文件过滤模式
   createdAt: string
+  /** 鸿蒙手机端降级产物：多选文件清单（无 FolderSelection syscap 时代替文件夹授权；
+   *  读取按 name 匹配直读 uri；同名文件取第一个，为已知降级限制） */
+  files?: { uri: string; name: string; size: number }[]
 }
 
 // --- Floating Widget ---

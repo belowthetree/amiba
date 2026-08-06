@@ -2,6 +2,8 @@
 // 变形虫 (Amiba) — 存储层（Tauri FS）
 // ============================================================
 
+import type { FileInfo } from '../types/service'
+
 const APP_ROOT = 'amiba'
 
 let _dataDir = ''
@@ -335,6 +337,28 @@ export async function readSkillJson(skillName: string): Promise<string | null> {
 // Recursively copy a source folder into skills/{skillName}/
 export async function copySkillFolder(sourceDir: string, skillName: string): Promise<void> {
   const { readDir, readFile, writeFile, mkdir, BaseDirectory } = await import('./native-fs')
+
+  // 鸿蒙 picker URI（file://docs/... 沙箱外授权目录）：native-fs 的 resolveSafe 会拒绝，
+  // 枚举/读取走壳层 fileAccess 命令族；目标在 AppData 沙箱内，写入仍走 native-fs
+  const { isHarmonyRuntime, nativeInvoke } = await import('./platform-bridge')
+  const { isHarmonyPickerUri, harmonyPickerChildUri } = await import('./folder-picker')
+  if (isHarmonyRuntime() && isHarmonyPickerUri(sourceDir)) {
+    const { PICKER_COMMANDS } = await import('../types/native-bridge')
+    const { base64ToBytes } = await import('./native-fs')
+    const destRoot = `${SKILLS_ROOT}/${safePath(skillName)}`
+    // 递归枚举授权目录（pattern 含 '**' 即递归，仅返回文件项；鸿蒙壳写文件自动建父目录）
+    const entries = await nativeInvoke<FileInfo[]>(PICKER_COMMANDS.fileAccessList, { uri: sourceDir, pattern: '**' })
+    for (const e of entries) {
+      if (e.isDir) continue
+      const rel = safePath(e.path)
+      const r = await nativeInvoke<{ data: string }>(PICKER_COMMANDS.fileAccessReadBinary, {
+        uri: harmonyPickerChildUri(sourceDir, e.path),
+      })
+      await writeFile(`${destRoot}/${rel}`, base64ToBytes(r.data), { baseDir: BaseDirectory.AppData })
+    }
+    console.log('[Storage] COPY SKILL FOLDER (harmony picker)', sourceDir, '→', logPath(destRoot), `(${entries.length} files)`)
+    return
+  }
 
   async function copyRecursive(src: string, destRel: string) {
     const entries = await readDir(src)

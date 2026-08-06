@@ -113,11 +113,23 @@ export async function deleteUserSkill(name: string): Promise<void> {
 export async function importSkillFromFolder(
   sourceDir: string
 ): Promise<Skill> {
-  const { readTextFile } = await import('../config/native-fs')
+  const { isHarmonyRuntime } = await import('../config/platform-bridge')
+  const { isHarmonyPickerUri, harmonyPickerChildUri } = await import('../config/folder-picker')
 
   let raw: string
   try {
-    raw = await readTextFile(sourceDir + '/SKILL.md')
+    if (isHarmonyRuntime() && isHarmonyPickerUri(sourceDir)) {
+      // 鸿蒙 picker URI（沙箱外授权目录）：native-fs resolveSafe 会拒绝，走壳层 fileAccess 命令族
+      const { nativeInvoke } = await import('../config/platform-bridge')
+      const { PICKER_COMMANDS } = await import('../types/native-bridge')
+      const r = await nativeInvoke<{ data: string }>(PICKER_COMMANDS.fileAccessReadText, {
+        uri: harmonyPickerChildUri(sourceDir, 'SKILL.md'),
+      })
+      raw = r.data
+    } else {
+      const { readTextFile } = await import('../config/native-fs')
+      raw = await readTextFile(sourceDir + '/SKILL.md')
+    }
   } catch {
     throw new Error('所选文件夹中没有 SKILL.md')
   }

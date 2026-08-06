@@ -102,6 +102,34 @@ struct Index {
             })
           return true
         })
+        // JS 对话框：ArkWeb 未处理 onAlert/onConfirm 时静默吞掉（前端大量错误提示经 alert()，
+        // 服务文件夹授权确认经 confirm()——不接管则 fileAccess 授权流程在鸿蒙无法闭环）。
+        // prompt() 前端仅浏览器回退用（鸿蒙 folder-picker 失败改为抛错，不会走到），不接 onPrompt
+        .onAlert((event) => {
+          if (!event) {
+            return false
+          }
+          console.log(`${WEB_TAG} alert: ${event.message}`)
+          AlertDialog.show({
+            message: event.message,
+            confirm: { value: '确定', action: () => event.result.handleConfirm() },
+            cancel: () => event.result.handleCancel()
+          })
+          return true
+        })
+        .onConfirm((event) => {
+          if (!event) {
+            return false
+          }
+          console.log(`${WEB_TAG} confirm: ${event.message}`)
+          AlertDialog.show({
+            message: event.message,
+            primaryButton: { value: '取消', action: () => event.result.handleCancel() },
+            secondaryButton: { value: '确定', action: () => event.result.handleConfirm() },
+            cancel: () => event.result.handleCancel()
+          })
+          return true
+        })
         // 下载触发元数据日志（载荷无 WebDownloadItem，落盘由 WebDownloadDelegate 接管；
         // data: URL 下载 ArkWeb 不保证触发本事件，不支持）
         .onDownloadStart((event) => {
