@@ -13,6 +13,9 @@ Agent 工具层（前台）
         ↓
 Curator 层（后台）
   确定性 prune（active→stale→archived）+ 可选 LLM 合并
+
+Reviewer 层（后台）
+  对话审查 → 经验库计数（skills/.experiences.json）→ 复现 ≥3 次固化为 skill
 ```
 
 ## Phase 1: Agent 写入
@@ -84,6 +87,7 @@ stale  ──(再次使用)───────→ active（自动复活）
 ```
 skills/{slug}/SKILL.md          ← 技能内容
 skills/.usage.json              ← 遥测数据
+skills/.experiences.json        ← 经验库（计数暂存，>=3 次固化为 skill）
 skills/.archive/{slug}/         ← 归档技能
 skills/.curator_state           ← Curator 调度状态
 skills/.curator-logs/           ← 运行报告
@@ -102,11 +106,26 @@ skills/.curator-logs/           ← 运行报告
 
 **审查规则（优先级）**：
 1. **PATCH** 已存在的 skill（错误/过时/用户纠正）
-2. **CREATE** 新 skill（5+ 步复杂任务、可复用技巧）
+2. **记录经验**（不直接创建 skill）：可复用技巧/配置/命令序列 → `experience_record` 入库计数；同主题已存在 → 计数+1；已被 skill 覆盖 → 不入库；计数 ≥ 3（thresholdReached）→ `skill_manage_create` 固化 + `experience_remove` 删除
 3. **DELETE** 过时 skill（被另一个完全取代）
 4. **不操作**（对话太短、纯查询）
 
 **最小消息阈值**：5 条。通过 `settings.skill_auto_review_enabled`（默认 `true`）控制开关。
+
+## Phase 6: 经验库（计数固化）
+
+`src/ai/experience-store.ts` 管理 `skills/.experiences.json`——skill 的「候选暂存层」，避免单次任务直接污染技能库：
+
+```json
+[
+  { "id": "exp-1", "title": "DeepSeek Responses 接入", "content": "……", "count": 2, "created_at": "...", "updated_at": "..." }
+]
+```
+
+- 审查引擎经 3 个工具操作（仅 `review` 工具集）：`experience_list` / `experience_record`（传 id 或标题模糊查重 → 计数+1）/ `experience_remove`
+- 同一经验复现 **≥ 3 次**（`SKILL_THRESHOLD`）才固化为 skill，固化后删除经验
+- `mid_session` 触发不记录经验（信息可能不完整）
+- 点号前缀旁路文件，持久化失败不影响内存计数
 
 ### UI 反馈
 

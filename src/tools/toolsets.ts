@@ -71,6 +71,9 @@ export const TOOLSETS: Record<string, ToolsetDef> = {
       'skill_manage_patch',
       'skill_manage_edit',
       'skill_manage_delete',
+      'experience_list',
+      'experience_record',
+      'experience_remove',
     ],
   },
 

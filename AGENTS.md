@@ -58,6 +58,7 @@ npm run harmony:build:app   # 同上但打 App Pack（assembleApp → harmony/bu
 | `skill-curator.ts` | Background lifecycle: deterministic active→stale→archived transitions, archive/restore, LLM consolidation (Phase 4), run reports |
 | `skill-consolidation-prompt.ts` | Consolidation agent system prompt: prefix clustering, 3 merge strategies, YAML decision output |
 | `skill-reviewer.ts` | Skill review engine: forks independent LLM calls at 4 trigger points (session_end/manual/mid_session/curator) to auto-maintain skill library; exposes `isReviewing`/`lastReviewResult` refs for UI feedback |
+| `experience-store.ts` | 经验库（`skills/.experiences.json`）：零散经验按主题计数暂存，复现 ≥3 次（SKILL_THRESHOLD）才固化为 skill；record 支持 id 指定 + 标题模糊查重，固化后 remove |
 | `requirement-store.ts` | Per-service `REQUIREMENT.md` + global `REQUIREMENTS.md` engine: parse/build, add/done/feedback, auto-sync |
 | `commands.ts` | Built-in slash commands (`/new` → multi-session create) |
 | `memory.ts` | Memory tool handler (deprecated, use memory-store) |
@@ -83,6 +84,9 @@ npm run harmony:build:app   # 同上但打 App Pack（assembleApp → harmony/bu
 | `skill_manage_edit` | core | Full rewrite SKILL.md (major refactor only) |
 | `skill_manage_delete` | core | Archive skill to `.archive/` |
 | `skill_manage_write_file` | core | Add supporting files to skill dir |
+| `experience_list` | review | 列出经验库（含计数，审查查重用） |
+| `experience_record` | review | 记录经验：同主题计数+1，≥3 次提示固化 |
+| `experience_remove` | review | 删除经验（固化为 skill 后调用） |
 | `service_list` | service | List all installed user services (view category) |
 | `service_view` | service | View full service info: manifest, files, status (view category) |
 | `service_create` | service | Create new service skeleton: register manifest + dir (manage category) |
@@ -173,6 +177,7 @@ npm run harmony:build:app   # 同上但打 App Pack（assembleApp → harmony/bu
   - `sessions/{id}.json` — per-session chat history
   - `skills/{slug}/SKILL.md` — skill files
   - `skills/.usage.json` — skill telemetry
+  - `skills/.experiences.json` — 经验库（计数暂存，复现 ≥3 次固化为 skill）
   - `skills/.archive/` — archived skills
   - `skills/.curator_state` / `.curator-logs/` — curator lifecycle
   - `souls/{name}.md` — personality files
@@ -189,7 +194,7 @@ npm run harmony:build:app   # 同上但打 App Pack（assembleApp → harmony/bu
 - **Tools:** add `src/tools/xxx.tool.ts` + `registry.register(...)` → auto-discovered via `import.meta.glob`. Each tool has a `category` field (`generate`/`view`/`edit`/`manage`) for type-based tool guidance.
 - **Skills:** add `skills/{slug}/SKILL.md` → scanned by `scanSkills()`; agent can create via `skill_manage_create`
 - **Skill distribution:** 三种导入方式 — (1) 📁 文件夹导入（Tauri 原生目录选择器 / 鸿蒙 picker URI：`importSkillFromFolder` 与 `copySkillFolder` 走 file_access_* 命令族直读，二进制经 `file_access_read_binary` base64 回传），(2) 📦 ZIP 导入（JSZip，含 Tauri dialog / 浏览器 `<input>` 双模式），(3) 🔗 URL 导入（fetch 下载 ZIP 后内存解析）；导出为 ZIP 文件；局域网分享通过 `skill-share.ts`（复用 service-share 网络基础设施，64KB 分块传输）
-- **Skill evolution:** usage telemetry (`.usage.json`) + curator (auto stale→archive, optional LLM consolidation)
+- **Skill evolution:** usage telemetry (`.usage.json`) + curator (auto stale→archive, optional LLM consolidation) + reviewer 经验库计数固化（`.experiences.json`，复现 ≥3 次才建 skill）
 - **Personality:** edit `souls/{name}.md` via Settings or use `soul_save` tool via AI; `invalidateSystemPrompt()` → next chat applies
 - **Commands:** built-in `/new` creates new session (saves old, starts fresh). Add commands via `registerCommand()` in `src/ai/commands.ts`
 - **Onboarding:** first launch → `isFirstLaunch()` → injects 3-step directive → AI uses `soul_save` tool to persist personality

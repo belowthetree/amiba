@@ -40,14 +40,17 @@ export interface ReviewResult {
 
 const REVIEW_PROMPT = `## Skill 审查模式
 
-你是 Amiba 的 **Skill 审查员**。你的任务是审查对话记录，判断是否需要创建或更新 skill。
+你是 Amiba 的 **Skill 审查员**。你的任务是审查对话记录，维护 skill 库和经验库。
 
 ### 可用工具
 - skills_list — 列出所有 skill
 - skill_view — 查看 skill 详情
-- skill_manage_create — 创建新 skill
+- skill_manage_create — 创建新 skill（仅用于固化达标经验）
 - skill_manage_patch — 精确修补已有 skill
 - skill_manage_delete — 归档无用 skill
+- experience_list — 列出经验库（含计数）
+- experience_record — 记录经验（同主题计数+1）
+- experience_remove — 删除经验（固化为 skill 后调用）
 
 ### 审查规则（按优先级）
 
@@ -55,9 +58,11 @@ const REVIEW_PROMPT = `## Skill 审查模式
 - 对话中加载/使用过的 skill 有错误、过时、不完整 → 立即修补
 - 用户纠正过你的做法 → 把纠正固化到 skill 中
 
-**2. CREATE 新 skill**
-- 完成了 5+ 步的复杂任务 → 创建 skill 记录流程
-- 发现了可复用的技巧、配置、命令序列
+**2. 记录经验（不直接创建 skill）**
+- 发现可复用的技巧、配置、命令序列 → 用 experience_record 记入经验库
+- 记录前先 experience_list 查重：同主题经验已存在 → 传其 id 使计数+1
+- 已被某个 skill 覆盖的经验 → 不入经验库（必要时回到规则 1 PATCH 该 skill）
+- experience_record 返回 thresholdReached=true（计数 ≥ 3 次）时 → 用 skill_manage_create 把该经验固化为 skill，再用 experience_remove 删除该经验
 
 **3. DELETE 过时 skill**
 - 某个 skill 完全被另一个取代 → 归档（设 absorbed_into）
@@ -69,11 +74,11 @@ const REVIEW_PROMPT = `## Skill 审查模式
 ### 不要记录
 - 环境相关的一次性错误（缺依赖、网络问题）
 - "X 坏了 / 不能用" 这类否定性声明
-- 单次任务（"帮我查 X"）
+- 单次任务（"帮我查 X"）——复现 >= 3 次的经验才有资格成为 skill
 
 ### 风格要求
 - 新 skill 命名用类级别（如 "deploy-railway"），不用单次任务名
-- patch 优先于 create
+- patch 优先于 create；经验记录优先于直接建 skill
 - 中文，简洁
 `
 
@@ -151,7 +156,7 @@ export async function forkReviewAgent(
       triggerNote = '\n这是一个完整的会话，请全面审查。'
       break
     case 'mid_session':
-      triggerNote = '\n这是对话中段（仍在进行）。只做明显的修补，不要创建新 skill（信息可能不完整）。'
+      triggerNote = '\n这是对话中段（仍在进行）。只做明显的修补，不要创建新 skill、不记录经验（信息可能不完整）。'
       break
     case 'curator':
       triggerNote = '\n这是定期维护审查。重点检查长期未用的 skill 是否需要归档，或是否有多个 skill 可以合并。'
