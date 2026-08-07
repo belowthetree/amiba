@@ -19,6 +19,8 @@ const PRESET_PROVIDERS: AiProvider[] = [
     baseUrl: 'https://api.deepseek.com',
     apiKey: '',
     models: ['deepseek-v4-flash', 'deepseek-v4-pro'],
+    protocol: 'responses',   // Responses API（服务端 web_search 唯一通道；仅支持 v4 模型）
+    webSearch: true,
   },
   {
     id: 'openai',
@@ -51,7 +53,18 @@ export async function initProviderStore(): Promise<void> {
 
   const saved = await storageGetJSON<AiProvider[]>(STORAGE_KEY)
   if (saved && Array.isArray(saved) && saved.length > 0) {
-    providers.splice(0, providers.length, ...saved)
+    // 存量数据迁移：DeepSeek 预置固定 Responses 端点类型 + 默认开启联网搜索，
+    // 并合并 v4 模型列表（Responses 端点仅支持 v4 模型）
+    const preset = PRESET_PROVIDERS.find(p => p.id === 'deepseek')!
+    const migrated = saved.map(p => p.id === 'deepseek'
+      ? {
+          ...p,
+          protocol: 'responses' as const,
+          webSearch: p.webSearch ?? true,
+          models: [...new Set([...p.models, ...preset.models])],
+        }
+      : p)
+    providers.splice(0, providers.length, ...migrated)
   } else {
     // 首次初始化：写入预置供应商
     providers.splice(0, providers.length, ...PRESET_PROVIDERS)

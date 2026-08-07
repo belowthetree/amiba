@@ -10,7 +10,7 @@ import { getSettings, getApiKey } from '../config/config'
 import { memoryStore } from './memory-store'
 import { buildSystemPrompt, consumeMemoryCheckpointPrompt } from './system-prompt'
 import { toAISdkTools } from '../tools/toolsets'
-import { createModelFromConfig } from './provider-factory'
+import { createModelFromConfig, createWebSearchTool } from './provider-factory'
 import type { CustomAgent } from '../types/service'
 
 export interface ChatMessage {
@@ -42,6 +42,10 @@ export interface StreamChatOptions {
   skipMemoryCheckpoint?: boolean
   /** 工具名白名单过滤（在 enabledToolsets 解析结果上再求交集，用于服务场景的最小授权） */
   allowedTools?: string[]
+  /** 允许注入服务端联网搜索工具（provider-executed web_search）。
+   *  生效前提：当前供应商 protocol === 'responses' 且其 webSearch 开关打开；
+   *  默认 false —— 服务内嵌 AI 等复用方不传入即不注入，白名单语义不受影响 */
+  webSearch?: boolean
 }
 
 const DEFAULT_OPTIONS = {
@@ -73,6 +77,19 @@ export async function* streamChat(
   let apiKey = await getApiKey()
   let baseUrl = s.ai_base_url
   let modelName = s.ai_model
+  // 协议与联网搜索开关随供应商配置走；默认 API 配置（未选供应商）固定 Responses + 联网搜索
+  let protocol: 'chat' | 'responses' = 'responses'
+  let providerWebSearch = true
+
+  // 默认路径：经默认供应商解析（settings.default_provider_id）
+  if (s.default_provider_id) {
+    const { getProvider } = await import('./provider-store')
+    const p = getProvider(s.default_provider_id)
+    if (p) {
+      protocol = p.protocol ?? 'responses'
+      providerWebSearch = !!p.webSearch
+    }
+  }
 
   // 如果指定了自定义 Agent，使用其供应商配置
   let customAgent: CustomAgent | undefined
@@ -88,6 +105,8 @@ export async function* streamChat(
         if (provider.apiKey) {
           apiKey = provider.apiKey
         }
+        protocol = provider.protocol ?? 'responses'
+        providerWebSearch = !!provider.webSearch
       }
     }
   }
@@ -103,10 +122,19 @@ export async function* streamChat(
   }
 
   // === AI SDK: 创建 provider + model ===
-  const { model: languageModel, providerName } = createModelFromConfig(baseUrl, apiKey, modelName)
+  const { model: languageModel, providerName } = createModelFromConfig(baseUrl, apiKey, modelName, protocol)
 
   // === AI SDK: 构建工具 ===
   const tools = toAISdkTools(opts.enabledToolsets, opts.allowedTools)
+  // 服务端联网搜索（provider-executed web_search）：不经 ToolRegistry、不占本地工具轮次；
+  // 仅调用方显式允许（webSearch 选项）且供应商 responses 协议 + 开关打开时注入
+  if (opts.webSearch && providerWebSearch) {
+    const wsTool = createWebSearchTool(baseUrl, apiKey, protocol)
+    if (wsTool) {
+      Object.assign(tools, wsTool)
+      console.log('[Agent] 🌐 服务端联网搜索已注入（responses 协议）')
+    }
+  }
   const hasTools = Object.keys(tools).length > 0
 
   // === 推理强度 ===

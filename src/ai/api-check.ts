@@ -1,6 +1,6 @@
 // ============================================================
 // 变形虫 (Amiba) — API 可用性检测
-// 启动时与 API 设置引导页共用：最小化 chat 请求验证 baseUrl/Key/模型
+// 启动时与 API 设置引导页共用：最小化请求验证 baseUrl/Key/模型
 // ============================================================
 
 export interface ApiCheckResult {
@@ -9,7 +9,10 @@ export interface ApiCheckResult {
 }
 
 /**
- * 发送最小化 chat completion 请求验证 API 是否可用。
+ * 发送最小化请求验证 API 是否可用。
+ * protocol: 'responses'（默认）→ POST {baseUrl}/responses（DeepSeek 服务端 web_search 所在协议，
+ *           max_output_tokens 下限为 16，故不能用 1）；
+ *           'chat' → POST {baseUrl}/chat/completions
  * 判定规则：
  * - 2xx / 400 / 422：服务可达且 Key 已被接受 → 可用
  * - 401 / 403 / 404：Key 无效或端点/模型不存在 → 不可用
@@ -20,12 +23,17 @@ export async function testApiConnection(
   baseUrl: string,
   apiKey: string,
   model: string,
-  timeoutMs = 12000
+  timeoutMs = 12000,
+  protocol: 'chat' | 'responses' = 'responses'
 ): Promise<ApiCheckResult> {
   if (!apiKey) return { ok: false, error: 'API Key is empty' }
   if (!baseUrl) return { ok: false, error: 'Base URL is empty' }
 
-  const url = baseUrl.replace(/\/+$/, '') + '/chat/completions'
+  const isResponses = protocol === 'responses'
+  const url = baseUrl.replace(/\/+$/, '') + (isResponses ? '/responses' : '/chat/completions')
+  const body = isResponses
+    ? { model, input: 'ping', max_output_tokens: 16, stream: false }
+    : { model, messages: [{ role: 'user', content: 'ping' }], max_tokens: 1, stream: false }
   const ctrl = new AbortController()
   const tmr = setTimeout(() => ctrl.abort(), timeoutMs)
   try {
@@ -35,12 +43,7 @@ export async function testApiConnection(
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: 'user', content: 'ping' }],
-        max_tokens: 1,
-        stream: false,
-      }),
+      body: JSON.stringify(body),
       signal: ctrl.signal,
     })
     if (res.ok || res.status === 400 || res.status === 422) return { ok: true }

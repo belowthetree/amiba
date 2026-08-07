@@ -52,6 +52,8 @@ async function _streamLoop(chatMsgs: ChatMessage[]): Promise<void> {
   const gen = streamChat(chatMsgs, {
     turnCount: session.turnCount.value,
     abortSignal: _abortController!.signal,
+    // 允许注入服务端联网搜索（实际生效取决于默认供应商 protocol/webSearch 开关）
+    webSearch: true,
   })
 
   for await (const chunk of gen) {

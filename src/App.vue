@@ -76,6 +76,7 @@ import GlassBackground from './components/GlassBackground.vue'
 import EdgeNavHint from './components/EdgeNavHint.vue'
 import ApiSetupOverlay from './components/ApiSetupOverlay.vue'
 import { testApiConnection } from './ai/api-check'
+import { getProvider } from './ai/provider-store'
 import { themeState } from './config/theme-store'
 import { settings } from './config/config'
 import { checkForUpdate } from './config/updater'
@@ -493,7 +494,8 @@ async function checkApiAvailability() {
     return
   }
   // 已配置 Key：后台验证连通性，不可用则弹出引导
-  const result = await testApiConnection(settings.ai_base_url, settings.api_key, settings.ai_model)
+  const protocol = settings.default_provider_id ? (getProvider(settings.default_provider_id)?.protocol ?? 'responses') : 'responses'
+  const result = await testApiConnection(settings.ai_base_url, settings.api_key, settings.ai_model, 12000, protocol)
   if (!result.ok) {
     console.log('[App] API 不可用，显示 API 设置引导:', result.error)
     apiSetupReason.value = 'unavailable'

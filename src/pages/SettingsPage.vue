@@ -43,6 +43,7 @@
             class="form-input"
             placeholder="https://api.deepseek.com"
           />
+          <p style="font-size:12px;color:var(--text-secondary);margin:4px 0 0">{{ $t('settings.general.defaultApiHint') }}</p>
         </div>
 
         <div class="form-group">
@@ -65,6 +66,14 @@
             :placeholder="$t('settings.general.customModelPlaceholder')"
             autocomplete="off"
           />
+        </div>
+
+        <div class="form-group" v-if="defaultProviderId">
+          <label>{{ $t('settings.general.webSearch') }}</label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:var(--text-secondary)">
+            <input type="checkbox" v-model="defaultProviderWebSearch" />
+            {{ $t('settings.general.webSearchHint') }}
+          </label>
         </div>
 
         <div class="form-group">
@@ -92,6 +101,10 @@
                 <input v-model="providerForm.baseUrl" class="form-input" :placeholder="$t('settings.general.providerBaseUrlPlaceholder')" style="margin-bottom:4px" />
                 <input v-model="providerForm.apiKey" class="form-input" :placeholder="$t('settings.general.providerApiKeyPlaceholder')" style="margin-bottom:4px" />
                 <textarea v-model="providerForm.modelsStr" class="form-input" :placeholder="$t('settings.general.providerModelsPlaceholder')" rows="2" style="margin-bottom:6px;resize:vertical" />
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:var(--text-secondary);margin-bottom:6px">
+                  <input type="checkbox" v-model="providerForm.webSearch" />
+                  {{ $t('settings.general.webSearch') }}
+                </label>
                 <div class="action-row">
                   <button class="sib save" @click="saveProviderEdit(i)">💾 {{ $t('settings.general.save') }}</button>
                   <button class="sx" @click="providerEditingIdx = -1">{{ $t('settings.general.cancel') }}</button>
@@ -100,7 +113,7 @@
             </template>
             <template v-else>
               <span class="sn">{{ p.name }}</span>
-              <span class="sd">{{ p.baseUrl }} · {{ p.models.length }} {{ $t('settings.general.modelCount') }}</span>
+              <span class="sd">{{ p.baseUrl }} · {{ p.models.length }} {{ $t('settings.general.modelCount') }} · {{ p.protocol === 'responses' ? 'Responses' : 'Chat' }}</span>
               <button class="sib" @click="startProviderEdit(i)">✏️</button>
               <button class="sx" @click="removeProvider(i)">✕</button>
             </template>
@@ -953,17 +966,17 @@ refreshSkills()
 // --- Provider management ---
 const providerList = providers as AiProvider[]
 const providerEditingIdx = ref(-1)
-const providerForm = ref({ name: '', id: '', baseUrl: '', apiKey: '', modelsStr: '' })
+const providerForm = ref({ name: '', id: '', baseUrl: '', apiKey: '', modelsStr: '', webSearch: false })
 
 function addProviderDialog() {
-  providerForm.value = { name: '', id: '', baseUrl: '', apiKey: '', modelsStr: '' }
-  providerList.push({ id: `provider-${Date.now()}`, name: t('settings.skills.newProviderName'), baseUrl: '', apiKey: '', models: [] })
+  providerForm.value = { name: '', id: '', baseUrl: '', apiKey: '', modelsStr: '', webSearch: false }
+  providerList.push({ id: `provider-${Date.now()}`, name: t('settings.skills.newProviderName'), baseUrl: '', apiKey: '', models: [], protocol: 'responses' })
   providerEditingIdx.value = providerList.length - 1
 }
 
 function startProviderEdit(idx: number) {
   const p = providerList[idx]
-  providerForm.value = { name: p.name, id: p.id, baseUrl: p.baseUrl, apiKey: p.apiKey, modelsStr: p.models.join('\n') }
+  providerForm.value = { name: p.name, id: p.id, baseUrl: p.baseUrl, apiKey: p.apiKey, modelsStr: p.models.join('\n'), webSearch: !!p.webSearch }
   providerEditingIdx.value = idx
 }
 
@@ -976,6 +989,9 @@ function saveProviderEdit(idx: number) {
     baseUrl: f.baseUrl.trim(),
     apiKey: f.apiKey.trim(),
     models: f.modelsStr.split('\n').map(m => m.trim()).filter(Boolean),
+    // 协议固定 Responses（联网搜索唯一通道，不再提供 chat 选项）
+    protocol: 'responses',
+    webSearch: f.webSearch,
   }
   try {
     if (providerList[idx] && providerList[idx].id !== f.id.trim()) {
@@ -1004,6 +1020,12 @@ const defaultProviderModels = computed(() => {
   if (!defaultProviderId.value) return []
   const p = providerList.find(p => p.id === defaultProviderId.value)
   return p?.models || []
+})
+
+// 默认供应商联网搜索开关（写回 provider 配置持久化；供应商协议固定 Responses）
+const defaultProviderWebSearch = computed({
+  get: () => !!providerList.find(p => p.id === defaultProviderId.value)?.webSearch,
+  set: (v: boolean) => { if (defaultProviderId.value) updateProvider(defaultProviderId.value, { webSearch: v }) },
 })
 
 function onDefaultProviderChange() {

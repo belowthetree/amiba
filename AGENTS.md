@@ -43,7 +43,7 @@ npm run harmony:build:app   # 同上但打 App Pack（assembleApp → harmony/bu
 
 | File | Role |
 |------|------|
-| `agent.ts` | OpenAI-compatible streaming chat loop with multi-tool dispatch, memory checkpoint injection |
+| `agent.ts` | OpenAI-compatible streaming chat loop with multi-tool dispatch, memory checkpoint injection；Responses 协议 + 服务端 web_search 工具注入（默认 API 配置固定 responses + 联网搜索） |
 | `agent-runner.ts` | **Global singleton**: owns Agent lifecycle — `sendMessage`/`stopGeneration`/`continueGeneration`; survives page navigation; ChatPage observes reactive state (`running`/`streamingReasoning`/`showStepLimit`) |
 | `system-prompt.ts` | Two-layer assembler: stable (identity+rules+skills, cached) + volatile (memory snapshot+time+nudge, rebuilt each call) |
 | `soul.ts` | Personality system: `souls/<name>.md` files, `soul_save` tool integration, onboarding directive |
@@ -65,8 +65,9 @@ npm run harmony:build:app   # 同上但打 App Pack（assembleApp → harmony/bu
 | `packager.ts` | Inline multi-file ServicePackage into single HTML for iframe rendering |
 | `service-validator.ts` | Service code validation: storage API, sandbox APIs, permission consistency |
 | `doc-index.ts` | Document index/search/read for builtin (`public/docs/`) and user (`{AppData}/docs/`) docs |
-| `provider-store.ts` | Multi-provider AI vendor management: reactive list, CRUD, auto-persist to `amiba_providers` |
-| `api-check.ts` | API 可用性检测：最小化 chat 请求验证 baseUrl/Key/模型（启动门 + 设置引导共用） |
+| `provider-store.ts` | Multi-provider AI vendor management: reactive list, CRUD, auto-persist to `amiba_providers`；`AiProvider.protocol`（UI 固定 responses，chat 仅数据层保留）+ `webSearch` 开关，DeepSeek 预置默认 responses + 联网搜索 |
+| `provider-factory.ts` | 按供应商配置创建 AI SDK 模型：chat → OpenAI-compatible `/chat/completions`；responses → `openai.responses()` + `createWebSearchTool()` 注入 provider-executed `web_search` 工具 |
+| `api-check.ts` | API 可用性检测：最小化请求验证 baseUrl/Key/模型（启动门 + 设置引导共用）；按协议探测 `/chat/completions` 或 `/responses` |
 | `custom-agent-store.ts` | Custom agent management: reactive list + settings.active_agent_id, CRUD, auto-persist to `amiba_custom_agents` |
 | `service-ai.ts` | 服务内嵌 AI 对话：工具双层白名单（SERVICE_AI_TOOLS，默认只读）、ServiceAiRunner（每服务≤3会话/10轮上限/30min空闲回收）、绕开 agent-runner 复用 streamChat |
 

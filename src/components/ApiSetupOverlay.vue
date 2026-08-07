@@ -102,12 +102,18 @@ function onDefaultProviderChange() {
   }
 }
 
+// 默认供应商协议（responses 供应商走 /responses 探测；默认 API 配置固定 responses）
+const defaultProviderProtocol = computed(() => {
+  const p = providers.find(p => p.id === defaultProviderId.value)
+  return p?.protocol ?? 'responses'
+})
+
 async function verifyAndContinue() {
   if (testing.value) return
   testing.value = true
   statusText.value = ''
   console.log('[ApiSetup] 开始验证 API 连接...')
-  const result = await testApiConnection(settings.ai_base_url, settings.api_key, settings.ai_model)
+  const result = await testApiConnection(settings.ai_base_url, settings.api_key, settings.ai_model, 12000, defaultProviderProtocol.value)
   testing.value = false
   if (result.ok) {
     console.log('[ApiSetup] ✓ API 验证通过')

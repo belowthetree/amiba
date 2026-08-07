@@ -233,6 +233,11 @@ export interface AiProvider {
   baseUrl: string     // API 地址
   apiKey: string      // API 密钥
   models: string[]    // 可用模型列表
+  /** API 协议：chat = Chat Completions（默认）；responses = OpenAI 兼容 Responses API
+   *  （DeepSeek 服务端 web_search 仅经 Responses 提供，且仅支持 v4 模型） */
+  protocol?: 'chat' | 'responses'
+  /** 服务端联网搜索开关（仅 protocol === 'responses' 时生效，经 openai.tools.webSearch() 注入） */
+  webSearch?: boolean
 }
 
 // --- Custom Agent ---

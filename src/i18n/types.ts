@@ -109,6 +109,9 @@ export interface LocalesSchema {
       providerBaseUrlPlaceholder: string
       providerApiKeyPlaceholder: string
       providerModelsPlaceholder: string
+      defaultApiHint: string
+      webSearch: string
+      webSearchHint: string
       save: string
       cancel: string
       noProviders: string
