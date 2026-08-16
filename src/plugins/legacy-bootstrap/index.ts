@@ -18,7 +18,6 @@ import { memoryStore } from '../../ai/memory-store'
 import { loadUserSkills } from '../../ai/skills'
 import { soulManager } from '../../ai/soul'
 import { maybeRunCurator } from '../../ai/skill-curator'
-import { initProviderStore } from '../../ai/provider-store'
 import { initCustomAgentStore } from '../../ai/custom-agent-store'
 import { initNetworkBridge } from '../../host/network-bridge'
 import { initPersistentWidgets } from '../../host/widget-lifecycle'
@@ -31,9 +30,11 @@ import type { AmibaStorageService } from '../storage'
 import type { AmibaSettingsService } from '../settings'
 import type { AmibaToolRegistryService } from '../tool-registry'
 import type { AmibaToolsetsService } from '../toolsets'
+import type { AmibaModelProvidersService } from '../model-providers'
+import type { AmibaCredentialsService } from '../credentials'
 
 export const name = '@amiba/legacy-bootstrap'
-export const inject = ['storage', 'settings', 'toolRegistry', 'toolsets', 'uiShell', 'router', 'lifecycle']
+export const inject = ['storage', 'settings', 'toolRegistry', 'toolsets', 'modelProviders', 'credentials', 'uiShell', 'router', 'lifecycle']
 export const provides: string[] = []
 
 export async function apply(ctx: AmibaContext): Promise<void> {
@@ -41,13 +42,17 @@ export async function apply(ctx: AmibaContext): Promise<void> {
   const settings = ctx.get<AmibaSettingsService>('settings')
   const tools = ctx.get<AmibaToolRegistryService>('toolRegistry')
   const toolsetService = ctx.get<AmibaToolsetsService>('toolsets')
-  if (!storage || !settings || !tools || !toolsetService) {
-    throw new Error('[legacy-bootstrap] 缺少 storage / settings / toolRegistry / toolsets 服务，无法初始化')
+  const providers = ctx.get<AmibaModelProvidersService>('modelProviders')
+  const credentials = ctx.get<AmibaCredentialsService>('credentials')
+  if (!storage || !settings || !tools || !toolsetService || !providers || !credentials) {
+    throw new Error('[legacy-bootstrap] 缺少 storage / settings / toolRegistry / toolsets / modelProviders / credentials 服务，无法初始化')
   }
-  // storage / settings 已由各自插件在 apply() 中完成初始化；
-  // toolsets 服务本阶段仅注册，供后续模块经 ctx 消费。
+  // storage / settings / modelProviders 已由各自插件在 apply() 中完成初始化；
+  // toolsets / credentials 服务本阶段仅注册，供后续模块经 ctx 消费。
   void storage
   void toolsetService
+  void providers
+  void credentials
 
   // 尽早拦截 console 写入日志文件
   initLogger(settings.state)
@@ -56,7 +61,6 @@ export async function apply(ctx: AmibaContext): Promise<void> {
     initRegistry(),
     memoryStore.init(),
     loadUserSkills(),
-    initProviderStore(),
     initCustomAgentStore(),
   ])
   // 主题系统初始化（加载后立即生效，不影响其他模块）

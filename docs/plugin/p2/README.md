@@ -7,9 +7,9 @@
 
 | 步骤 | 内容 | 状态 |
 | --- | --- | --- |
-| 1 | 拆出 `@amiba/storage` 与 `@amiba/settings` 服务插件 | 🔄 进行中 |
-| 2 | 拆出 `@amiba/tool-registry` / `@amiba/toolsets` 服务 | ⬜ |
-| 3 | 拆出 `@amiba/model-providers` 与 `@amiba/credentials` | ⬜ |
+| 1 | 拆出 `@amiba/storage` 与 `@amiba/settings` 服务插件 | ✅ 已验证 |
+| 2 | 拆出 `@amiba/tool-registry` / `@amiba/toolsets` 服务 | ✅ 已验证 |
+| 3 | 拆出 `@amiba/model-providers` 与 `@amiba/credentials` | 🔄 待验证 |
 | 4 | 拆出 `@amiba/session` 与 `@amiba/memory` | ⬜ |
 | 5 | 拆出 `@amiba/skills` 技能群 | ⬜ |
 | 6 | 拆出 `@amiba/service-runtime`（registry / bridge / service-tools） | ⬜ |
