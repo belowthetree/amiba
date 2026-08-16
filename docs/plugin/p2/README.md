@@ -10,8 +10,8 @@
 | 1 | 拆出 `@amiba/storage` 与 `@amiba/settings` 服务插件 | ✅ 已验证 |
 | 2 | 拆出 `@amiba/tool-registry` / `@amiba/toolsets` 服务 | ✅ 已验证 |
 | 3 | 拆出 `@amiba/model-providers` 与 `@amiba/credentials` | ✅ 已验证 |
-| 4 | 拆出 `@amiba/session` 与 `@amiba/memory` | 🔄 待验证 |
-| 5 | 拆出 `@amiba/skills` 技能群 | ⬜ |
+| 4 | 拆出 `@amiba/session` 与 `@amiba/memory` | ✅ 已验证 |
+| 5 | 拆出 `@amiba/skills` 技能群 | 🔄 待验证 |
 | 6 | 拆出 `@amiba/service-runtime`（registry / bridge / service-tools） | ⬜ |
 | 7 | 拆出网络 / Widget / 后台服务插件 | ⬜ |
 | 8 | `legacy-bootstrap` 瘦身为“仅挂载 + 生命周期” | ⬜ |

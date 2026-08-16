@@ -14,9 +14,7 @@ import type { AmibaContext } from '../../kernel'
 import { i18n, syncI18nWithSettings } from '../../i18n'
 import { initLogger } from '../../config/logger'
 import { initRegistry, installPrebuiltServices } from '../../host/registry'
-import { loadUserSkills } from '../../ai/skills'
 import { soulManager } from '../../ai/soul'
-import { maybeRunCurator } from '../../ai/skill-curator'
 import { initCustomAgentStore } from '../../ai/custom-agent-store'
 import { initNetworkBridge } from '../../host/network-bridge'
 import { initPersistentWidgets } from '../../host/widget-lifecycle'
@@ -33,9 +31,10 @@ import type { AmibaModelProvidersService } from '../model-providers'
 import type { AmibaCredentialsService } from '../credentials'
 import type { AmibaSessionService } from '../session'
 import type { AmibaMemoryService } from '../memory'
+import type { AmibaSkillsService } from '../skills'
 
 export const name = '@amiba/legacy-bootstrap'
-export const inject = ['storage', 'settings', 'toolRegistry', 'toolsets', 'modelProviders', 'credentials', 'uiShell', 'router', 'session', 'memory', 'lifecycle']
+export const inject = ['storage', 'settings', 'toolRegistry', 'toolsets', 'modelProviders', 'credentials', 'uiShell', 'router', 'session', 'memory', 'skills', 'lifecycle']
 export const provides: string[] = []
 
 export async function apply(ctx: AmibaContext): Promise<void> {
@@ -47,8 +46,9 @@ export async function apply(ctx: AmibaContext): Promise<void> {
   const credentials = ctx.get<AmibaCredentialsService>('credentials')
   const session = ctx.get<AmibaSessionService>('session')
   const memory = ctx.get<AmibaMemoryService>('memory')
-  if (!storage || !settings || !tools || !toolsetService || !providers || !credentials || !session || !memory) {
-    throw new Error('[legacy-bootstrap] 缺少 storage / settings / toolRegistry / toolsets / modelProviders / credentials / session / memory 服务，无法初始化')
+  const skills = ctx.get<AmibaSkillsService>('skills')
+  if (!storage || !settings || !tools || !toolsetService || !providers || !credentials || !session || !memory || !skills) {
+    throw new Error('[legacy-bootstrap] 缺少 storage / settings / toolRegistry / toolsets / modelProviders / credentials / session / memory / skills 服务，无法初始化')
   }
   // storage / settings / modelProviders 已由各自插件在 apply() 中完成初始化；
   // toolsets / credentials / session 服务本阶段仅注册，供后续模块经 ctx 消费。
@@ -64,7 +64,7 @@ export async function apply(ctx: AmibaContext): Promise<void> {
   await Promise.all([
     initRegistry(),
     memory.init(),
-    loadUserSkills(),
+    skills.user.loadUserSkills(),
     initCustomAgentStore(),
   ])
   // 主题系统初始化（加载后立即生效，不影响其他模块）
@@ -111,7 +111,7 @@ export async function apply(ctx: AmibaContext): Promise<void> {
     archiveAfterDays: (settings.state as any).curator_archive_after_days ?? 90,
     consolidateEnabled: (settings.state as any).curator_consolidate_enabled ?? false,
   }
-  maybeRunCurator(curatorConfig).then((result) => {
+  skills.curator.maybeRunCurator(curatorConfig).then((result) => {
     if (result.ran) {
       const parts: string[] = [`${result.report?.transitions.length} 个迁移`]
       if (result.report?.consolidation?.ran) {

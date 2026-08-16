@@ -3,7 +3,7 @@
   "id": "legacy-bootstrap",
   "kind": "plugin",
   "entry": "index.ts",
-  "inject": ["storage", "settings", "toolRegistry", "toolsets", "modelProviders", "credentials", "uiShell", "router", "session", "memory", "lifecycle"],
+  "inject": ["storage", "settings", "toolRegistry", "toolsets", "modelProviders", "credentials", "uiShell", "router", "session", "memory", "skills", "lifecycle"],
   "provides": {
     "services": ["app"]
   }
