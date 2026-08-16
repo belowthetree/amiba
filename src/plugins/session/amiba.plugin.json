@@ -1,0 +1,10 @@
+{
+  "apiVersion": 1,
+  "id": "session",
+  "kind": "plugin",
+  "entry": "index.ts",
+  "inject": ["storage"],
+  "provides": {
+    "services": ["session"]
+  }
+}

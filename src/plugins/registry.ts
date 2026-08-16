@@ -13,6 +13,8 @@ import * as toolRegistry from './tool-registry'
 import * as toolsets from './toolsets'
 import * as modelProviders from './model-providers'
 import * as credentials from './credentials'
+import * as session from './session'
+import * as memory from './memory'
 import * as uiShell from './ui-shell'
 import * as uiDiagnostics from './ui-diagnostics'
 import * as legacyBootstrap from './legacy-bootstrap'
@@ -23,6 +25,8 @@ import toolRegistryManifest from './tool-registry/amiba.plugin.json'
 import toolsetsManifest from './toolsets/amiba.plugin.json'
 import modelProvidersManifest from './model-providers/amiba.plugin.json'
 import credentialsManifest from './credentials/amiba.plugin.json'
+import sessionManifest from './session/amiba.plugin.json'
+import memoryManifest from './memory/amiba.plugin.json'
 import uiShellManifest from './ui-shell/amiba.plugin.json'
 import uiDiagnosticsManifest from './ui-diagnostics/amiba.plugin.json'
 import legacyBootstrapManifest from './legacy-bootstrap/amiba.plugin.json'
@@ -42,6 +46,8 @@ const BUILTIN_PLUGINS: BuiltinPluginRegistration[] = [
   { module: modelProviders, manifest: modelProvidersManifest as unknown as PluginManifest, order: 38 },
   { module: credentials, manifest: credentialsManifest as unknown as PluginManifest, order: 39 },
   { module: uiShell, manifest: uiShellManifest as unknown as PluginManifest, order: 40 },
+  { module: session, manifest: sessionManifest as unknown as PluginManifest, order: 42 },
+  { module: memory, manifest: memoryManifest as unknown as PluginManifest, order: 43 },
   { module: uiDiagnostics, manifest: uiDiagnosticsManifest as unknown as PluginManifest, order: 50 },
   { module: legacyBootstrap, manifest: legacyBootstrapManifest as unknown as PluginManifest, order: 90 },
 ]

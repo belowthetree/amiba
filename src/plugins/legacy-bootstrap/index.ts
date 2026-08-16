@@ -14,7 +14,6 @@ import type { AmibaContext } from '../../kernel'
 import { i18n, syncI18nWithSettings } from '../../i18n'
 import { initLogger } from '../../config/logger'
 import { initRegistry, installPrebuiltServices } from '../../host/registry'
-import { memoryStore } from '../../ai/memory-store'
 import { loadUserSkills } from '../../ai/skills'
 import { soulManager } from '../../ai/soul'
 import { maybeRunCurator } from '../../ai/skill-curator'
@@ -32,9 +31,11 @@ import type { AmibaToolRegistryService } from '../tool-registry'
 import type { AmibaToolsetsService } from '../toolsets'
 import type { AmibaModelProvidersService } from '../model-providers'
 import type { AmibaCredentialsService } from '../credentials'
+import type { AmibaSessionService } from '../session'
+import type { AmibaMemoryService } from '../memory'
 
 export const name = '@amiba/legacy-bootstrap'
-export const inject = ['storage', 'settings', 'toolRegistry', 'toolsets', 'modelProviders', 'credentials', 'uiShell', 'router', 'lifecycle']
+export const inject = ['storage', 'settings', 'toolRegistry', 'toolsets', 'modelProviders', 'credentials', 'uiShell', 'router', 'session', 'memory', 'lifecycle']
 export const provides: string[] = []
 
 export async function apply(ctx: AmibaContext): Promise<void> {
@@ -44,22 +45,25 @@ export async function apply(ctx: AmibaContext): Promise<void> {
   const toolsetService = ctx.get<AmibaToolsetsService>('toolsets')
   const providers = ctx.get<AmibaModelProvidersService>('modelProviders')
   const credentials = ctx.get<AmibaCredentialsService>('credentials')
-  if (!storage || !settings || !tools || !toolsetService || !providers || !credentials) {
-    throw new Error('[legacy-bootstrap] 缺少 storage / settings / toolRegistry / toolsets / modelProviders / credentials 服务，无法初始化')
+  const session = ctx.get<AmibaSessionService>('session')
+  const memory = ctx.get<AmibaMemoryService>('memory')
+  if (!storage || !settings || !tools || !toolsetService || !providers || !credentials || !session || !memory) {
+    throw new Error('[legacy-bootstrap] 缺少 storage / settings / toolRegistry / toolsets / modelProviders / credentials / session / memory 服务，无法初始化')
   }
   // storage / settings / modelProviders 已由各自插件在 apply() 中完成初始化；
-  // toolsets / credentials 服务本阶段仅注册，供后续模块经 ctx 消费。
+  // toolsets / credentials / session 服务本阶段仅注册，供后续模块经 ctx 消费。
   void storage
   void toolsetService
   void providers
   void credentials
+  void session
 
   // 尽早拦截 console 写入日志文件
   initLogger(settings.state)
 
   await Promise.all([
     initRegistry(),
-    memoryStore.init(),
+    memory.init(),
     loadUserSkills(),
     initCustomAgentStore(),
   ])
