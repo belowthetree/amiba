@@ -1,0 +1,10 @@
+{
+  "apiVersion": 1,
+  "id": "legacy-bootstrap",
+  "kind": "plugin",
+  "entry": "index.ts",
+  "inject": ["storage", "settings", "toolRegistry", "toolsets", "uiShell", "router", "lifecycle"],
+  "provides": {
+    "services": ["app"]
+  }
+}

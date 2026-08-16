@@ -1,0 +1,10 @@
+{
+  "apiVersion": 1,
+  "id": "tool-registry",
+  "kind": "plugin",
+  "entry": "index.ts",
+  "inject": [],
+  "provides": {
+    "services": ["toolRegistry"]
+  }
+}

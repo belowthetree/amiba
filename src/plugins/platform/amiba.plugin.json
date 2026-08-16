@@ -1,0 +1,13 @@
+{
+  "apiVersion": 1,
+  "id": "platform",
+  "kind": "plugin",
+  "entry": "index.ts",
+  "inject": [],
+  "provides": {
+    "services": ["platform", "fs", "lifecycle"]
+  },
+  "permissions": {
+    "allow": ["platform:tauri", "platform:harmony", "platform:browser"]
+  }
+}

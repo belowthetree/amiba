@@ -1,0 +1,10 @@
+{
+  "apiVersion": 1,
+  "id": "ui-shell",
+  "kind": "plugin",
+  "entry": "index.ts",
+  "inject": ["platform"],
+  "provides": {
+    "services": ["uiShell", "router"]
+  }
+}

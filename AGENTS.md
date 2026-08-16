@@ -5,7 +5,7 @@ Vue 3 + TypeScript + Vite + Tauri desktop app. Users describe needs in natural l
 ## Project
 
 - **Stack:** Vue 3 (Composition API, `<script setup>`), Pinia, Vue Router, Vite 8, TypeScript 6, Tauri 2
-- **Entry:** `src/main.ts` → `config/polyfill.ts`（旧 Android WebView 兼容：Array/String `.at()`，须最先加载）→ `bootstrap()` inits storage/config/registry/memory/skills/soul, discovers tools, then mounts `App.vue`
+- **Entry:** `src/main.ts` → `config/polyfill.ts`（旧 Android WebView 兼容：Array/String `.at()`，须最先加载）→ `startAmiba()`（`src/bootstrap.ts`）→ `startKernel()` 装配内置插件（`platform → ui-shell → ui-diagnostics → legacy-bootstrap`）；原 storage/config/registry/memory/skills/soul 等初始化逻辑暂在 `src/plugins/legacy-bootstrap/index.ts` 黑盒插件内，由它挂载 `App.vue`
 - **Tauri:** `src-tauri/` — Rust glue (`lib.rs`) registers `tauri-plugin-log` + `tauri-plugin-fs`; `db.rs` — SQLite FTS5 session DB via `rusqlite`; `web.rs` — WebView 浏览器引擎（桌面 WebView + Android JNI/Kotlin + iOS WKWebView），提供 `web_fetch`（返回 `text` 可读文本 + `raw` 原始 HTML）/`web_browse` 等命令
 - **Android 特定:** Kotlin 辅助类在 `MainActivity.kt`（`JsCallback` + `WebViewHelper` + `FolderPickerHelper`（已废弃））; edge-to-edge 下通过 `setupWindowInsets()` 把 systemBars/IME inset 作为内容区 padding（软键盘弹出时界面上移，adjustResize 在 targetSdk 35+ 无效）; 文件夹选取通过 `tauri-plugin-android-fs` SAF Picker; JVM 通过 `libloading` 动态查找 `JNI_GetCreatedJavaVMs`; App ClassLoader 用于 native 线程加载 app 类; `AndroidJvm` state 仍被 `read_tombstone` 使用
 

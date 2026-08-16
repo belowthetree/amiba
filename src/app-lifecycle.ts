@@ -13,9 +13,9 @@ export interface LifecycleHandlers {
   onForeground: () => void | Promise<void>
 }
 
-export function initAppLifecycle(handlers: LifecycleHandlers): void {
+export function initAppLifecycle(handlers: LifecycleHandlers): () => void {
   console.log('[AppLifecycle] 生命周期监听已注册 (visibilitychange)')
-  document.addEventListener('visibilitychange', () => {
+  const listener = () => {
     if (document.hidden) {
       console.log('[AppLifecycle] === 页面隐藏（模拟后台）===')
       try { handlers.onBackground() } catch (e) { console.error('[AppLifecycle] onBackground error:', e) }
@@ -23,5 +23,7 @@ export function initAppLifecycle(handlers: LifecycleHandlers): void {
       console.log('[AppLifecycle] === 页面可见（模拟前台）===')
       try { handlers.onForeground() } catch (e) { console.error('[AppLifecycle] onForeground error:', e) }
     }
-  })
+  }
+  document.addEventListener('visibilitychange', listener)
+  return () => document.removeEventListener('visibilitychange', listener)
 }

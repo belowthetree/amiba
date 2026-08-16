@@ -1,0 +1,10 @@
+{
+  "apiVersion": 1,
+  "id": "toolsets",
+  "kind": "plugin",
+  "entry": "index.ts",
+  "inject": ["toolRegistry"],
+  "provides": {
+    "services": ["toolsets"]
+  }
+}

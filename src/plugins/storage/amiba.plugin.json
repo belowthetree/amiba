@@ -1,0 +1,10 @@
+{
+  "apiVersion": 1,
+  "id": "storage",
+  "kind": "plugin",
+  "entry": "index.ts",
+  "inject": ["platform"],
+  "provides": {
+    "services": ["storage"]
+  }
+}
