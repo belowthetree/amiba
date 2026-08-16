@@ -19,6 +19,7 @@ export interface LocalesSchema {
   }
   quick: {
     emptyHint: string
+    back: string
   }
   apiSetup: {
     title: string
@@ -272,6 +273,17 @@ export interface LocalesSchema {
     entriesPreview: string
     saved: string
     confirmClear: string
+    tabRequirements: string
+    reqServiceCount: string
+    reqEmpty: string
+    reqCurrent: string
+    reqOptimize: string
+    reqFeedback: string
+    reqDone: string
+    reqMarkDone: string
+    reqAdd: string
+    reqAddPlaceholder: string
+    reqConfirmDelete: string
   }
   services: {
     title: string

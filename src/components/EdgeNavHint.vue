@@ -37,7 +37,6 @@ const router = useRouter()
 const PATH_TITLE_KEY: Record<string, string> = {
   '/services': 'app.services',
   '/': 'app.title',
-  '/quick': 'app.quick',
   '/registry': 'app.registry',
   '/settings': 'app.settings',
   '/memory': 'app.memory',

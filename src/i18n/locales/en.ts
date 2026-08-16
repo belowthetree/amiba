@@ -20,6 +20,7 @@ const en: LocalesSchema = {
   },
   quick: {
     emptyHint: 'This is a customizable quick page. Tell the AI what you want, and it will personalize this space for you.',
+    back: 'Back',
   },
   apiSetup: {
     title: 'Configure AI API',
@@ -273,6 +274,17 @@ const en: LocalesSchema = {
     entriesPreview: 'Entry Preview ({n} entries)',
     saved: 'Saved',
     confirmClear: 'Are you sure you want to clear {name}?',
+    tabRequirements: 'Requirements',
+    reqServiceCount: '{n} services',
+    reqEmpty: 'No requirements yet. Requirements are tracked by AI during service iterations, and can also be added manually in the service cards below.',
+    reqCurrent: 'Current',
+    reqOptimize: 'Optimize',
+    reqFeedback: 'Feedback',
+    reqDone: 'Done',
+    reqMarkDone: 'Mark done',
+    reqAdd: 'Add',
+    reqAddPlaceholder: 'Add a requirement…',
+    reqConfirmDelete: 'Delete this requirement?',
   },
   services: {
     title: 'Services',

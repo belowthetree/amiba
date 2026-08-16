@@ -15,6 +15,8 @@
       <div class="empty-icon">✦</div>
       <p>{{ $t('quick.emptyHint') }}</p>
     </div>
+    <!-- 浮动返回按钮（快捷页不参与滑动切换，由悬浮按钮进入） -->
+    <button class="float-back-btn" :title="$t('quick.back')" :aria-label="$t('quick.back')" @click="goBack">‹</button>
   </div>
 </template>
 
@@ -28,34 +30,11 @@ const content = ref('')
 
 // 注入最小 __amiba__ 垫片：让嵌入内容里的“打开完整服务”等按钮能跳转宿主路由。
 // 只提供 navigateTo，不包含 storage 等桥接模块，服务代码会继续走 localStorage 回退。
-// 同时把 iframe 内的单指触摸坐标转发给宿主（iframe 触摸不会冒泡到父文档），
-// 宿主 App.vue 据此驱动页面切换手势；监听为 passive，不干扰嵌入内容自身的交互。
 const BRIDGE_SHIM = `<script>
 window.__amiba__ = window.__amiba__ || {};
 window.__amiba__.navigateTo = function (path) {
   window.parent.postMessage({ type: 'amiba-quick-navigate', path: path }, '*');
 };
-(function () {
-  var tracking = false;
-  function send(phase, t) {
-    window.parent.postMessage({ type: 'amiba-quick-touch', phase: phase, x: t.clientX, y: t.clientY }, '*');
-  }
-  document.addEventListener('touchstart', function (e) {
-    if (e.touches.length !== 1) { tracking = false; return; }
-    tracking = true;
-    send('start', e.touches[0]);
-  }, { passive: true });
-  document.addEventListener('touchmove', function (e) {
-    if (tracking && e.touches.length === 1) send('move', e.touches[0]);
-  }, { passive: true });
-  function end(e) {
-    if (!tracking) return;
-    tracking = false;
-    send('end', e.changedTouches[0]);
-  }
-  document.addEventListener('touchend', end, { passive: true });
-  document.addEventListener('touchcancel', end, { passive: true });
-})();
 <\/script>`
 
 const srcdoc = computed(() => BRIDGE_SHIM + content.value)
@@ -66,6 +45,12 @@ function onMessage(e: MessageEvent) {
   if (data?.type === 'amiba-quick-navigate' && typeof data.path === 'string' && data.path.startsWith('/')) {
     router.push(data.path)
   }
+}
+
+function goBack() {
+  // 优先回退历史；直接打开快捷页链接（无历史）时兜底回聊天页
+  if (window.history.length > 1) router.back()
+  else router.push('/')
 }
 
 onMounted(async () => {
@@ -138,5 +123,43 @@ watch(quickViewContent, (val) => {
   color: var(--color-text-secondary);
   max-width: 360px;
   line-height: 1.7;
+}
+
+/* ---- 浮动返回按钮（玻璃质感，与服务页一致） ---- */
+.float-back-btn {
+  position: fixed;
+  top: calc(max(var(--safe-top), 8px) + 10px);
+  left: 10px;
+  z-index: 100;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--color-border);
+  border: 1px solid color-mix(in srgb, var(--color-text) 10%, transparent);
+  background: var(--color-surface);
+  background: color-mix(in srgb, var(--color-surface) 65%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--color-text-secondary);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.55;
+  box-shadow: var(--shadow-sm);
+  transition: opacity 0.2s ease, background 0.2s ease, transform 0.15s ease;
+}
+
+.float-back-btn:hover {
+  opacity: 1;
+  background: var(--color-surface);
+  background: color-mix(in srgb, var(--color-surface) 88%, transparent);
+}
+
+.float-back-btn:active {
+  transform: scale(0.92);
 }
 </style>

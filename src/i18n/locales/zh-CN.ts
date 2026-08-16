@@ -20,6 +20,7 @@ const zhCN: LocalesSchema = {
   },
   quick: {
     emptyHint: '这是一个可自定义的快捷页面。告诉 AI 你想要什么，它会帮你定制这里的内容。',
+    back: '返回',
   },
   apiSetup: {
     title: '配置 AI API',
@@ -273,6 +274,17 @@ const zhCN: LocalesSchema = {
     entriesPreview: '条目预览 ({n} 条)',
     saved: '已保存',
     confirmClear: '确定要清空 {name} 吗？',
+    tabRequirements: '需求',
+    reqServiceCount: '{n} 个服务',
+    reqEmpty: '暂无需求记录。需求由 AI 在服务迭代过程中自动追踪，也可在下方服务卡片中手动添加。',
+    reqCurrent: '当前需求',
+    reqOptimize: '待优化',
+    reqFeedback: '用户反馈',
+    reqDone: '已完成',
+    reqMarkDone: '标记完成',
+    reqAdd: '添加',
+    reqAddPlaceholder: '添加新需求…',
+    reqConfirmDelete: '确定删除这条需求吗？',
   },
   services: {
     title: '服务',

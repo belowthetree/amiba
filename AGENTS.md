@@ -31,12 +31,12 @@ npm run harmony:build:app   # 同上但打 App Pack（assembleApp → harmony/bu
 | **Host Runtime** | `src/host/` | iframe sandbox (`service-container.vue`), postMessage JSBridge (`bridge.ts`), service registry (`registry.ts`: 持久层只存 enabled/aiConfig 等元数据，**manifest 一律以服务目录 `services/{id}/manifest.json` 为准**——启动扫目录重建内存注册表，`service_file_*` 改写 manifest.json 后热刷新，不再存快照), service-provided tools narrow waist (`service-tools.ts`: 服务经 tools 模块注册工具 → 校验/命名 svc_* → 同步进 ToolRegistry 动态工具集 svc → AI 调用经 tool-call/tool-result 路由回 iframe), LAN network bridge (`network-bridge.ts` + `network-session.ts`), LAN room manager (`room-manager.ts`: 房主-成员星型房间，createRoom/joinRoom/广播/成员管理，房间服务键 `room:<serviceId>` 路由入站会话), service sharing (`service-share.ts`), skill sharing (`skill-share.ts`), version archive (`service-archive.ts`), floating widget manager, background service manager + widget global API handler (`background-manager.ts`), file access grants (`file-access-grants.ts`), 安卓桌面卡片逻辑运行器 (`desktop-widget-runner.ts`: 隐藏 iframe 执行服务 logic.js → publish 数据 → 推送原生；沙箱内注 `renderHtml` 辅助，HTML/SVG 离屏渲染成 PNG 经 `imageData` 回传落盘 `cache/img/`；订阅 `onServiceDataChanged` 服务 storage 变更自动重跑——防抖 1s + 自写宽限期抑制） |
 | **Web Bridge** | `src/config/web-bridge.ts` | 封装 Tauri `web_fetch`/`web_click`/`web_input_text`/`web_get_content`/`web_close` 命令，含超时和日志。`FetchResult` 含 `text`（提取文本）、`raw`（原始 HTML）、`title`、`content_type` |
 | **Updater** | `src/config/updater.ts` | 纯前端更新检查：调 GitHub Releases API，semver 比较，Rust reqwest 下载（绕过浏览器 CORS），全平台统一 |
-| **Pages** | `src/pages/` | 7 routes: Chat（`/`）、ServiceBrowse（`/services`）、Quick（`/quick`）、RemoteServices 仓库（`/registry`）、Settings、Memory + service 容器页（`/service/:id`）; ShareDialog (局域网服务分享弹窗), SkillShareDialog (局域网技能分享弹窗) |
+| **Pages** | `src/pages/` | 7 routes: Chat（`/`）、ServiceBrowse（`/services`）、Quick（`/quick`）、RemoteServices 仓库（`/registry`）、Settings、Memory（记忆管理 + 需求浏览/管理 Tab）+ service 容器页（`/service/:id`）; ShareDialog (局域网服务分享弹窗), SkillShareDialog (局域网技能分享弹窗) |
 | **Config** | `src/config/` | Reactive settings persisted via Tauri FS plugin (`config.ts`), storage abstraction (`storage.ts`: auto-mkdir + pretty-print JSON), theme store (`theme-store.ts`: multi-theme management + prebuilt theme install), session-db wrapper (`session-db.ts`: Tauri invoke → Rust SQLite FTS5), folder-picker (`folder-picker.ts`: 统一文件夹选取 → Android tauri-plugin-android-fs SAF Picker / 鸿蒙 DocumentViewPicker（file_access_pick_folder，返回 picker URI）/ 桌面 plugin-dialog / 浏览器 prompt), 安卓桌面卡片存储 (`desktop-widget-store.ts`: 扫描服务 `desktop-widgets/` 卡片定义 → registry.json 启用状态 → cache 载荷 → 仅 Android 推送原生) |
 | **平台桥** | `src/config/platform-bridge.ts` + `native-fs.ts` + `src/types/native-bridge.ts` | 鸿蒙迁移适配层：统一宿主探测（`detectHost()` → tauri/harmony/browser，`__TAURI_INTERNALS__` 探测）+ `nativeInvoke`/`nativeListen` 原生通道分发 + plugin-fs/path 兼容 shim（签名不变，业务代码禁止直连 `@tauri-apps/api/*` 与 `@tauri-apps/plugin-fs`）；命令协议注册表在 types/native-bridge.ts（鸿蒙壳 ArkTS Dispatcher 按此实现） |
 | **Theme** | `src/config/theme-store.ts` + `public/themes/` | 多主题系统：3 套内置主题（default/dark/ocean）从 public/themes/ 安装到 AppData；用户可创建/删除/切换主题；CSS 变量体系（30 个 :root 变量）驱动全局外观；所有页面已迁移到 var() 体系；内置主题只读，修改时自动创建用户主题副本 |
 | **i18n** | `src/i18n/` | vue-i18n based internationalization: `locales/zh-CN.ts` + `locales/en.ts`, type-safe via `LocalesSchema`, synced with `settings.language` via `watch()` |
-| **Router** | `src/router/` | `createWebHistory` with lazy-loaded page components；导出 `PAGE_ORDER` 主导航页面序列（从左到右：仓库/服务/聊天/快捷/设置/记忆）；`router.onError` 检测 chunk 加载失败自动刷新自愈 |
+| **Router** | `src/router/` | `createWebHistory` with lazy-loaded page components；导出 `PAGE_ORDER` 主导航页面序列（从左到右：仓库/服务/聊天/设置/记忆；快捷页不在其中，经悬浮按钮进入）；`router.onError` 检测 chunk 加载失败自动刷新自愈 |
 | **Types** | `src/types/` | `ServiceManifest`, `ServicePackage`, `ServiceRequest/Response`, `AppSettings`, `MemoryToolParams`, `SkillPackage`, etc. |
 
 ## AI Core modules
@@ -59,7 +59,7 @@ npm run harmony:build:app   # 同上但打 App Pack（assembleApp → harmony/bu
 | `skill-consolidation-prompt.ts` | Consolidation agent system prompt: prefix clustering, 3 merge strategies, YAML decision output |
 | `skill-reviewer.ts` | Skill review engine: forks independent LLM calls at 4 trigger points (session_end/manual/mid_session/curator) to auto-maintain skill library; exposes `isReviewing`/`lastReviewResult` refs for UI feedback |
 | `experience-store.ts` | 经验库（`skills/.experiences.json`）：零散经验按主题计数暂存，复现 ≥3 次（SKILL_THRESHOLD）才固化为 skill；record 支持 id 指定 + 标题模糊查重，固化后 remove |
-| `requirement-store.ts` | Per-service `REQUIREMENT.md` + global `REQUIREMENTS.md` engine: parse/build, add/done/feedback, auto-sync |
+| `requirement-store.ts` | Per-service `REQUIREMENT.md` + global `REQUIREMENTS.md` engine: parse/build, add/done/feedback/remove, listServiceRequirements（记忆页需求 Tab 数据源）, auto-sync |
 | `commands.ts` | Built-in slash commands (`/new` → multi-session create) |
 | `memory.ts` | Memory tool handler (deprecated, use memory-store) |
 | `catalog.ts` | Component catalog YAML parser |
@@ -138,7 +138,7 @@ npm run harmony:build:app   # 同上但打 App Pack（assembleApp → harmony/bu
 
 ## UI Structure
 
-- **无顶栏设计：** 页面切换靠左右滑动手势（App.vue iPhone 风格跟手手势，`transitionend` 驱动路由切换避免回弹）+ 两侧 `EdgeNavHint` 玻璃竖条（点击也可切换，tooltip 显示目标页名）；页面序列 `PAGE_ORDER` 定义在 `src/router/index.ts`，从左到右：服务仓库 / 服务列表 / 聊天 / 快捷 / 设置 / 记忆。快捷页内容运行在 iframe 沙箱中，触摸事件不冒泡到宿主文档，由 `QuickPage.vue` 垫片脚本把触摸坐标 postMessage 转发给 App.vue 驱动同一套手势（`amiba-quick-touch` 消息）
+- **无顶栏设计：** 页面切换靠左右滑动手势（App.vue iPhone 风格跟手手势，`transitionend` 驱动路由切换避免回弹）+ 两侧 `EdgeNavHint` 玻璃竖条（点击也可切换，tooltip 显示目标页名）；页面序列 `PAGE_ORDER` 定义在 `src/router/index.ts`，从左到右：服务仓库 / 服务列表 / 聊天 / 设置 / 记忆。快捷页（`/quick`）不参与滑动切换，由全局悬浮按钮 `QuickFab.vue`（仅主导航页显示）进入，页内左上角浮动玻璃按钮返回；快捷页内容运行在 iframe 沙箱中，垫片脚本仅提供 `__amiba__.navigateTo` 路由跳转（`amiba-quick-navigate` 消息）
 - **页面过渡:** 手势切换用空过渡（JS 已驱动位移）；箭头/编程导航用同步横滑（新页滑入 + 旧页滑出，过渡期间两页 absolute 叠放，`left/right: 0` 保持 max-width 页面居中）；复位由 `@after-enter` 触发避免旧页闪回
 - **聊天页常驻:** ChatPage 经 `<keep-alive include="ChatPage">` 缓存（App.vue），滑回不重挂载；页面级清理/刷新放 `onDeactivated`/`onActivated`（监听器仍在 onMounted/onUnmounted 管理）；休眠期 DOM 脱离文档会丢 scrollTop，激活时恢复置底（`onActivated` → `scrollToBottom`）；冷启动首挂载用 `pre-scroll` 隐藏至置底完成，重挂载（滑页预览实例）store 已有消息则首帧同步置底不隐藏
 - **全局背景:** `src/components/GlassBackground.vue` — 玉色辉光 + 流光动画，fixed 铺满全局，随 `data-theme` 自适应，`prefers-reduced-motion` 时关闭动画

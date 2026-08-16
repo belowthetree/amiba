@@ -9,6 +9,9 @@
     <!-- 边缘翻页提示 -->
     <EdgeNavHint />
 
+    <!-- 快捷页悬浮入口（快捷页不参与滑动切换） -->
+    <QuickFab />
+
     <!-- 版本更新提示横幅 -->
     <div v-if="updateBanner.visible" class="update-banner" @click="goToUpdate">
       <span class="update-banner-icon">🆕</span>
@@ -74,6 +77,7 @@ import FloatingWidgetContainer from './host/floating-widget-container.vue'
 import WebviewOverlay from './components/WebviewOverlay.vue'
 import GlassBackground from './components/GlassBackground.vue'
 import EdgeNavHint from './components/EdgeNavHint.vue'
+import QuickFab from './components/QuickFab.vue'
 import ApiSetupOverlay from './components/ApiSetupOverlay.vue'
 import { testApiConnection } from './ai/api-check'
 import { getProvider } from './ai/provider-store'
@@ -97,7 +101,6 @@ watch(() => themeState.activeTheme, (name) => {
 const PAGE_COMPONENTS: Record<string, ReturnType<typeof defineAsyncComponent>> = {
   '/services': defineAsyncComponent(() => import('./pages/ServiceBrowsePage.vue')),
   '/': defineAsyncComponent(() => import('./pages/ChatPage.vue')),
-  '/quick': defineAsyncComponent(() => import('./pages/QuickPage.vue')),
   '/registry': defineAsyncComponent(() => import('./pages/RemoteServicesPage.vue')),
   '/settings': defineAsyncComponent(() => import('./pages/SettingsPage.vue')),
   '/memory': defineAsyncComponent(() => import('./pages/MemoryPage.vue')),
@@ -108,7 +111,6 @@ const transitionName = ref('page-forward')
 function routePath(name: string | symbol | null | undefined): string {
   if (name === 'services') return '/services'
   if (name === 'chat') return '/'
-  if (name === 'quick') return '/quick'
   if (name === 'registry') return '/registry'
   if (name === 'settings') return '/settings'
   if (name === 'memory') return '/memory'
@@ -135,6 +137,15 @@ router.beforeEach((to, from) => {
     return
   }
   if (from.name === 'service') {
+    transitionName.value = 'page-back'
+    return
+  }
+  // 快捷页不在主导航序列：进入向前滑入，离开向后滑出
+  if (to.name === 'quick') {
+    transitionName.value = 'page-forward'
+    return
+  }
+  if (from.name === 'quick') {
     transitionName.value = 'page-back'
     return
   }
@@ -358,19 +369,6 @@ function resetSwipeState() {
   hidePreview()
 }
 
-// ==== 快捷页 iframe 触摸转发 ====
-// iframe 内的触摸事件不会冒泡到宿主文档，快捷页通过 postMessage 转发触摸坐标，
-// 这里把转发坐标喂回同一套手势逻辑，使快捷页也能滑动切换页面
-function onIframeTouchMessage(e: MessageEvent) {
-  const d = e.data as { type?: string; phase?: string; x?: unknown; y?: unknown } | null
-  if (!d || d.type !== 'amiba-quick-touch') return
-  if (route.name !== 'quick') return
-  if (typeof d.x !== 'number' || typeof d.y !== 'number') return
-  if (d.phase === 'start') beginSwipe(d.x, d.y)
-  else if (d.phase === 'move') trackSwipe(d.x, d.y)
-  else if (d.phase === 'end') onSwipeEnd()
-}
-
 // 页面过渡完成回调：重置主容器滚动位置；手势提交后在此复位位移（新页挂载后再归零，避免旧页闪回）
 function onPageEntered() {
   if (mainRef.value) mainRef.value.scrollTop = 0
@@ -472,7 +470,6 @@ async function consumePendingWidgetTap() {
 onMounted(() => {
   injectThemeStyles()
   watch(() => ({ ...themeState.variables, css: themeState.customCSS }), injectThemeStyles, { deep: true })
-  window.addEventListener('message', onIframeTouchMessage)
   window.addEventListener('amiba-widget-navigate', onWidgetNavigate)
   setupHarmonyWidgetNavigate()
   consumePendingWidgetTap()
@@ -506,7 +503,6 @@ async function checkApiAvailability() {
 }
 
 onUnmounted(() => {
-  window.removeEventListener('message', onIframeTouchMessage)
   window.removeEventListener('amiba-widget-navigate', onWidgetNavigate)
   unlistenWidgetNavigate?.()
 })

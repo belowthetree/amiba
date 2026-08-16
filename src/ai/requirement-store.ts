@@ -244,6 +244,51 @@ export async function markRequirementDone(
   await syncGlobalRequirements()
 }
 
+/** 删除一条需求条目（任意分区），供记忆管理页手动管理 */
+export async function removeRequirementEntry(
+  serviceId: string,
+  section: keyof RequirementDoc['sections'],
+  content: string
+): Promise<void> {
+  const doc = await getServiceRequirement(serviceId)
+  const list = doc.sections[section]
+  // 优先精确匹配，回退子串匹配（与 markRequirementDone 一致）
+  let idx = list.findIndex((s) => s === content)
+  if (idx < 0) idx = list.findIndex((s) => s.includes(content))
+  if (idx < 0) return
+  list.splice(idx, 1)
+
+  doc.frontmatter.last_reviewed = new Date().toISOString()
+  await writeFile(serviceReqPath(serviceId), buildRequirementMd(doc.frontmatter, doc.sections))
+  console.log(`[Requirement] 🗑 ${section}: ${serviceId} — "${content.slice(0, 50)}"`)
+
+  await syncGlobalRequirements()
+}
+
+/** 列出所有已有 REQUIREMENT.md 的服务需求文档（记忆管理页浏览用） */
+export async function listServiceRequirements(): Promise<
+  { serviceId: string; doc: RequirementDoc }[]
+> {
+  let serviceDirs: string[] = []
+  try {
+    const { readDir, BaseDirectory } = await import('../config/native-fs')
+    const entries = await readDir('services', { baseDir: BaseDirectory.AppData })
+    serviceDirs = (entries as any[])
+      .filter((e: any) => e.isDirectory && !e.name.startsWith('.'))
+      .map((e: any) => e.name)
+  } catch {
+    return []
+  }
+
+  const result: { serviceId: string; doc: RequirementDoc }[] = []
+  for (const dir of serviceDirs) {
+    const raw = await readFile(serviceReqPath(dir))
+    if (!raw) continue // 只列出真实存在的需求文件，不为浏览创建空文档
+    result.push({ serviceId: dir, doc: parseRequirementMd(raw, dir) })
+  }
+  return result
+}
+
 // ---- 全局 REQUIREMENTS.md ----
 
 const GLOBAL_REQ_PATH = 'services/REQUIREMENTS.md'

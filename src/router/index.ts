@@ -3,8 +3,9 @@
 // ============================================================
 import { createRouter, createWebHistory } from 'vue-router'
 
-/** 主导航页面序列（从左到右），供滑动手势与边缘翻页提示共用 */
-export const PAGE_ORDER = ['/registry', '/services', '/', '/quick', '/settings', '/memory']
+/** 主导航页面序列（从左到右），供滑动手势与边缘翻页提示共用。
+ *  快捷页 /quick 不在其中——它经全局悬浮按钮进入，不参与滑动切换 */
+export const PAGE_ORDER = ['/registry', '/services', '/', '/settings', '/memory']
 
 const router = createRouter({
   history: createWebHistory(),
