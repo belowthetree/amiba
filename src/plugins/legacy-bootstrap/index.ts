@@ -13,7 +13,6 @@ import type { Router } from 'vue-router'
 import type { AmibaContext } from '../../kernel'
 import { i18n, syncI18nWithSettings } from '../../i18n'
 import { initLogger } from '../../config/logger'
-import { initRegistry, installPrebuiltServices } from '../../host/registry'
 import { soulManager } from '../../ai/soul'
 import { initCustomAgentStore } from '../../ai/custom-agent-store'
 import { initNetworkBridge } from '../../host/network-bridge'
@@ -32,9 +31,10 @@ import type { AmibaCredentialsService } from '../credentials'
 import type { AmibaSessionService } from '../session'
 import type { AmibaMemoryService } from '../memory'
 import type { AmibaSkillsService } from '../skills'
+import type { AmibaServiceRuntimeService } from '../service-runtime'
 
 export const name = '@amiba/legacy-bootstrap'
-export const inject = ['storage', 'settings', 'toolRegistry', 'toolsets', 'modelProviders', 'credentials', 'uiShell', 'router', 'session', 'memory', 'skills', 'lifecycle']
+export const inject = ['storage', 'settings', 'toolRegistry', 'toolsets', 'modelProviders', 'credentials', 'uiShell', 'router', 'session', 'memory', 'skills', 'serviceRuntime', 'lifecycle']
 export const provides: string[] = []
 
 export async function apply(ctx: AmibaContext): Promise<void> {
@@ -47,8 +47,9 @@ export async function apply(ctx: AmibaContext): Promise<void> {
   const session = ctx.get<AmibaSessionService>('session')
   const memory = ctx.get<AmibaMemoryService>('memory')
   const skills = ctx.get<AmibaSkillsService>('skills')
-  if (!storage || !settings || !tools || !toolsetService || !providers || !credentials || !session || !memory || !skills) {
-    throw new Error('[legacy-bootstrap] 缺少 storage / settings / toolRegistry / toolsets / modelProviders / credentials / session / memory / skills 服务，无法初始化')
+  const runtime = ctx.get<AmibaServiceRuntimeService>('serviceRuntime')
+  if (!storage || !settings || !tools || !toolsetService || !providers || !credentials || !session || !memory || !skills || !runtime) {
+    throw new Error('[legacy-bootstrap] 缺少 storage / settings / toolRegistry / toolsets / modelProviders / credentials / session / memory / skills / serviceRuntime 服务，无法初始化')
   }
   // storage / settings / modelProviders 已由各自插件在 apply() 中完成初始化；
   // toolsets / credentials / session 服务本阶段仅注册，供后续模块经 ctx 消费。
@@ -62,7 +63,7 @@ export async function apply(ctx: AmibaContext): Promise<void> {
   initLogger(settings.state)
 
   await Promise.all([
-    initRegistry(),
+    runtime.registry.initRegistry(),
     memory.init(),
     skills.user.loadUserSkills(),
     initCustomAgentStore(),
@@ -79,7 +80,7 @@ export async function apply(ctx: AmibaContext): Promise<void> {
   initNetworkBridge()
 
   // 安装预置服务（public/services/，仅首次运行）
-  const prebuiltCount = await installPrebuiltServices()
+  const prebuiltCount = await runtime.registry.installPrebuiltServices()
   if (prebuiltCount > 0) console.log(`[Bootstrap] 安装了 ${prebuiltCount} 个预置服务`)
 
   // 预加载 persistent widget

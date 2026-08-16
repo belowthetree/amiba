@@ -1,0 +1,10 @@
+{
+  "apiVersion": 1,
+  "id": "service-runtime",
+  "kind": "plugin",
+  "entry": "index.ts",
+  "inject": ["storage", "settings", "toolRegistry"],
+  "provides": {
+    "services": ["serviceRuntime"]
+  }
+}
