@@ -17,12 +17,12 @@
 7. 插件失败可隔离：单个插件 apply 崩溃不阻止其他插件；Client Slot 崩溃不拖垮整页。
 8. 旧数据（配置、会话、凭据）迁移后完整可用。
 
-## 2. 前置假设
+## 2. 前置假设（P0 已校正）
 
-- 当前 Amiba 具备可识别的“功能模块 + Web 界面 + 配置文件/数据目录”边界。
+- 当前 Amiba 是 **Vue 3 + TypeScript + Vite + Tauri 2 SPA**，没有 Node Host 进程；插件运行时模型见 `p0/ADR/0001-runtime-model.md`。
+- 当前 Amiba 已具备“服务注册表 + ToolRegistry + JSBridge”三个窄腰；插件化改造保留它们，重点是宿主功能与页面。
 - 若现有代码无法立即拆分，本路线允许每阶段保留兼容层，但**不新增绕过插件的特例**。
-- 技术基线：Node.js >= 20、TypeScript、React 18 Web GUI、npm/pnpm 包管理。
-- 内核可以自研，也可以直接复用开源 Cordis 语义；复用优先，避免重复发明服务容器。
+- 内核可自研，也可参考 Cordis 语义在浏览器主线程实现；复用优先于重造服务容器。
 
 ## 3. 阶段总览
 
@@ -40,12 +40,13 @@
 
 ## 4. P0：现状盘点与基线
 
-产出：
+产出（已落盘到 `docs/plugin/p0/`）：
 
-- `docs/amiba-module-inventory.md`：现有功能模块、文件、数据流、UI 页面/组件清单。
-- `docs/amiba-interface-inventory.md`：模块间内部接口、全局状态、配置/凭据/存储使用点。
-- 自动化基线：端到端冒烟测试（启动、设置、会话、工具调用、导出等）。
-- 架构决策记录（ADR）：内核边界、插件清单格式、Slot 命名、权限目录。
+- `module-inventory.md`：现有功能模块、文件、目标插件映射。
+- `interface-inventory.md`：模块接口、全局状态、注册点、原生命令。
+- `coupling-findings.md`：C01–C17 耦合与风险清单。
+- `baseline-and-test-plan.md`：可重复基线命令与冒烟清单。
+- ADR：`0001-runtime-model.md`、`0002-kernel-boundary.md`、`0003-plugin-manifest.md`、`0004-ui-slots-and-permissions.md`。
 
 关键动作：
 
@@ -58,34 +59,45 @@
 
 ### 5.1 目标
 
-建立最小内核并让“空壳”能启动：
+建立浏览器主线程 `@amiba/kernel`，让最小装配清单可启动：
 
-```
-amiba --profile empty
+```yaml
+# {AppData}/amiba/amiba.plugins.yaml
+- insert:
+    - id: platform
+      name: '@amiba/platform'
+- insert:
+    - id: shell
+      name: '@amiba/ui-shell'
+- insert:
+    - id: diagnostics
+      name: '@amiba/ui-diagnostics'
 ```
 
-`empty` profile 只包含 `@amiba/web-server`、`@amiba/web-shell` 和诊断页，不应包含任何会话/模型/工具业务。
+空壳只包含平台桥、shell 与诊断页，不含会话/模型/工具/服务业务。装配清单可通过 `AMIBA_PLUGINS` 或调试入口选择。
 
 ### 5.2 产出
 
-| 包 | 职责 |
+| 包/目录 | 职责 |
 | --- | --- |
-| `@amiba/kernel` | Context、loader、realm、effect、事件、权限仲裁、日志 |
-| `@amiba/schema` | Config schema（可基于 Schemastery 或 zod 兼容层） |
-| `@amiba/cli` | `amiba run/profile/patch` 基础命令 |
-| `@amiba/testing` | 测试宿主 |
+| `src/kernel/` | Context、loader、realm、effect、事件、权限仲裁、日志（见 ADR-0002） |
+| `src/plugins/platform/` | 现有 `config/polyfill` + `platform-bridge` + `native-fs` + `app-lifecycle` 收编 |
+| `src/plugins/ui-shell/` | 先包 `App.vue` + `router`（黑盒插件，行为不变） |
+| `src/plugins/ui-diagnostics/` | 插件装配状态页（新） |
+| `@amiba/schema`（本地包） | Config schema |
+| `@amiba/testing`（本地包） | `createTestKernel()` 测试宿主 |
 
 ### 5.3 迁移规则
 
-- 先把现有进程入口改成“kernel + 临时官方大插件包”，保持行为不变。
-- 新代码禁止进 kernel；CI 增加 `kernel-boundary` 检查：kernel 包不得 import 任何业务包。
-- patch 写操作先只读支持，避免过早做事务写入。
+- 先把现有 `main.ts` 改成“kernel + 兼容大插件包”，默认装配结果与现在完全一致。
+- 新代码禁止进 kernel；CI 增加 `kernel-boundary` 检查（ADR-0002）。
+- `amiba.plugins.yaml` 先只读支持，避免过早做事务写入。
 
 ### 5.4 退出标准
 
-- 空 profile 启动成功。
-- 同一插件可在两份不同 YAML 中装配出两个实例，配置互不串扰。
-- `ctx.effect` 的卸载/重载测试通过（无残留路由、监听、定时器）。
+- 最小清单启动成功，空壳无白屏，诊断页可列出装配树。
+- 同一插件可在两份 YAML 中装配出两个实例，配置互不串扰。
+- `ctx.effect` 的卸载/重载测试通过（无残留路由、监听、定时器、Slot）。
 - 插件缺失依赖时报错包含插件 id、缺失服务名与修复建议。
 
 ## 6. P2：服务插件化
@@ -94,22 +106,23 @@ amiba --profile empty
 
 把现有功能模块转成 Host 服务插件，并定义第一批扩展点。
 
-建议映射（按 Amiba 实际模块调整）：
+建议映射（按 P0 模块盘点执行）：
 
 | 现有功能 | 目标插件包 | 对外扩展点 |
 | --- | --- | --- |
-| Web 服务器 | `@amiba/host-webserver` | route/middleware/remote expose |
-| 模型接入 | `@amiba/host-model` | provider 注册、model/config waterfall |
-| Agent 循环 | `@amiba/host-agent` | agent spawn/followup、生命周期事件 |
-| 会话存储 | `@amiba/host-session` | 会话 CRUD、事件流、导出 |
-| 工具系统 | `@amiba/host-tools` | tool provide/invoke |
-| Skill 系统 | `@amiba/host-skill` | skill source/loader |
-| 命令 | `@amiba/host-commands` | command register |
-| 设置/凭据 | `@amiba/host-settings` / `credentials` | namespace、credentialRef |
-| 审批 | `@amiba/host-approval` | approval/request waterfall |
-| 通知 | `@amiba/host-notifications` | channel 注册 |
-| MCP | `@amiba/host-mcp-client` | server CRUD |
-| 文件/沙箱 | `@amiba/host-filesystem` / `sandbox` | 受权限的 exec/fs |
+| 平台桥 | `@amiba/platform`（内核服务） | nativeInvoke/nativeListen、FS shim |
+| 设置 | `@amiba/settings` | 命名空间注册、订阅 |
+| 工具注册表 | `@amiba/tool-registry`（内核服务） | tool register/invoke |
+| 模型接入 | `@amiba/model-providers` | provider 注册、model/config waterfall |
+| Agent 循环 | `@amiba/agent` | agent spawn/followup、生命周期事件 |
+| 会话存储 | `@amiba/session` | 会话 CRUD、事件流、导出 |
+| Skill 系统 | `@amiba/skills` | skill source/loader、命令 |
+| 命令 | `@amiba/commands` | command register |
+| 凭据 | `@amiba/credentials` | credentialRef 解析 |
+| 用户服务运行时 | `@amiba/service-runtime` | ServiceRegistry/JSBridge/ServiceTools |
+| 网络 | `@amiba/network` | LAN 发现/session/room |
+| Widget/后台 | `@amiba/widgets` / `@amiba/background-service` | widget 注册、后台 worker |
+| 文件访问 | `@amiba/file-access` | 授权 token、文件夹选取 |
 | 市场 | `@amiba/marketplace` | PluginManager 服务 |
 
 ### 6.2 迁移规则

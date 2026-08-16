@@ -1,5 +1,7 @@
 # Amiba 插件化总体架构
 
+> ⚠️ P0 盘点后修正：本文初稿假设存在 Node Host 进程与 npm require 运行时；实际 Amiba 是 Vue 3 SPA + Tauri。实现以 `p0/ADR/0001-runtime-model.md`（浏览器原生内核 + Vite 装配）为准。本文的装配思想、插件契约、生命周期与权限原则仍有效；目录布局、profile、npm 安装、Host/Client 双产物等 Node 形态章节需按 ADR 修订后再落地。
+
 ## 1. 设计目标
 
 1. **一切功能皆插件**：模型接入、会话、工具、Skill、通知、MCP、市场、设置、主题、语言包等业务能力全部以插件包存在，内核不直接实现任何业务功能。
