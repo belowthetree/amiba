@@ -33,7 +33,10 @@ export interface InstallResult {
 }
 
 async function sha256Hex(data: Uint8Array): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', data)
+  // 复制为 ArrayBuffer-backed 视图，兼容 TS 对 SharedArrayBuffer 的 BufferSource 约束。
+  const copy = new Uint8Array(data.length)
+  copy.set(data)
+  const digest = await crypto.subtle.digest('SHA-256', copy.buffer)
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 

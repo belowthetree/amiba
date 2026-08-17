@@ -28,6 +28,21 @@ npx tauri android dev    # Tauri Android 开发构建（需模拟器/设备）
 npx tauri android build  # Tauri Android 生产构建
 ```
 
+### 插件开发命令
+
+```bash
+npm run plugin:create -- my-plugin          # 生成本地插件骨架
+npm run plugin:validate -- <pluginDir>      # 静态校验
+npm run plugin:add -- <pluginDir>           # 开发期启用
+npm run plugin:remove -- my-plugin --purge  # 移除并备份
+npm run plugin:package -- <pluginDir>       # 打包 .amiba-plugin
+npm run plugin:verify                       # 完整性校验
+npm run plugin:sync                         # 重新生成本地插件注册表
+```
+
+插件扩展点与开发细节见 `docs/plugin/` 与内置 skill `plugin-dev`。
+
+
 ### Android 构建
 
 ```bash

@@ -22,13 +22,18 @@ export interface Skill {
 
 // ---- 内置技能 ----
 
-const BUILTIN_SLUGS = ['counter', 'todo', 'notes', 'service-dev']
+const BUILTIN_SLUGS = ['counter', 'todo', 'notes', 'service-dev', 'web-browsing', 'desktop-widget-dev', 'widget-dev', 'p2p-network', 'plugin-dev']
 
 const BUILTIN_SLUG_MAP: Record<string, string> = {
   '计数器': 'counter',
   '待办清单': 'todo',
   '笔记': 'notes',
   '服务开发': 'service-dev',
+  '网页浏览': 'web-browsing',
+  '桌面卡片开发': 'desktop-widget-dev',
+  '悬浮块开发': 'widget-dev',
+  'P2P 网络开发': 'p2p-network',
+  '插件开发': 'plugin-dev',
 }
 
 // ---- User Skills ----

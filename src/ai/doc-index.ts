@@ -83,7 +83,7 @@ function normalizeEntry(
 
 async function scanBuiltinDocs(): Promise<DocEntry[]> {
   const entries: DocEntry[] = []
-  const builtinFiles = ['sandbox.md', 'jbridge.md', 'network.md', 'room.md', 'storage.md', 'widgets.md', 'ui-customization.md', 'service-style.md', 'desktop-widgets.md']
+  const builtinFiles = ['sandbox.md', 'jbridge.md', 'network.md', 'room.md', 'storage.md', 'widgets.md', 'ui-customization.md', 'service-style.md', 'desktop-widgets.md', 'plugins.md', 'plugin-packaging.md']
 
   for (const file of builtinFiles) {
     try {

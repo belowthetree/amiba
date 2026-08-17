@@ -47,6 +47,21 @@
 - 服务负责：UI 渲染、业务逻辑、用户交互
 - 服务不感知宿主细节，只通过 postMessage 请求能力
 
+
+## 插件化架构
+
+宿主本身由 `src/kernel` 装配，内置功能与第三方插件同权：
+
+- `pageRegistry`：动态注册页面/路由/主导航。
+- `uiSlots`：注册 `ui.slot.*` Vue Slot（设置页签、聊天挂件、全局浮层等）。
+- `toolRegistry`：注册 AI 工具。
+- 服务容器：`ctx.get('storage' | 'settings' | 'serviceRuntime' | ...)`。
+- 本地插件：`src/plugins-local/<id>/`，开发期用 CLI 装配。
+- 统一插件包：`npm run plugin:package -- <dir>` 生成 `.amiba-plugin`，打包后的 App 可经设置 → 本地插件导入。
+- 沙箱服务：仍由 `ServiceRegistry` + iframe JSBridge 管理；统一包可同时携带宿主插件与 `service/` 服务文件。
+
+详见 `docs/plugin/` 与内置文档 `plugins.md`、`plugin-packaging.md`。
+
 ## 技术选型
 
 | 环节 | 选择 | 原因 |

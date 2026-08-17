@@ -28,7 +28,7 @@ import { buildConsolidationPrompt, buildConsolidationUserMessage } from './skill
 
 // ---- 受保护内置技能 ----
 
-const PROTECTED_BUILTIN_SKILLS = ['counter', 'todo', 'notes', 'service-dev']
+const PROTECTED_BUILTIN_SKILLS = ['counter', 'todo', 'notes', 'service-dev', 'web-browsing', 'desktop-widget-dev', 'widget-dev', 'p2p-network', 'plugin-dev']
 
 function isProtected(slug: string): boolean {
   return PROTECTED_BUILTIN_SKILLS.includes(slug)
