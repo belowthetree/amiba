@@ -153,6 +153,14 @@ export class PermissionManager {
     return entry ? { ...entry.policy } : undefined
   }
 
+  /** 诊断：全部插件策略。 */
+  listPolicies(): Array<{ pluginId: string; policy: PermissionPolicy }> {
+    return [...this.plugins.values()].map((entry) => ({
+      pluginId: entry.pluginId,
+      policy: { ...entry.policy },
+    }))
+  }
+
   removePlugin(pluginId: string): void {
     this.plugins.delete(pluginId)
     this.userDenies.delete(pluginId)

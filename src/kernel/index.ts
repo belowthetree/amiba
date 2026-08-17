@@ -39,6 +39,9 @@ export type { KernelLoaderOptions } from './loader'
 export { startKernel } from './start'
 export type { StartKernelResult } from './start'
 
+export { kernelState, recordPermissionAudit } from './state'
+export type { KernelAuditEntry } from './state'
+
 export type {
   AmibaPluginModule,
   PermissionPolicy,

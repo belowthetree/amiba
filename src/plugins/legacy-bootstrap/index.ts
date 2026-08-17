@@ -32,7 +32,7 @@ import type { AmibaI18nService } from '../i18n'
 import type { AmibaTaskRecoveryService } from '../task-recovery'
 
 export const name = '@amiba/legacy-bootstrap'
-export const inject = ['storage', 'settings', 'fileLogger', 'toolRegistry', 'toolsets', 'modelProviders', 'credentials', 'uiShell', 'router', 'session', 'memory', 'skills', 'customAgents', 'serviceRuntime', 'network', 'widgets', 'theme', 'customView', 'soul', 'i18n', 'taskRecovery', 'uiRoutes', 'lifecycle']
+export const inject = ['storage', 'settings', 'fileLogger', 'toolRegistry', 'toolsets', 'modelProviders', 'credentials', 'uiShell', 'router', 'session', 'memory', 'skills', 'customAgents', 'serviceRuntime', 'network', 'widgets', 'theme', 'customView', 'soul', 'i18n', 'taskRecovery', 'uiRoutes', 'ui-marketplace', 'ui-security', 'lifecycle']
 export const provides: string[] = []
 
 export async function apply(ctx: AmibaContext): Promise<void> {

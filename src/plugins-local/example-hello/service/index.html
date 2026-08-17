@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Example Hello Service</title>
+</head>
+<body>
+  <h1>Hello Service</h1>
+  <p>这个页面来自同一插件的沙箱服务部分。</p>
+  <button id="save">写入 storage</button>
+  <pre id="result"></pre>
+  <script>
+    document.getElementById('save').addEventListener('click', async () => {
+      await __amiba__.storage.set('hello', { at: Date.now() })
+      document.getElementById('result').textContent = 'saved'
+    })
+  </script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "apiVersion": 1,
+  "id": "plugin-manager",
+  "kind": "plugin",
+  "entry": "index.ts",
+  "inject": [],
+  "provides": {
+    "services": ["pluginManager"]
+  }
+}

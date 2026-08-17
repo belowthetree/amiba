@@ -13,6 +13,9 @@ import { fileURLToPath } from 'node:url'
 import yaml from 'js-yaml'
 import { generatePluginRegistry, validatePluginManifest } from './generate-plugin-registry.mjs'
 import { validatePlugin } from './plugin-validate.mjs'
+import { verifyAllInstalled, writePluginLock } from './plugin-integrity.mjs'
+import { verifyPluginSignature, writePluginSignature } from './plugin-sign.mjs'
+import { buildPluginPackage } from './build-plugin-package.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const CONFIG_FILE = join(ROOT, 'amiba.plugins.yaml')
@@ -85,7 +88,15 @@ function commandAdd(source, explicitId) {
     disabled: false,
   })
   writeConfig(entries)
-  generatePluginRegistry()
+  try {
+    writePluginLock(target)
+    generatePluginRegistry()
+  } catch (error) {
+    // 事务回滚：生成/校验失败则恢复旧配置并删除副本。
+    writeConfig(readConfig().filter((entry) => entry.id !== id))
+    rmSync(target, { recursive: true, force: true })
+    throw error
+  }
   console.log(`[amiba-plugin] 已添加 ${id}（${target}）。请重新启动 npm run dev。`)
 }
 
@@ -94,16 +105,63 @@ function commandRemove(id, purge) {
   const entries = readConfig().filter((entry) => entry.id !== id)
   if (entries.length === readConfig().length) fail(`找不到插件 ${id}`)
   writeConfig(entries)
-  if (purge) {
-    rmSync(join(LOCAL_PLUGIN_ROOT, id), { recursive: true, force: true })
+
+  const pluginDir = join(LOCAL_PLUGIN_ROOT, id)
+  let backupDir = ''
+  if (purge && existsSync(pluginDir)) {
+    backupDir = join(LOCAL_PLUGIN_ROOT, '.backup', `${id}-${Date.now()}`)
+    cpSync(pluginDir, backupDir, { recursive: true })
+    rmSync(pluginDir, { recursive: true, force: true })
   }
-  generatePluginRegistry()
-  console.log(`[amiba-plugin] 已移除 ${id}${purge ? '（已删除本地副本）' : ''}。请重新启动 npm run dev。`)
+
+  try {
+    generatePluginRegistry()
+  } catch (error) {
+    if (purge && backupDir && existsSync(backupDir)) {
+      cpSync(backupDir, pluginDir, { recursive: true })
+      rmSync(backupDir, { recursive: true, force: true })
+    }
+    throw error
+  }
+  console.log(`[amiba-plugin] 已移除 ${id}${purge ? '（本地副本已备份到 .backup）' : ''}。请重新启动 npm run dev。`)
 }
 
 function commandValidate(source) {
   if (!source) fail('缺少插件目录参数')
   validatePlugin(resolve(source))
+}
+
+function commandVerify() {
+  const summary = verifyAllInstalled()
+  for (const result of summary.results) {
+    console.log(`- ${result.id}: ${result.ok ? '✅' : result.missing ? '⚠️ 无锁文件' : '❌'}`)
+    for (const error of result.errors) console.log(`    - ${error}`)
+  }
+  if (!summary.ok) process.exitCode = 1
+}
+
+function commandSign(source) {
+  if (!source) fail('缺少插件目录参数')
+  const dir = resolve(source)
+  writePluginLock(dir)
+  writePluginSignature(dir)
+  console.log('[amiba-plugin] 已写入 lock + sig')
+}
+
+function commandVerifySignature(source) {
+  if (!source) fail('缺少插件目录参数')
+  const result = verifyPluginSignature(resolve(source))
+  if (result.ok) console.log('[amiba-plugin] ✅ 签名认证通过')
+  else {
+    console.error('[amiba-plugin] ❌ 签名认证失败')
+    for (const error of result.errors) console.error(`  - ${error}`)
+    process.exitCode = 1
+  }
+}
+
+async function commandPackage(source) {
+  if (!source) fail('缺少插件目录参数')
+  await buildPluginPackage(resolve(source))
 }
 
 const command = process.argv[2]
@@ -112,6 +170,10 @@ try {
   else if (command === 'add') commandAdd(process.argv[3], process.argv[4])
   else if (command === 'remove') commandRemove(process.argv[3], process.argv.includes('--purge'))
   else if (command === 'validate') commandValidate(process.argv[3])
+  else if (command === 'verify') commandVerify()
+  else if (command === 'sign') commandSign(process.argv[3])
+  else if (command === 'verify-signature') commandVerifySignature(process.argv[3])
+  else if (command === 'package') await commandPackage(process.argv[3])
   else if (command === 'sync') generatePluginRegistry()
   else {
     console.log(`用法:
@@ -119,6 +181,10 @@ try {
   node scripts/amiba-plugin.mjs add <pluginDir> [id]
   node scripts/amiba-plugin.mjs remove <id> [--purge]
   node scripts/amiba-plugin.mjs validate <pluginDir>
+  node scripts/amiba-plugin.mjs verify
+  node scripts/amiba-plugin.mjs sign <pluginDir>
+  node scripts/amiba-plugin.mjs verify-signature <pluginDir>
+  node scripts/amiba-plugin.mjs package <pluginDir>
   node scripts/amiba-plugin.mjs sync`)
     process.exitCode = 1
   }

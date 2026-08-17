@@ -1,0 +1,10 @@
+{
+  "apiVersion": 1,
+  "id": "ui-marketplace",
+  "kind": "plugin",
+  "entry": "index.ts",
+  "inject": ["uiSlots", "pluginManager"],
+  "provides": {
+    "slots": ["ui.slot.settings.section"]
+  }
+}

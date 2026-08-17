@@ -1,4 +1,4 @@
-# P4 — 插件 SDK / CLI / 脚手架（进行中）
+# P4 — 插件 SDK / CLI / 脚手架（已完成）
 
 > 对应路线：`docs/plugin/plugin-migration-roadmap.md` 的 P4。
 > Amiba 是 Vue/Vite SPA，无 Node Host；P4 的“SDK/CLI”服务于开发期与构建期，而非运行时 require。

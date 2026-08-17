@@ -31,6 +31,9 @@ import * as taskRecovery from './task-recovery'
 import * as uiPages from './ui-pages'
 import * as uiRoutes from './ui-routes'
 import * as uiShell from './ui-shell'
+import * as pluginManager from './plugin-manager'
+import * as uiMarketplace from './ui-marketplace'
+import * as uiSecurity from './ui-security'
 import * as uiDiagnostics from './ui-diagnostics'
 import * as legacyBootstrap from './legacy-bootstrap'
 import { userPluginDefinitions } from './user-registry.generated'
@@ -59,6 +62,9 @@ import taskRecoveryManifest from './task-recovery/amiba.plugin.json'
 import uiPagesManifest from './ui-pages/amiba.plugin.json'
 import uiRoutesManifest from './ui-routes/amiba.plugin.json'
 import uiShellManifest from './ui-shell/amiba.plugin.json'
+import pluginManagerManifest from './plugin-manager/amiba.plugin.json'
+import uiMarketplaceManifest from './ui-marketplace/amiba.plugin.json'
+import uiSecurityManifest from './ui-security/amiba.plugin.json'
 import uiDiagnosticsManifest from './ui-diagnostics/amiba.plugin.json'
 import legacyBootstrapManifest from './legacy-bootstrap/amiba.plugin.json'
 
@@ -95,6 +101,9 @@ const BUILTIN_PLUGINS: BuiltinPluginRegistration[] = [
   { module: taskRecovery, manifest: taskRecoveryManifest as unknown as PluginManifest, order: 56 },
   { module: uiPages, manifest: uiPagesManifest as unknown as PluginManifest, order: 58 },
   { module: uiRoutes, manifest: uiRoutesManifest as unknown as PluginManifest, order: 59 },
+  { module: pluginManager, manifest: pluginManagerManifest as unknown as PluginManifest, order: 60 },
+  { module: uiMarketplace, manifest: uiMarketplaceManifest as unknown as PluginManifest, order: 62 },
+  { module: uiSecurity, manifest: uiSecurityManifest as unknown as PluginManifest, order: 64 },
   { module: legacyBootstrap, manifest: legacyBootstrapManifest as unknown as PluginManifest, order: 90 },
 ]
 

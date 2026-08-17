@@ -10,14 +10,20 @@
 
 import { defineComponent, h } from 'vue'
 import type { Router } from 'vue-router'
-import { startKernel } from './kernel'
+import { PermissionManager, kernelState, recordPermissionAudit, startKernel } from './kernel'
 import type { KernelLoader } from './kernel'
 import { builtinPluginDefinitions } from './plugins/registry'
 import type { AmibaDiagnosticsService } from './plugins/ui-diagnostics'
+import type { PluginManagerService } from './plugins/plugin-manager'
 
 /** 启动应用并返回内核 loader（供测试/诊断使用）。 */
 export async function startAmiba(): Promise<KernelLoader> {
-  const { loader } = await startKernel(builtinPluginDefinitions())
+  const permissions = new PermissionManager({ onAudit: recordPermissionAudit })
+  const { loader } = await startKernel(builtinPluginDefinitions(), { permissions })
+  kernelState.loader = loader
+
+  const pluginManager = loader.root.get<PluginManagerService>('pluginManager')
+  void pluginManager?.restore()
 
   const failed = loader.listInstances().filter((instance) => instance.status === 'failed')
   if (failed.length > 0) {

@@ -16,7 +16,9 @@
 | [p1/README.md](p1/README.md) | **P1 执行区**：内核抽出步骤与进度（已完成） |
 | [p2/README.md](p2/README.md) | **P2 执行区**：服务插件化步骤与进度（已完成） |
 | [p3/README.md](p3/README.md) | **P3 执行区**：UI Slot 化步骤与进度（已完成） |
-| [p4/README.md](p4/README.md) | **P4 执行区**：插件 SDK / CLI / 脚手架（进行中） |
+| [p4/README.md](p4/README.md) | **P4 执行区**：插件 SDK / CLI / 脚手架（已完成） |
+| [p5/README.md](p5/README.md) | **P5 执行区**：安全 / 插件管理 / 市场（进行中） |
+| [packaged-app-plugin-download.md](packaged-app-plugin-download.md) | 已打包 App 的插件下载/安装方案（沙箱服务 + 预编译宿主插件包） |
 
 ## P0 重要修正（已生效）
 

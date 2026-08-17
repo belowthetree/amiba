@@ -1,7 +1,7 @@
 {
   "name": "amiba",
   "private": true,
-  "version": "0.10.4",
+  "version": "0.11.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -16,6 +16,10 @@
     "plugin:add": "node scripts/amiba-plugin.mjs add",
     "plugin:remove": "node scripts/amiba-plugin.mjs remove",
     "plugin:validate": "node scripts/amiba-plugin.mjs validate",
+    "plugin:verify": "node scripts/amiba-plugin.mjs verify",
+    "plugin:sign": "node scripts/amiba-plugin.mjs sign",
+    "plugin:verify-signature": "node scripts/amiba-plugin.mjs verify-signature",
+    "plugin:package": "node scripts/amiba-plugin.mjs package",
     "plugin:sync": "node scripts/generate-plugin-registry.mjs",
     "plugin:create": "node scripts/create-amiba-plugin.mjs"
   },

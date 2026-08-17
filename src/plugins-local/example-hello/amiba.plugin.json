@@ -2,6 +2,8 @@
   "apiVersion": 1,
   "id": "example-hello",
   "kind": "plugin",
+  "version": "1.0.0",
+  "description": "演示：宿主插件 + 沙箱服务二合一",
   "entry": "src/index.ts",
   "inject": ["pageRegistry", "uiSlots", "toolRegistry"],
   "provides": {
@@ -11,5 +13,10 @@
   },
   "permissions": {
     "allow": []
+  },
+  "service": {
+    "enabled": true,
+    "entry": "index.html",
+    "permissions": ["storage"]
   }
 }
