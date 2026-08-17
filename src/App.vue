@@ -41,7 +41,7 @@
         <router-view v-slot="{ Component, route: r }">
           <transition :name="transitionName" @after-enter="onPageEntered">
             <!-- 聊天页常驻缓存：滑回时复用 DOM 与滚动位置，避免重挂载闪烁 -->
-            <keep-alive include="ChatPage">
+            <keep-alive :include="keepAliveNames">
               <component :is="Component" :key="r.fullPath" />
             </keep-alive>
           </transition>
@@ -75,7 +75,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, watch, ref, shallowRef, defineAsyncComponent, reactive } from 'vue'
+import { computed, onMounted, onUnmounted, watch, ref, shallowRef, reactive } from 'vue'
+import type { Component } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import FloatingWidgetContainer from './host/floating-widget-container.vue'
 import WebviewOverlay from './components/WebviewOverlay.vue'
@@ -90,7 +91,7 @@ import { themeState } from './config/theme-store'
 import { settings } from './config/config'
 import { checkForUpdate } from './config/updater'
 import { isHarmonyRuntime, nativeListen, type UnlistenFn } from './config/platform-bridge'
-import { PAGE_ORDER } from './router'
+import { pageRegistry } from './plugins/page-registry/instance'
 
 const route = useRoute()
 const router = useRouter()
@@ -103,27 +104,34 @@ watch(() => themeState.activeTheme, (name) => {
 }, { immediate: true })
 
 // ==== 页面组件注册表（用于手势预览时渲染目标页） ====
-const PAGE_COMPONENTS: Record<string, ReturnType<typeof defineAsyncComponent>> = {
-  '/services': defineAsyncComponent(() => import('./pages/ServiceBrowsePage.vue')),
-  '/': defineAsyncComponent(() => import('./pages/ChatPage.vue')),
-  '/registry': defineAsyncComponent(() => import('./pages/RemoteServicesPage.vue')),
-  '/settings': defineAsyncComponent(() => import('./pages/SettingsPage.vue')),
-  '/memory': defineAsyncComponent(() => import('./pages/MemoryPage.vue')),
-}
+const registeredPages = computed(() => {
+  void pageRegistry.version.value
+  return pageRegistry.list()
+})
+const mainNavPages = computed(() => registeredPages.value.filter((entry) => entry.mainNav))
+const pagePaths = computed(() => mainNavPages.value.map((entry) => entry.path))
+const pageComponents = computed(() => {
+  const map: Record<string, Component> = {}
+  for (const entry of mainNavPages.value) {
+    map[entry.path] = entry.preview ?? entry.component
+  }
+  return map
+})
+const keepAliveNames = computed(() =>
+  registeredPages.value
+    .filter((entry) => entry.keepAlive && entry.keepAliveName)
+    .map((entry) => entry.keepAliveName as string)
+)
 
 const transitionName = ref('page-forward')
 
 function routePath(name: string | symbol | null | undefined): string {
-  if (name === 'services') return '/services'
-  if (name === 'chat') return '/'
-  if (name === 'registry') return '/registry'
-  if (name === 'settings') return '/settings'
-  if (name === 'memory') return '/memory'
-  return '/'
+  if (typeof name !== 'string') return '/'
+  return registeredPages.value.find((entry) => entry.name === name)?.path ?? '/'
 }
 
 function getPageIndex(path: string): number {
-  return PAGE_ORDER.indexOf(path)
+  return pagePaths.value.indexOf(path)
 }
 
 // ==== 全局导航守卫：自动计算过渡方向 ====
@@ -194,7 +202,7 @@ const previewOnLeft = ref(false) // true=预览在左边(back), false=预览在�
 
 function showPreview(path: string, onLeft: boolean) {
   previewOnLeft.value = onLeft
-  const comp = PAGE_COMPONENTS[path]
+  const comp = pageComponents.value[path]
   if (comp && previewComponent.value !== comp) {
     previewComponent.value = comp
   }
@@ -217,7 +225,7 @@ function screenW(): number {
 function sideTarget(dir: number): string {
   const idx = getPageIndex(routePath(route.name))
   if (idx < 0) return ''
-  return PAGE_ORDER[idx - dir] ?? ''
+  return pagePaths.value[idx - dir] ?? ''
 }
 
 function onSwipeStart(e: TouchEvent) {

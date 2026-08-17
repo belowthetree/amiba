@@ -574,6 +574,14 @@
       </div>
     </div>
 
+      <!-- 插件设置页签（ui.slot.settings.section；无注册项时为空） -->
+      <template v-for="entry in pluginSections" :key="entry.id">
+        <div v-show="activeTab === 'plugin:' + entry.id">
+          <component :is="entry.component" v-bind="sectionProps(entry)" />
+        </div>
+      </template>
+
+
     <div class="saved-hint" v-if="showSaved">✅ {{ $t('settings.confirm.saved') }}</div>
     <SkillShareDialog v-model="shareSkillDialog" :preselect-slug="shareSkillSlug" />
 
@@ -602,6 +610,8 @@ import { listSessions, deleteSession } from '../ai/session'
 import { getLogFiles, readLogFile, deleteLogFile, clearAllLogs, exportLogFile as exportLog, formatSize, type LogFileInfo, type LogEntry } from '../config/logger'
 import SkillShareDialog from './SkillShareDialog.vue'
 import SlotRenderer from '../components/SlotRenderer.vue'
+import { uiSlotRegistry } from '../plugins/ui-slots/instance'
+import type { UISlotEntry } from '../plugins/ui-slots'
 import { themeState, switchTheme, isBuiltinTheme } from '../config/theme-store'
 
 const { t } = useI18n()
@@ -633,12 +643,24 @@ const appVersion = ref('...')
 // 鸿蒙版更新链下线：设置页隐藏下载按钮改提示去应用市场（docs/harmonyos-migration.md §5.7）
 const isHarmony = isHarmonyRuntime()
 const activeTab = ref('general')
+const pluginSections = computed(() => {
+  void uiSlotRegistry.version.value
+  return uiSlotRegistry.list('ui.slot.settings.section')
+})
 const tabs = computed(() => [
   { key: 'general', label: t('settings.tabs.general') },
   { key: 'skills', label: t('settings.tabs.skills') },
   { key: 'data', label: t('settings.tabs.data') },
   { key: 'logs', label: t('settings.tabs.logs') },
+  ...pluginSections.value.map((entry) => ({
+    key: `plugin:${entry.id}`,
+    label: entry.label?.() ?? entry.id,
+  })),
 ])
+
+function sectionProps(entry: UISlotEntry<'ui.slot.settings.section'>): Record<string, unknown> {
+  return entry.inject?.() ?? {}
+}
 const updateStatus = ref<UpdateStatus>({ stage: 'idle' })
 const showKey = ref(false)
 const showSaved = ref(false); const pending = ref<any[]>([])

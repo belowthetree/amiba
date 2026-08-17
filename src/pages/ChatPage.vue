@@ -6,6 +6,9 @@
   <div class="chat-page" :class="{ empty: isEmpty, sink: sinkAnim }" :style="{ paddingBottom: keyboardInset + 'px' }">
     <!-- 插槽: chat.above-messages -->
     <SlotRenderer name="chat.above-messages" :html="slotHtml('chat.above-messages')" />
+      <!-- 插件 Slot：chat.above-messages（Vue 版，与 HTML slot 并存） -->
+      <UISlotHost name="ui.slot.chat.above-messages" :args="[currentId ?? '']" />
+
 
     <TransitionGroup name="msg" tag="div" class="chat-messages" :class="{ 'pre-scroll': !initialScrolled }" ref="messagesEl">
       <div
@@ -119,6 +122,9 @@
 
     <!-- 插槽: chat.below-input -->
     <SlotRenderer name="chat.below-input" :html="slotHtml('chat.below-input')" />
+      <!-- 插件 Slot：chat.below-input（Vue 版，与 HTML slot 并存） -->
+      <UISlotHost name="ui.slot.chat.below-input" :args="[currentId ?? '']" />
+
 
     <!-- 统计模态框 -->
     <div v-if="showStats" class="modal-overlay" @click.self="showStats = false">
@@ -210,6 +216,7 @@ import {
   stopDiscovery as netStopDiscovery,
 } from '../host/network-bridge'
 import SlotRenderer from '../components/SlotRenderer.vue'
+import UISlotHost from '../plugins/ui-shell/UISlotHost.vue'
 import { themeState } from '../config/theme-store'
 import { checkRecoveryNeeded, clearSnapshot } from '../ai/task-recovery'
 

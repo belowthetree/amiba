@@ -1,0 +1,10 @@
+{
+  "apiVersion": 1,
+  "id": "ui-pages",
+  "kind": "plugin",
+  "entry": "index.ts",
+  "inject": ["pageRegistry", "i18n"],
+  "provides": {
+    "pages": ["chat", "services", "settings", "memory", "quick", "registry", "service"]
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "apiVersion": 1,
+  "id": "page-registry",
+  "kind": "plugin",
+  "entry": "index.ts",
+  "inject": [],
+  "provides": {
+    "services": ["pageRegistry"]
+  }
+}

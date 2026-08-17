@@ -9,7 +9,8 @@
 import type { Component } from 'vue'
 import type { Router } from 'vue-router'
 import App from '../../App.vue'
-import router, { PAGE_ORDER } from '../../router'
+import router from '../../router'
+import { pageRegistry } from '../page-registry/instance'
 import type { AmibaContext } from '../../kernel'
 
 export const name = '@amiba/ui-shell'
@@ -27,7 +28,11 @@ export interface AmibaUIShellService {
 export function apply(ctx: AmibaContext): void {
   const shell: AmibaUIShellService = {
     component: App,
-    pageOrder: PAGE_ORDER,
+    get pageOrder() {
+      return pageRegistry.list()
+        .filter((entry) => entry.mainNav)
+        .map((entry) => entry.path)
+    },
   }
   ctx.provide('uiShell', shell)
   ctx.provide('router', router)

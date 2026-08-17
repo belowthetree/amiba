@@ -1,0 +1,10 @@
+{
+  "apiVersion": 1,
+  "id": "ui-routes",
+  "kind": "plugin",
+  "entry": "index.ts",
+  "inject": ["router", "pageRegistry", "ui-pages"],
+  "provides": {
+    "services": ["uiRoutes"]
+  }
+}

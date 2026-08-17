@@ -8,12 +8,12 @@
 | 步骤 | 内容 | 状态 |
 | --- | --- | --- |
 | 1 | 建立 `@amiba/ui-slots` 类型化 Vue Slot 注册表服务 | ✅ 已验证 |
-| 2 | `ui-shell` 接入全局 Slot 容器（App 层） | 🔄 待验证 |
-| 3 | 设置页 `settings.section` 宿主化 | ⬜ |
-| 4 | 聊天页 `chat.above-messages` / `chat.below-input` 宿主化 | ⬜ |
-| 5 | 服务列表 `services.above-list` 宿主化 | ⬜ |
-| 6 | 页面注册表 + 动态路由（pageRegistry） | ⬜ |
-| 7 | 官方页面迁为页面插件，清理 App/router 硬编码 | ⬜ |
+| 2 | `ui-shell` 接入全局 Slot 容器（App 层） | ✅ 已验证 |
+| 3 | 设置页 `settings.section` 宿主化 | ✅ 已验证 |
+| 4 | 聊天页 `chat.above-messages` / `chat.below-input` 宿主化 | ✅ 已验证 |
+| 5 | 服务列表 `services.above-list` 宿主化 | ✅ 已验证 |
+| 6 | 页面注册表 + 动态路由（pageRegistry） | ✅ 已验证 |
+| 7 | 官方页面迁为页面插件，清理 App/router 硬编码 | 🔄 待验证 |
 
 ## 第 1 步目标
 

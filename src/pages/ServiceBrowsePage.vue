@@ -19,6 +19,9 @@
 
     <!-- 插槽: services.above-list -->
     <SlotRenderer name="services.above-list" :html="slotHtml('services.above-list')" />
+      <!-- 插件 Slot：services.above-list（Vue 版，与 HTML slot 并存） -->
+      <UISlotHost name="ui.slot.services.above-list" />
+
 
     <!-- User services -->
     <div class="section">
@@ -89,6 +92,7 @@ import { isRunning, startService, stopService } from '../host/background-manager
 import { settings } from '../config/config'
 import { pickFolder } from '../config/folder-picker'
 import SlotRenderer from '../components/SlotRenderer.vue'
+import UISlotHost from '../plugins/ui-shell/UISlotHost.vue'
 import { themeState } from '../config/theme-store'
 
 const router = useRouter()

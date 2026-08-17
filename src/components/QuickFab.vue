@@ -17,13 +17,17 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { PAGE_ORDER } from '../router'
+import { pageRegistry } from '../plugins/page-registry/instance'
 
 const route = useRoute()
 const router = useRouter()
 
 // 仅在主导航页显示；快捷页自身与服务详情等非导航页隐藏
-const visible = computed(() => PAGE_ORDER.includes(route.path))
+const mainNavPaths = computed(() => {
+  void pageRegistry.version.value
+  return pageRegistry.list().filter((entry) => entry.mainNav).map((entry) => entry.path)
+})
+const visible = computed(() => mainNavPaths.value.includes(route.path))
 
 function open() {
   router.push('/quick')

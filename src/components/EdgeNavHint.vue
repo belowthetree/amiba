@@ -27,7 +27,7 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { PAGE_ORDER } from '../router'
+import { pageRegistry } from '../plugins/page-registry/instance'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -42,14 +42,18 @@ const PATH_TITLE_KEY: Record<string, string> = {
   '/memory': 'app.memory',
 }
 
-// 当前页在主导航序列中的位置（service 等非导航页为 -1，两侧都隐藏）
-const currentIndex = computed(() => PAGE_ORDER.indexOf(route.path))
+// 主导航页面序列来自 pageRegistry；service / quick 等非导航页不显示边缘提示。
+const mainNavPages = computed(() => {
+  void pageRegistry.version.value
+  return pageRegistry.list().filter((entry) => entry.mainNav)
+})
+const currentIndex = computed(() => mainNavPages.value.findIndex((entry) => entry.path === route.path))
 
 function target(offset: number) {
   if (currentIndex.value < 0) return null
-  const path = PAGE_ORDER[currentIndex.value + offset]
-  if (!path) return null
-  return { path, title: t(PATH_TITLE_KEY[path] || 'app.title') }
+  const entry = mainNavPages.value[currentIndex.value + offset]
+  if (!entry) return null
+  return { path: entry.path, title: entry.title?.() ?? t(PATH_TITLE_KEY[entry.path] || 'app.title') }
 }
 
 const prevTarget = computed(() => target(-1))

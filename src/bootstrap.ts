@@ -25,6 +25,7 @@ export async function startAmiba(): Promise<KernelLoader> {
   }
 
   attachDiagnostics(loader)
+  
   return loader
 }
 
@@ -52,3 +53,4 @@ function attachDiagnostics(loader: KernelLoader): void {
   })
   console.log(`[Amiba] 诊断页已接入: ${diagnostics.path}`)
 }
+

@@ -10,6 +10,7 @@ import * as platform from './platform'
 import * as storage from './storage'
 import * as settings from './settings'
 import * as fileLogger from './file-logger'
+import * as pageRegistry from './page-registry'
 import * as uiSlots from './ui-slots'
 import * as toolRegistry from './tool-registry'
 import * as toolsets from './toolsets'
@@ -27,6 +28,8 @@ import * as customView from './custom-view'
 import * as soul from './soul'
 import * as i18n from './i18n'
 import * as taskRecovery from './task-recovery'
+import * as uiPages from './ui-pages'
+import * as uiRoutes from './ui-routes'
 import * as uiShell from './ui-shell'
 import * as uiDiagnostics from './ui-diagnostics'
 import * as legacyBootstrap from './legacy-bootstrap'
@@ -34,6 +37,7 @@ import platformManifest from './platform/amiba.plugin.json'
 import storageManifest from './storage/amiba.plugin.json'
 import settingsManifest from './settings/amiba.plugin.json'
 import fileLoggerManifest from './file-logger/amiba.plugin.json'
+import pageRegistryManifest from './page-registry/amiba.plugin.json'
 import uiSlotsManifest from './ui-slots/amiba.plugin.json'
 import toolRegistryManifest from './tool-registry/amiba.plugin.json'
 import toolsetsManifest from './toolsets/amiba.plugin.json'
@@ -51,6 +55,8 @@ import customViewManifest from './custom-view/amiba.plugin.json'
 import soulManifest from './soul/amiba.plugin.json'
 import i18nManifest from './i18n/amiba.plugin.json'
 import taskRecoveryManifest from './task-recovery/amiba.plugin.json'
+import uiPagesManifest from './ui-pages/amiba.plugin.json'
+import uiRoutesManifest from './ui-routes/amiba.plugin.json'
 import uiShellManifest from './ui-shell/amiba.plugin.json'
 import uiDiagnosticsManifest from './ui-diagnostics/amiba.plugin.json'
 import legacyBootstrapManifest from './legacy-bootstrap/amiba.plugin.json'
@@ -66,6 +72,7 @@ const BUILTIN_PLUGINS: BuiltinPluginRegistration[] = [
   { module: storage, manifest: storageManifest as unknown as PluginManifest, order: 20 },
   { module: settings, manifest: settingsManifest as unknown as PluginManifest, order: 30 },
   { module: fileLogger, manifest: fileLoggerManifest as unknown as PluginManifest, order: 32 },
+  { module: pageRegistry, manifest: pageRegistryManifest as unknown as PluginManifest, order: 33 },
   { module: uiSlots, manifest: uiSlotsManifest as unknown as PluginManifest, order: 34 },
   { module: toolRegistry, manifest: toolRegistryManifest as unknown as PluginManifest, order: 35 },
   { module: toolsets, manifest: toolsetsManifest as unknown as PluginManifest, order: 36 },
@@ -85,6 +92,8 @@ const BUILTIN_PLUGINS: BuiltinPluginRegistration[] = [
   { module: soul, manifest: soulManifest as unknown as PluginManifest, order: 54 },
   { module: i18n, manifest: i18nManifest as unknown as PluginManifest, order: 55 },
   { module: taskRecovery, manifest: taskRecoveryManifest as unknown as PluginManifest, order: 56 },
+  { module: uiPages, manifest: uiPagesManifest as unknown as PluginManifest, order: 58 },
+  { module: uiRoutes, manifest: uiRoutesManifest as unknown as PluginManifest, order: 59 },
   { module: legacyBootstrap, manifest: legacyBootstrapManifest as unknown as PluginManifest, order: 90 },
 ]
 
