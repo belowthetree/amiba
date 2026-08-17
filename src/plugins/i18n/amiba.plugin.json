@@ -1,0 +1,10 @@
+{
+  "apiVersion": 1,
+  "id": "i18n",
+  "kind": "plugin",
+  "entry": "index.ts",
+  "inject": ["settings"],
+  "provides": {
+    "services": ["i18n"]
+  }
+}

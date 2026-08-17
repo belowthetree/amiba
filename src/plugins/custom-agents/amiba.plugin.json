@@ -1,0 +1,10 @@
+{
+  "apiVersion": 1,
+  "id": "custom-agents",
+  "kind": "plugin",
+  "entry": "index.ts",
+  "inject": ["storage", "settings"],
+  "provides": {
+    "services": ["customAgents"]
+  }
+}

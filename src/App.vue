@@ -6,6 +6,10 @@
     <!-- 玻璃辉光背景 -->
     <GlassBackground />
 
+      <!-- 全局插件 Slot（无注册项时为空） -->
+      <GlobalSlotHost />
+
+
     <!-- 边缘翻页提示 -->
     <EdgeNavHint />
 
@@ -76,6 +80,7 @@ import { useRoute, useRouter } from 'vue-router'
 import FloatingWidgetContainer from './host/floating-widget-container.vue'
 import WebviewOverlay from './components/WebviewOverlay.vue'
 import GlassBackground from './components/GlassBackground.vue'
+import GlobalSlotHost from './plugins/ui-shell/GlobalSlotHost.vue'
 import EdgeNavHint from './components/EdgeNavHint.vue'
 import QuickFab from './components/QuickFab.vue'
 import ApiSetupOverlay from './components/ApiSetupOverlay.vue'

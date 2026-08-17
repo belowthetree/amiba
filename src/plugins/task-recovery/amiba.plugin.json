@@ -1,0 +1,10 @@
+{
+  "apiVersion": 1,
+  "id": "task-recovery",
+  "kind": "plugin",
+  "entry": "index.ts",
+  "inject": ["session", "memory"],
+  "provides": {
+    "services": ["taskRecovery"]
+  }
+}

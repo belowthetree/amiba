@@ -1,4 +1,4 @@
-# P2 — 服务插件化（进行中）
+# P2 — 服务插件化（已完成）
 
 > 对应路线：`docs/plugin/plugin-migration-roadmap.md` 的 P2。
 > 策略：每步拆 1–2 个服务插件，保持 `legacy-bootstrap` 可运行；全部步骤完成后再进入 P3 UI Slot 化。
@@ -13,8 +13,8 @@
 | 4 | 拆出 `@amiba/session` 与 `@amiba/memory` | ✅ 已验证 |
 | 5 | 拆出 `@amiba/skills` 技能群 | ✅ 已验证 |
 | 6 | 拆出 `@amiba/service-runtime`（registry / bridge / service-tools） | ✅ 已验证 |
-| 7 | 拆出网络 / Widget / 后台服务插件 | 🔄 待验证 |
-| 8 | `legacy-bootstrap` 瘦身为“仅挂载 + 生命周期” | ⬜ |
+| 7 | 拆出网络 / Widget / 后台服务插件 | ✅ 已验证 |
+| 8 | `legacy-bootstrap` 瘦身为“仅挂载 + 生命周期” | ✅ 已验证 |
 
 ## 第 1 步目标
 

@@ -1,27 +1,19 @@
 // ============================================================
 // @amiba/legacy-bootstrap — 兼容期启动编排插件
 // ============================================================
-// P1 第 5 步的“临时官方大插件包”：
-// 把原 main.ts 的全部初始化逻辑原样搬入 apply()，
-// 通过内核服务取得 uiShell / router / lifecycle 后挂载 Vue。
-// 默认装配结果与改造前一致；后续 P2/P3 再逐项拆出。
+// P2 第 8 步：不再 import 任何业务模块，只按原顺序调用各服务，
+// 然后挂载 uiShell 并注册 App 生命周期。
 // ============================================================
 
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import type { Router } from 'vue-router'
 import type { AmibaContext } from '../../kernel'
-import { i18n, syncI18nWithSettings } from '../../i18n'
-import { initLogger } from '../../config/logger'
-import { soulManager } from '../../ai/soul'
-import { initCustomAgentStore } from '../../ai/custom-agent-store'
-import { initThemeStore, installPrebuiltThemes } from '../../config/theme-store'
-import { initCustomViewStore } from '../../config/custom-view-store'
-import { onAppBackground, checkRecoveryNeeded } from '../../ai/task-recovery'
 import type { AmibaUIShellService } from '../ui-shell'
 import type { AmibaLifecycleService } from '../platform'
 import type { AmibaStorageService } from '../storage'
 import type { AmibaSettingsService } from '../settings'
+import type { AmibaFileLoggerService } from '../file-logger'
 import type { AmibaToolRegistryService } from '../tool-registry'
 import type { AmibaToolsetsService } from '../toolsets'
 import type { AmibaModelProvidersService } from '../model-providers'
@@ -29,17 +21,24 @@ import type { AmibaCredentialsService } from '../credentials'
 import type { AmibaSessionService } from '../session'
 import type { AmibaMemoryService } from '../memory'
 import type { AmibaSkillsService } from '../skills'
+import type { AmibaCustomAgentsService } from '../custom-agents'
 import type { AmibaServiceRuntimeService } from '../service-runtime'
 import type { AmibaNetworkService } from '../network'
 import type { AmibaWidgetsService } from '../widgets'
+import type { AmibaThemeService } from '../theme'
+import type { AmibaCustomViewService } from '../custom-view'
+import type { AmibaSoulService } from '../soul'
+import type { AmibaI18nService } from '../i18n'
+import type { AmibaTaskRecoveryService } from '../task-recovery'
 
 export const name = '@amiba/legacy-bootstrap'
-export const inject = ['storage', 'settings', 'toolRegistry', 'toolsets', 'modelProviders', 'credentials', 'uiShell', 'router', 'session', 'memory', 'skills', 'serviceRuntime', 'network', 'widgets', 'lifecycle']
+export const inject = ['storage', 'settings', 'fileLogger', 'toolRegistry', 'toolsets', 'modelProviders', 'credentials', 'uiShell', 'router', 'session', 'memory', 'skills', 'customAgents', 'serviceRuntime', 'network', 'widgets', 'theme', 'customView', 'soul', 'i18n', 'taskRecovery', 'lifecycle']
 export const provides: string[] = []
 
 export async function apply(ctx: AmibaContext): Promise<void> {
   const storage = ctx.get<AmibaStorageService>('storage')
   const settings = ctx.get<AmibaSettingsService>('settings')
+  const fileLogger = ctx.get<AmibaFileLoggerService>('fileLogger')
   const tools = ctx.get<AmibaToolRegistryService>('toolRegistry')
   const toolsetService = ctx.get<AmibaToolsetsService>('toolsets')
   const providers = ctx.get<AmibaModelProvidersService>('modelProviders')
@@ -47,14 +46,20 @@ export async function apply(ctx: AmibaContext): Promise<void> {
   const session = ctx.get<AmibaSessionService>('session')
   const memory = ctx.get<AmibaMemoryService>('memory')
   const skills = ctx.get<AmibaSkillsService>('skills')
+  const customAgents = ctx.get<AmibaCustomAgentsService>('customAgents')
   const runtime = ctx.get<AmibaServiceRuntimeService>('serviceRuntime')
   const network = ctx.get<AmibaNetworkService>('network')
   const widgets = ctx.get<AmibaWidgetsService>('widgets')
-  if (!storage || !settings || !tools || !toolsetService || !providers || !credentials || !session || !memory || !skills || !runtime || !network || !widgets) {
-    throw new Error('[legacy-bootstrap] 缺少 storage / settings / toolRegistry / toolsets / modelProviders / credentials / session / memory / skills / serviceRuntime / network / widgets 服务，无法初始化')
+  const theme = ctx.get<AmibaThemeService>('theme')
+  const customView = ctx.get<AmibaCustomViewService>('customView')
+  const soul = ctx.get<AmibaSoulService>('soul')
+  const i18n = ctx.get<AmibaI18nService>('i18n')
+  const taskRecovery = ctx.get<AmibaTaskRecoveryService>('taskRecovery')
+  if (!storage || !settings || !fileLogger || !tools || !toolsetService || !providers || !credentials || !session || !memory || !skills || !customAgents || !runtime || !network || !widgets || !theme || !customView || !soul || !i18n || !taskRecovery) {
+    throw new Error('[legacy-bootstrap] 缺少基础服务，无法初始化')
   }
   // storage / settings / modelProviders 已由各自插件在 apply() 中完成初始化；
-  // toolsets / credentials / session 服务本阶段仅注册，供后续模块经 ctx 消费。
+  // 其余服务仅注册，初始化仍按下方顺序显式调用。
   void storage
   void toolsetService
   void providers
@@ -62,22 +67,22 @@ export async function apply(ctx: AmibaContext): Promise<void> {
   void session
 
   // 尽早拦截 console 写入日志文件
-  initLogger(settings.state)
+  fileLogger.init(settings.state)
 
   await Promise.all([
     runtime.registry.initRegistry(),
     memory.init(),
     skills.user.loadUserSkills(),
-    initCustomAgentStore(),
+    customAgents.initCustomAgentStore(),
   ])
   // 主题系统初始化（加载后立即生效，不影响其他模块）
   // 非 Tauri 环境静默跳过（初始化为空）
-  await initThemeStore()
+  await theme.initThemeStore()
   // 安装预置主题（从 public/themes/ 复制到 AppData，首次运行或缺失时执行）
-  const prebuiltThemeCount = await installPrebuiltThemes()
+  const prebuiltThemeCount = await theme.installPrebuiltThemes()
   if (prebuiltThemeCount > 0) console.log(`[Bootstrap] 安装了 ${prebuiltThemeCount} 个预置主题`)
   // 自定义视图存储初始化
-  await initCustomViewStore()
+  await customView.initCustomViewStore()
   // 网络互联桥初始化（非 Tauri 环境静默跳过）
   network.bridge.initNetworkBridge()
 
@@ -100,7 +105,7 @@ export async function apply(ctx: AmibaContext): Promise<void> {
   tools.discover()
 
   // 人格系统初始化（不自动创建 default.md，留给首次引导）
-  await soulManager.init()
+  await soul.init()
 
   // Curator 后台检查（启动时自动判断是否需要运行）
   // 从 settings 读取 curator 配置
@@ -122,7 +127,7 @@ export async function apply(ctx: AmibaContext): Promise<void> {
   })
 
   // 同步 settings.language → i18n locale
-  syncI18nWithSettings()
+  i18n.sync()
 
   const shell = ctx.get<AmibaUIShellService>('uiShell')
   const router = ctx.get<Router>('router')
@@ -135,7 +140,7 @@ export async function apply(ctx: AmibaContext): Promise<void> {
     const app = createApp(shell.component)
     const pinia = createPinia()
 
-    app.use(i18n)
+    app.use(i18n.instance)
     app.use(pinia)
     app.use(router)
 
@@ -146,10 +151,10 @@ export async function apply(ctx: AmibaContext): Promise<void> {
   // 注册 App 生命周期监听（后台保存中断快照）
   console.log('[Bootstrap] 注册 App 生命周期监听')
   ctx.effect(() => lifecycle.init({
-    onBackground: () => onAppBackground(),
+    onBackground: () => taskRecovery.onBackground(),
     onForeground: async () => {
       try {
-        await checkRecoveryNeeded()
+        await taskRecovery.checkRecoveryNeeded()
       } catch (e) {
         console.error('[Bootstrap] onForeground 恢复检查失败:', e)
       }

@@ -1,0 +1,10 @@
+{
+  "apiVersion": 1,
+  "id": "file-logger",
+  "kind": "plugin",
+  "entry": "index.ts",
+  "inject": [],
+  "provides": {
+    "services": ["fileLogger"]
+  }
+}
