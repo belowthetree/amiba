@@ -1,4 +1,4 @@
-# P3 — 界面 Slot 化（进行中）
+# P3 — 界面 Slot 化（已完成）
 
 > 对应路线：`docs/plugin/plugin-migration-roadmap.md` 的 P3。
 > 原则：先建类型化 Slot 注册表，再逐页替换宿主；现有 HTML Slot 保持兼容。
@@ -13,7 +13,7 @@
 | 4 | 聊天页 `chat.above-messages` / `chat.below-input` 宿主化 | ✅ 已验证 |
 | 5 | 服务列表 `services.above-list` 宿主化 | ✅ 已验证 |
 | 6 | 页面注册表 + 动态路由（pageRegistry） | ✅ 已验证 |
-| 7 | 官方页面迁为页面插件，清理 App/router 硬编码 | 🔄 待验证 |
+| 7 | 官方页面迁为页面插件，清理 App/router 硬编码 | ✅ 已验证 |
 
 ## 第 1 步目标
 

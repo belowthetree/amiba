@@ -33,6 +33,7 @@ import * as uiRoutes from './ui-routes'
 import * as uiShell from './ui-shell'
 import * as uiDiagnostics from './ui-diagnostics'
 import * as legacyBootstrap from './legacy-bootstrap'
+import { userPluginDefinitions } from './user-registry.generated'
 import platformManifest from './platform/amiba.plugin.json'
 import storageManifest from './storage/amiba.plugin.json'
 import settingsManifest from './settings/amiba.plugin.json'
@@ -97,9 +98,9 @@ const BUILTIN_PLUGINS: BuiltinPluginRegistration[] = [
   { module: legacyBootstrap, manifest: legacyBootstrapManifest as unknown as PluginManifest, order: 90 },
 ]
 
-/** 生成 base 装配层的插件定义。 */
+/** 生成 base + 本地插件的完整装配定义。 */
 export function builtinPluginDefinitions(): PluginDefinition[] {
-  return BUILTIN_PLUGINS.map((registration) => ({
+  const builtins = BUILTIN_PLUGINS.map((registration) => ({
     instanceId: registration.manifest.id,
     pluginId: registration.manifest.id,
     name: registration.module.name,
@@ -109,4 +110,5 @@ export function builtinPluginDefinitions(): PluginDefinition[] {
     config: { ...(registration.manifest.config?.defaults ?? {}) },
     order: registration.order,
   }))
+  return [...builtins, ...userPluginDefinitions]
 }

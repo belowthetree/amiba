@@ -15,7 +15,8 @@
 | [p0/README.md](p0/README.md) | **P0 执行区**：模块/接口/耦合盘点、基线计划、关键 ADR |
 | [p1/README.md](p1/README.md) | **P1 执行区**：内核抽出步骤与进度（已完成） |
 | [p2/README.md](p2/README.md) | **P2 执行区**：服务插件化步骤与进度（已完成） |
-| [p3/README.md](p3/README.md) | **P3 执行区**：UI Slot 化步骤与进度（进行中） |
+| [p3/README.md](p3/README.md) | **P3 执行区**：UI Slot 化步骤与进度（已完成） |
+| [p4/README.md](p4/README.md) | **P4 执行区**：插件 SDK / CLI / 脚手架（进行中） |
 
 ## P0 重要修正（已生效）
 

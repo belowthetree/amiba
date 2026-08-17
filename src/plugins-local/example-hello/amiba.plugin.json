@@ -1,0 +1,15 @@
+{
+  "apiVersion": 1,
+  "id": "example-hello",
+  "kind": "plugin",
+  "entry": "src/index.ts",
+  "inject": ["pageRegistry", "uiSlots", "toolRegistry"],
+  "provides": {
+    "tools": ["hello"],
+    "pages": ["hello"],
+    "slots": ["ui.slot.settings.section", "ui.slot.chat.below-input"]
+  },
+  "permissions": {
+    "allow": []
+  }
+}

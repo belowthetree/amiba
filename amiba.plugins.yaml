@@ -1,0 +1,3 @@
+# Amiba 本地插件装配清单（开发期）。
+# 使用 scripts/amiba-plugin.mjs 管理；或手动编辑后运行 npm run plugin:sync。
+[]

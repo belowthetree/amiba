@@ -11,7 +11,13 @@
     "harmony:build": "npm run harmony:sync && cd harmony && set \"DEVECO_SDK_HOME=C:\\Program Files\\Huawei\\DevEco Studio\\sdk\" && set \"PATH=C:\\Program Files\\Huawei\\DevEco Studio\\jbr\\bin;%PATH%\" && node node_modules/@ohos/hvigor/bin/hvigor.js --mode module -p product=default assembleHap",
     "harmony:build:app": "npm run harmony:sync && cd harmony && set \"DEVECO_SDK_HOME=C:\\Program Files\\Huawei\\DevEco Studio\\sdk\" && set \"PATH=C:\\Program Files\\Huawei\\DevEco Studio\\jbr\\bin;%PATH%\" && node node_modules/@ohos/hvigor/bin/hvigor.js --mode project -p product=default assembleApp",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "plugin:list": "node scripts/amiba-plugin.mjs list",
+    "plugin:add": "node scripts/amiba-plugin.mjs add",
+    "plugin:remove": "node scripts/amiba-plugin.mjs remove",
+    "plugin:validate": "node scripts/amiba-plugin.mjs validate",
+    "plugin:sync": "node scripts/generate-plugin-registry.mjs",
+    "plugin:create": "node scripts/create-amiba-plugin.mjs"
   },
   "dependencies": {
     "@ai-sdk/deepseek": "^3.0.5",
