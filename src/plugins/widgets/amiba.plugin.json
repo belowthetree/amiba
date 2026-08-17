@@ -1,0 +1,10 @@
+{
+  "apiVersion": 1,
+  "id": "widgets",
+  "kind": "plugin",
+  "entry": "index.ts",
+  "inject": ["storage", "settings", "network", "serviceRuntime"],
+  "provides": {
+    "services": ["widgets"]
+  }
+}

@@ -12,8 +12,8 @@
 | 3 | 拆出 `@amiba/model-providers` 与 `@amiba/credentials` | ✅ 已验证 |
 | 4 | 拆出 `@amiba/session` 与 `@amiba/memory` | ✅ 已验证 |
 | 5 | 拆出 `@amiba/skills` 技能群 | ✅ 已验证 |
-| 6 | 拆出 `@amiba/service-runtime`（registry / bridge / service-tools） | 🔄 待验证 |
-| 7 | 拆出网络 / Widget / 后台服务插件 | ⬜ |
+| 6 | 拆出 `@amiba/service-runtime`（registry / bridge / service-tools） | ✅ 已验证 |
+| 7 | 拆出网络 / Widget / 后台服务插件 | 🔄 待验证 |
 | 8 | `legacy-bootstrap` 瘦身为“仅挂载 + 生命周期” | ⬜ |
 
 ## 第 1 步目标

@@ -15,8 +15,6 @@ import { i18n, syncI18nWithSettings } from '../../i18n'
 import { initLogger } from '../../config/logger'
 import { soulManager } from '../../ai/soul'
 import { initCustomAgentStore } from '../../ai/custom-agent-store'
-import { initNetworkBridge } from '../../host/network-bridge'
-import { initPersistentWidgets } from '../../host/widget-lifecycle'
 import { initThemeStore, installPrebuiltThemes } from '../../config/theme-store'
 import { initCustomViewStore } from '../../config/custom-view-store'
 import { onAppBackground, checkRecoveryNeeded } from '../../ai/task-recovery'
@@ -32,9 +30,11 @@ import type { AmibaSessionService } from '../session'
 import type { AmibaMemoryService } from '../memory'
 import type { AmibaSkillsService } from '../skills'
 import type { AmibaServiceRuntimeService } from '../service-runtime'
+import type { AmibaNetworkService } from '../network'
+import type { AmibaWidgetsService } from '../widgets'
 
 export const name = '@amiba/legacy-bootstrap'
-export const inject = ['storage', 'settings', 'toolRegistry', 'toolsets', 'modelProviders', 'credentials', 'uiShell', 'router', 'session', 'memory', 'skills', 'serviceRuntime', 'lifecycle']
+export const inject = ['storage', 'settings', 'toolRegistry', 'toolsets', 'modelProviders', 'credentials', 'uiShell', 'router', 'session', 'memory', 'skills', 'serviceRuntime', 'network', 'widgets', 'lifecycle']
 export const provides: string[] = []
 
 export async function apply(ctx: AmibaContext): Promise<void> {
@@ -48,8 +48,10 @@ export async function apply(ctx: AmibaContext): Promise<void> {
   const memory = ctx.get<AmibaMemoryService>('memory')
   const skills = ctx.get<AmibaSkillsService>('skills')
   const runtime = ctx.get<AmibaServiceRuntimeService>('serviceRuntime')
-  if (!storage || !settings || !tools || !toolsetService || !providers || !credentials || !session || !memory || !skills || !runtime) {
-    throw new Error('[legacy-bootstrap] 缺少 storage / settings / toolRegistry / toolsets / modelProviders / credentials / session / memory / skills / serviceRuntime 服务，无法初始化')
+  const network = ctx.get<AmibaNetworkService>('network')
+  const widgets = ctx.get<AmibaWidgetsService>('widgets')
+  if (!storage || !settings || !tools || !toolsetService || !providers || !credentials || !session || !memory || !skills || !runtime || !network || !widgets) {
+    throw new Error('[legacy-bootstrap] 缺少 storage / settings / toolRegistry / toolsets / modelProviders / credentials / session / memory / skills / serviceRuntime / network / widgets 服务，无法初始化')
   }
   // storage / settings / modelProviders 已由各自插件在 apply() 中完成初始化；
   // toolsets / credentials / session 服务本阶段仅注册，供后续模块经 ctx 消费。
@@ -77,22 +79,19 @@ export async function apply(ctx: AmibaContext): Promise<void> {
   // 自定义视图存储初始化
   await initCustomViewStore()
   // 网络互联桥初始化（非 Tauri 环境静默跳过）
-  initNetworkBridge()
+  network.bridge.initNetworkBridge()
 
   // 安装预置服务（public/services/，仅首次运行）
   const prebuiltCount = await runtime.registry.installPrebuiltServices()
   if (prebuiltCount > 0) console.log(`[Bootstrap] 安装了 ${prebuiltCount} 个预置服务`)
 
   // 预加载 persistent widget
-  await initPersistentWidgets()
+  await widgets.lifecycle.initPersistentWidgets()
 
   // 安卓桌面卡片：扫描服务卡片定义 → 推送原生缓存 → 启动逻辑 runner
   // 非 Android 平台 runner 照常运行（写 cache），仅推送原生一步跳过
   try {
-    const { initDesktopWidgetStore } = await import('../../config/desktop-widget-store')
-    const { startDesktopWidgetRunner } = await import('../../host/desktop-widget-runner')
-    await initDesktopWidgetStore()
-    await startDesktopWidgetRunner()
+    await widgets.initDesktopWidgets()
   } catch (e) {
     console.warn('[Bootstrap] 桌面卡片初始化失败:', e)
   }

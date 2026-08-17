@@ -17,6 +17,8 @@ import * as session from './session'
 import * as memory from './memory'
 import * as skills from './skills'
 import * as serviceRuntime from './service-runtime'
+import * as network from './network'
+import * as widgets from './widgets'
 import * as uiShell from './ui-shell'
 import * as uiDiagnostics from './ui-diagnostics'
 import * as legacyBootstrap from './legacy-bootstrap'
@@ -31,6 +33,8 @@ import sessionManifest from './session/amiba.plugin.json'
 import memoryManifest from './memory/amiba.plugin.json'
 import skillsManifest from './skills/amiba.plugin.json'
 import serviceRuntimeManifest from './service-runtime/amiba.plugin.json'
+import networkManifest from './network/amiba.plugin.json'
+import widgetsManifest from './widgets/amiba.plugin.json'
 import uiShellManifest from './ui-shell/amiba.plugin.json'
 import uiDiagnosticsManifest from './ui-diagnostics/amiba.plugin.json'
 import legacyBootstrapManifest from './legacy-bootstrap/amiba.plugin.json'
@@ -54,6 +58,8 @@ const BUILTIN_PLUGINS: BuiltinPluginRegistration[] = [
   { module: memory, manifest: memoryManifest as unknown as PluginManifest, order: 43 },
   { module: skills, manifest: skillsManifest as unknown as PluginManifest, order: 45 },
   { module: serviceRuntime, manifest: serviceRuntimeManifest as unknown as PluginManifest, order: 47 },
+  { module: network, manifest: networkManifest as unknown as PluginManifest, order: 48 },
+  { module: widgets, manifest: widgetsManifest as unknown as PluginManifest, order: 49 },
   { module: uiDiagnostics, manifest: uiDiagnosticsManifest as unknown as PluginManifest, order: 50 },
   { module: legacyBootstrap, manifest: legacyBootstrapManifest as unknown as PluginManifest, order: 90 },
 ]
